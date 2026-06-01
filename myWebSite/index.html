@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css" rel="stylesheet">
+    <title>SYNTHWAVE PORTFOLIO</title>
+  </head>
+  <body>
+    <canvas class="webgl"></canvas>
+    <div class="crt-overlay"></div>
+    
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-content">
+        <h1>加载中...</h1>
+        <progress id="loading-progress" class="nes-progress is-success" value="0" max="100"></progress>
+        <p id="loading-text">0%</p>
+      </div>
+    </div>
+    
+    <div class="ui-container">
+      <header class="header-bar">
+        <button id="music-btn" class="music-btn nes-btn is-primary">
+          <span id="music-icon">▶</span>
+        </button>
+        <h1>WELCOME</h1>
+      </header>
+      <div class="button-container">
+        <button id="about-btn" class="nes-btn is-success">关于我</button>
+        <button id="works-btn" class="nes-btn is-success">作品展示</button>
+        <button id="blog-btn" class="nes-btn is-success">Blog</button>
+        <button id="guestbook-btn" class="nes-btn is-success">留言板</button>
+      </div>
+    </div>
+
+    <div id="about-modal" class="modal-overlay hidden">
+      <div class="about-modal-content">
+        <div class="nes-dialog about-dialog">
+          <span class="corner-tl"></span>
+          <span class="corner-tr"></span>
+          <span class="corner-bl"></span>
+          <span class="corner-br"></span>
+          <div class="about-header">
+            <h2>关于我</h2>
+            <button id="close-modal" class="nes-btn is-error close-btn">×</button>
+          </div>
+          <div class="about-body">
+            <div class="profile-avatar-container">
+              <div class="profile-avatar-frame">
+                <img id="profile-avatar" src="https://images.unsplash.com/photo-1561948955-570b270e7c36?w=200&h=200&fit=crop" alt="Profile" class="profile-avatar">
+                <input type="file" id="avatar-upload" accept="image/*" class="avatar-input">
+                <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn">📷 更换头像</button>
+              </div>
+            </div>
+            <div class="about-sections">
+              <div class="about-bio">
+                <h3>个人介绍</h3>
+                <p>
+                  欢迎来到赛博网格！
+                  <br><br>
+                  我是一名数字艺术家和创意开发者，专注于3D视觉化、互动体验以及复古未来主义设计。
+                  <br><br>
+                  凭借对像素艺术、霓虹灯和合成波美学的热爱，我将数字梦境变成现实。
+                </p>
+              </div>
+              <div class="skills-panel">
+                <h3>技能面板</h3>
+                <div id="skills-container" class="skills-container"></div>
+              </div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button id="close-modal-footer" class="nes-btn is-primary">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="gallery-modal" class="modal-overlay hidden">
+      <div class="gallery-modal-content">
+        <div class="nes-dialog gallery-dialog">
+          <span class="corner-tl"></span>
+          <span class="corner-tr"></span>
+          <span class="corner-bl"></span>
+          <span class="corner-br"></span>
+          <div class="gallery-header">
+            <h2>我的作品</h2>
+            <button id="close-gallery" class="nes-btn is-error close-btn">×</button>
+          </div>
+          <div id="project-cards-container" class="project-cards">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="blog-modal" class="modal-overlay hidden">
+      <div class="blog-modal-content">
+        <div class="nes-dialog blog-dialog">
+          <span class="corner-tl"></span>
+          <span class="corner-tr"></span>
+          <span class="corner-bl"></span>
+          <span class="corner-br"></span>
+          <div class="blog-header">
+            <h2>📝 赛博博客</h2>
+            <button id="close-blog" class="nes-btn is-error close-btn">×</button>
+          </div>
+          <div class="blog-body">
+            <div class="blog-sidebar">
+              <h3>📌 文章列表</h3>
+              <div id="blog-list" class="blog-list"></div>
+            </div>
+            <div class="blog-content">
+              <div id="blog-preview" class="blog-preview">
+                <p class="blog-hint">请选择左侧文章进行预览...</p>
+              </div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button id="close-blog-footer" class="nes-btn is-primary">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="guestbook-modal" class="modal-overlay hidden">
+      <div class="guestbook-modal-content">
+        <div class="nes-dialog guestbook-dialog">
+          <span class="corner-tl"></span>
+          <span class="corner-tr"></span>
+          <span class="corner-bl"></span>
+          <span class="corner-br"></span>
+          <div class="guestbook-header">
+            <h2>📜 赛博留言板</h2>
+            <button id="close-guestbook" class="nes-btn is-error close-btn">×</button>
+          </div>
+          <div class="guestbook-body">
+            <div class="guestbook-input">
+              <h3>✍️ 留下你的足迹</h3>
+              <div class="input-row">
+                <input type="text" id="guest-name" class="nes-input" placeholder="昵称（匿名网友）">
+                <input type="text" id="guest-tag" class="nes-input" placeholder="标签（可选）">
+              </div>
+              <textarea id="guest-message" class="nes-textarea" placeholder="写下你的想法..."></textarea>
+              <div class="input-footer">
+                <button id="submit-message" class="nes-btn is-primary">发送留言 🚀</button>
+              </div>
+            </div>
+            <div class="guestbook-list">
+              <h3>💬 历史留言</h3>
+              <div id="guest-messages" class="messages-container"></div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button id="close-guestbook-footer" class="nes-btn is-primary">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="project-modal" class="modal-overlay hidden">
+      <div class="project-modal-content">
+        <div class="nes-dialog project-dialog">
+          <span class="corner-tl"></span>
+          <span class="corner-tr"></span>
+          <span class="corner-bl"></span>
+          <span class="corner-br"></span>
+          <div class="project-header">
+            <h2 id="project-title">作品标题</h2>
+            <button id="close-project" class="nes-btn is-error close-btn">×</button>
+          </div>
+          <div class="project-body">
+            <div class="project-image-container">
+              <img id="project-image" src="" alt="Project Image">
+            </div>
+            <div class="project-info">
+              <p id="project-description" class="project-description"></p>
+              <div id="project-tags" class="project-tags"></div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button id="close-project-btn" class="nes-btn is-primary">返回</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
