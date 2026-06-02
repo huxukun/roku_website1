@@ -1561,3 +1561,44 @@ html, body {
 .now-playing.hidden {
   opacity: 0;
 }
+
+.player-status {
+  position: absolute;
+  top: 180px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: left;
+  font-family: 'Courier New', monospace;
+  color: var(--neon-cyan);
+  font-size: 0.75rem;
+  text-shadow: 0 0 8px var(--neon-cyan);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 12px 20px;
+  border: 2px solid var(--neon-cyan);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+  pointer-events: none;
+  z-index: 50;
+  max-width: 90%;
+  line-height: 2;
+}
+
+.player-status.visible {
+  opacity: 1;
+}
+
+.player-status.hidden {
+  opacity: 0;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status-row span:first-child {
+  color: var(--neon-pink);
+  text-shadow: 0 0 8px var(--neon-pink);
+}

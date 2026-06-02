@@ -217,6 +217,10 @@ export default class UIManager {
     this.songTitleEl = document.getElementById('song-title');
     this.audioFileInput = document.getElementById('audio-file');
     this.playVisualizerBtn = document.getElementById('play-visualizer-btn');
+    this.playerStatusEl = document.getElementById('player-status');
+    this.statusTextEl = document.getElementById('status-text');
+    this.statusSongIndexEl = document.getElementById('status-song-index');
+    this.statusPlaylistEl = document.getElementById('status-playlist');
     console.log('audioFileInput:', !!this.audioFileInput);
     console.log('playVisualizerBtn:', !!this.playVisualizerBtn);
     
@@ -754,6 +758,33 @@ export default class UIManager {
       this.nowPlayingEl.classList.remove('hidden');
       this.nowPlayingEl.classList.add('visible');
     }
+    if (this.playerStatusEl) {
+      this.playerStatusEl.classList.remove('hidden');
+      this.playerStatusEl.classList.add('visible');
+    }
+    this.updatePlayerStatus();
+  }
+
+  // 更新播放器状态显示
+  updatePlayerStatus() {
+    if (this.statusTextEl) {
+      this.statusTextEl.textContent = this.isMusicPlaying ? '播放中' : '暂停';
+    }
+    if (this.statusSongIndexEl) {
+      this.statusSongIndexEl.textContent = `${this.currentSongIndex + 1} / ${this.songs.length}`;
+    }
+    if (this.statusPlaylistEl) {
+      const playlistDisplay = this.playlist.map(i => i + 1).join(', ');
+      this.statusPlaylistEl.textContent = `[${playlistDisplay}]`;
+    }
+  }
+
+  // 更新状态文本
+  updateStatusText(text) {
+    if (this.statusTextEl) {
+      this.statusTextEl.textContent = text;
+    }
+    console.log('状态:', text);
   }
 
   // 隐藏正在播放
@@ -780,13 +811,19 @@ export default class UIManager {
 
   // 获取下一首歌曲索引（确保5轮内不重复）
   getNextSongIndex() {
+    console.log('getNextSongIndex called');
+    console.log('Current playlist:', this.playlist);
+    
     // 如果播放队列为空，重新初始化
     if (this.playlist.length === 0) {
+      console.log('Playlist is empty, reinitializing...');
       this.initPlaylist();
+      console.log('New playlist:', this.playlist);
     }
     
     // 从队列中取出一首
     const songIndex = this.playlist.shift();
+    console.log('Selected song index:', songIndex);
     
     // 记录最近播放的歌曲（最多保留4首）
     this.lastPlayedSongs.push(songIndex);
@@ -827,12 +864,31 @@ export default class UIManager {
   // 播放当前歌曲
   playCurrentSong() {
     const currentSong = this.songs[this.currentSongIndex];
+    console.log('playCurrentSong called, song:', currentSong);
+    
+    this.updatePlayerStatus();
+    
+    // 检查 URL 是否为空
+    if (!currentSong.url || currentSong.url.trim() === '') {
+      this.updateStatusText('请上传音乐文件');
+      this.showNowPlaying(currentSong.title + ' - 请点击"上传音乐"');
+      console.warn('URL 为空，建议用户上传文件');
+      return;
+    }
+    
+    this.updateStatusText('加载中...');
+    
+    // 清理 URL 中的多余引号
+    const cleanUrl = currentSong.url.replace(/['"]/g, '');
+    console.log('使用清理后的 URL:', cleanUrl);
     
     if (window.musicVisualizer) {
-      window.musicVisualizer.loadAudio(currentSong.url).then(() => {
+      console.log('Using musicVisualizer to play');
+      window.musicVisualizer.loadAudio(cleanUrl).then(() => {
         window.musicVisualizer.play();
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
+        this.updateStatusText('播放中');
         if (this.musicIcon) {
           this.musicIcon.textContent = '⏸';
         }
@@ -845,14 +901,17 @@ export default class UIManager {
         }
       }).catch(error => {
         console.error('播放失败:', error);
-        setTimeout(() => this.playRandomNextSong(), 500);
+        this.updateStatusText('加载失败，请上传本地音乐');
+        this.showNowPlaying(currentSong.title + ' - 加载失败');
       });
     } else {
-      this.audio.src = currentSong.url;
+      console.log('Using fallback audio player');
+      this.audio.src = cleanUrl;
       
       this.audio.play().then(() => {
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
+        this.updateStatusText('播放中');
         if (this.musicIcon) {
           this.musicIcon.textContent = '⏸';
         }
@@ -865,7 +924,8 @@ export default class UIManager {
         }
       }).catch(error => {
         console.error('播放失败:', error);
-        setTimeout(() => this.playRandomNextSong(), 500);
+        this.updateStatusText('加载失败，请上传本地音乐');
+        this.showNowPlaying(currentSong.title + ' - 加载失败');
       });
     }
   }
@@ -945,18 +1005,26 @@ export default class UIManager {
 
   handleNextSong() {
     try {
+      console.log('handleNextSong called');
+      console.log('Songs count:', this.songs.length);
+      console.log('Current song index:', this.currentSongIndex);
+      console.log('Playlist length:', this.playlist.length);
+      
       if (!this.isAudioInitialized) {
+        console.log('Initializing audio player...');
         this.initAudioPlayer();
       }
+      
+      if (this.songs.length === 0) {
+        console.error('No songs available!');
+        return;
+      }
+      
+      console.log('Playing next song...');
       this.playRandomNextSong();
     } catch (error) {
       console.error('Error handling next song:', error);
     }
-  }
-  
-  playRandomNextSong() {
-    this.currentSongIndex = this.getNextSongIndex();
-    this.playCurrentSong();
   }
 
   handleAudioFileSelect(event) {

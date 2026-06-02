@@ -50,16 +50,15 @@ export default class MusicVisualizer {
 
   getNeonColor(index, total) {
     const t = index / total
-    const color1 = new THREE.Color(0x00008B)
-    const color2 = new THREE.Color(0xFF00FF)
-    const color3 = new THREE.Color(0x00FFFF)
+    // 霓虹蓝色渐变：从深蓝到青色
+    const color1 = new THREE.Color(0x0000FF) // 深蓝
+    const color2 = new THREE.Color(0x00FFFF)  // 青色
+    const color3 = new THREE.Color(0x00BFFF)  // 亮青色
     
-    if (t < 0.33) {
-      return color1.clone().lerp(color2, t / 0.33)
-    } else if (t < 0.66) {
-      return color2.clone().lerp(color3, (t - 0.33) / 0.33)
+    if (t < 0.5) {
+      return color1.clone().lerp(color2, t / 0.5)
     } else {
-      return color3.clone().lerp(color2, (t - 0.66) / 0.34)
+      return color2.clone().lerp(color3, (t - 0.5) / 0.5)
     }
   }
 
@@ -85,8 +84,13 @@ export default class MusicVisualizer {
       this.audioElement.loop = true
       this.audioElement.volume = 0.5
       
-      this.audioElement.addEventListener('canplaythrough', () => {
+      // 使用 canplay 而不是 canplaythrough，可以更快开始播放
+      this.audioElement.addEventListener('canplay', () => {
         try {
+          if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume()
+          }
+          
           if (this.source) this.source.disconnect()
           this.source = this.audioContext.createMediaElementSource(this.audioElement)
           this.source.connect(this.analyser)
@@ -95,9 +99,13 @@ export default class MusicVisualizer {
         } catch (error) {
           reject(error)
         }
-      })
+      }, { once: true })
       
-      this.audioElement.addEventListener('error', reject)
+      this.audioElement.addEventListener('error', (e) => {
+        console.error('Audio load error:', e)
+        reject(new Error('Failed to load audio'))
+      }, { once: true })
+      
       this.audioElement.load()
     })
   }
@@ -180,11 +188,18 @@ export default class MusicVisualizer {
         const normalizedValue = value / 255
         
         const ratio = i / barCount
+        
+        // 全部频率都响应，但低音区幅度更大
         let boost = 1
-        if (ratio < 0.25) boost = 2.5
-        else if (ratio < 0.5) boost = 1.5
-        else if (ratio < 0.75) boost = 1.0
-        else boost = 0.6
+        if (ratio < 0.25) {
+          boost = 4.0  // 低音区幅度最大
+        } else if (ratio < 0.5) {
+          boost = 2.5  // 中低频幅度适中
+        } else if (ratio < 0.75) {
+          boost = 1.5  // 中高频正常响应
+        } else {
+          boost = 1.2  // 高频也有响应
+        }
         
         const scale = normalizedValue * boost
         const bar = this.bars[i]
@@ -192,30 +207,37 @@ export default class MusicVisualizer {
         bar.mesh.scale.y = scale
         bar.mesh.position.y = -6 + scale * 0.5
         
-        const intensity = 0.3 + normalizedValue * 0.7
+        // 保持霓虹蓝色的辉光效果
+        const intensity = 0.5 + normalizedValue * 0.5
         bar.mesh.material.emissiveIntensity = intensity
-        bar.mesh.material.opacity = 0.7 + normalizedValue * 0.3
+        bar.mesh.material.opacity = 0.8 + normalizedValue * 0.2
         
-        const hue = (i / barCount + time * 0.05) % 1
+        // 霓虹蓝色渐变
+        const hue = 0.5 + (i / barCount) * 0.15  // 在蓝-青范围内变化
+        const saturation = 1.0
+        const lightness = 0.4 + normalizedValue * 0.2
         const color = new THREE.Color()
-        color.setHSL(hue, 0.8 + normalizedValue * 0.2, 0.5 + normalizedValue * 0.15)
+        color.setHSL(hue, saturation, lightness)
         bar.mesh.material.color.copy(color)
         bar.mesh.material.emissive.copy(color)
       }
     } else {
       for (let i = 0; i < this.bars.length; i++) {
         const bar = this.bars[i]
-        const idleScale = 0.15 + Math.sin(time * 0.003 + i * 0.2) * 0.05
+        
+        // 全部轻微波动
+        const idleScale = 0.1 + Math.sin(time * 0.002 + i * 0.1) * 0.05
         
         bar.mesh.scale.y = idleScale
         bar.mesh.position.y = -6 + idleScale * 0.5
         
-        bar.mesh.material.emissiveIntensity = 0.3 + idleScale * 0.3
-        bar.mesh.material.opacity = 0.75
+        bar.mesh.material.emissiveIntensity = 0.4 + idleScale * 0.3
+        bar.mesh.material.opacity = 0.8
         
-        const hue = (i / this.bars.length + time * 0.02) % 1
+        // 霓虹蓝色
+        const hue = 0.5 + (i / this.bars.length) * 0.15
         const color = new THREE.Color()
-        color.setHSL(hue, 0.8, 0.5)
+        color.setHSL(hue, 1.0, 0.4)
         bar.mesh.material.color.copy(color)
         bar.mesh.material.emissive.copy(color)
       }
