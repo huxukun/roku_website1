@@ -1240,7 +1240,7 @@ html, body {
   border-top: 2px solid var(--neon-cyan);
 }
 
-/* 竖屏模式下的响应式布局和竖向文字 */
+/* 竖屏模式下的响应式布局 */
 @media (max-aspect-ratio: 1/1) {
   .blog-body {
     flex-direction: column;
@@ -1258,13 +1258,19 @@ html, body {
     min-width: 100%;
   }
 
-  /* 为中文内容添加竖向文字支持 */
   .blog-markdown {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    max-height: 45vh;
-    overflow-x: auto;
-    overflow-y: hidden;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  /* 竖屏模式下的对话框优化 */
+  .nes-dialog {
+    max-width: 92vw !important;
+    margin: 0 1rem !important;
+  }
+
+  .modal-content {
+    width: 100%;
   }
 }
 
