@@ -262,7 +262,8 @@ html, body {
 
 .blog-btn-floating {
   position: fixed;
-  left: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 2rem;
   z-index: 50;
   font-size: 1.8rem !important;
@@ -313,7 +314,8 @@ html, body {
   }
   
   .blog-btn-floating {
-    left: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
     bottom: 1rem;
     font-size: 1.2rem !important;
     padding: 1rem 1.8rem !important;
