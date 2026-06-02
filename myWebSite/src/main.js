@@ -41,13 +41,13 @@ let composer
 const renderScene = new RenderPass(scene.instance, camera.instance)
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(sizes.width, sizes.height),
-  0.8,
-  0.3,
-  0.1
+  1.2,
+  0.5,
+  0.05
 )
-bloomPass.threshold = 0.7
-bloomPass.strength = 0.6
-bloomPass.radius = 0.3
+bloomPass.threshold = 0.2
+bloomPass.strength = 0.7
+bloomPass.radius = 0.6
 
 composer = new EffectComposer(renderer.instance)
 composer.addPass(renderScene)
@@ -142,6 +142,7 @@ const tick = (time) => {
   gridFloor.update(delta)
   sun.update()
   electronicDust.update(time)
+  electronicDust.setMouse(mouse.x, mouse.y)
   leftMountain.update(time)
   rightMountain.update(time)
   virtualAvatar.update(time)

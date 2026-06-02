@@ -11,11 +11,13 @@ export default class WireframeMountain {
     this.strips = []
     this.stripDepth = 70
     
-    this.startZ = 180
-    this.endZ = -100
+    this.startZ = 280
+    this.endZ = -150
     this.speed = 8
     
     this.baseHeight = 8
+    this.bpm = 90
+    this.heartPhase = 0
 
     this.colorPhase = 0 // 用于RGB颜色变化
     this.isColorChanging = false // 是否启用颜色变化
@@ -76,14 +78,15 @@ export default class WireframeMountain {
     const n2 = Math.sin(x * 0.2 + z * 0.12 + 1.3) * 0.28
     const n3 = Math.sin(x * 0.4 + z * 0.24 + 2.7) * 0.18
     const n4 = Math.sin(x * 0.8 + z * 0.48 + 0.5) * 0.09
+    const n5 = Math.sin(x * 1.6 + z * 0.96 + 3.5) * 0.05
     
-    return (n1 + n2 + n3 + n4) / 1.0
+    return (n1 + n2 + n3 + n4 + n5) / 1.05
   }
 
   getHeightAtZ(worldZ) {
-    const baseHeight = this.noise2D(0, worldZ * 0.12) * 22
-    const detailHeight = this.noise2D(0, worldZ * 0.25 + 3.0) * 10
-    const fineHeight = this.noise2D(0, worldZ * 0.5 + 6.0) * 5
+    const baseHeight = this.noise2D(0, worldZ * 0.12) * 35
+    const detailHeight = this.noise2D(0, worldZ * 0.25 + 3.0) * 18
+    const fineHeight = this.noise2D(0, worldZ * 0.5 + 6.0) * 10
     
     return baseHeight + detailHeight + fineHeight
   }
@@ -112,9 +115,9 @@ export default class WireframeMountain {
       heightFactor = Math.max(fadeOut, 0)
     }
     
-    const baseHeight = this.noise2D(adjustedX * 0.25, worldZ * 0.12) * 22
-    const detailHeight = this.noise2D(adjustedX * 0.5, worldZ * 0.25 + 3.0) * 10
-    const fineHeight = this.noise2D(adjustedX * 1.0, worldZ * 0.5 + 6.0) * 5
+    const baseHeight = this.noise2D(adjustedX * 0.25, worldZ * 0.12) * 35
+    const detailHeight = this.noise2D(adjustedX * 0.5, worldZ * 0.25 + 3.0) * 18
+    const fineHeight = this.noise2D(adjustedX * 1.0, worldZ * 0.5 + 6.0) * 10
     
     const totalHeight = (baseHeight + detailHeight + fineHeight) * heightFactor
     
@@ -175,6 +178,13 @@ export default class WireframeMountain {
   update(time) {
     const delta = 0.016
     
+    // BPM 90心跳闪烁效果
+    const bpmFrequency = this.bpm / 60 // 转换为Hz
+    this.heartPhase += delta * bpmFrequency * Math.PI * 2
+    
+    const heartbeat = Math.pow(Math.sin(this.heartPhase), 8)
+    const heartbeatPulse = heartbeat * 0.5 + 0.5 // 归一化到0-1
+    
     // RGB颜色变化效果
     if (this.isColorChanging) {
       this.colorPhase += delta * 2
@@ -200,7 +210,9 @@ export default class WireframeMountain {
 
       const progress = (strip.position.z - this.endZ) / (this.startZ - this.endZ)
       const normalizedDist = Math.max(0, Math.min(progress, 1))
-      strip.material.opacity = 0.1 + normalizedDist * 0.85
+      const baseOpacity = 0.1 + normalizedDist * 0.85
+      const flickerOpacity = baseOpacity * (1 + heartbeatPulse * 0.4)
+      strip.material.opacity = Math.min(flickerOpacity, 1.0)
     }
 
     const floatAmplitude = 0.08

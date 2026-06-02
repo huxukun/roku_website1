@@ -692,10 +692,37 @@ export default class UIManager {
   toggleMusic() {
     try {
       if (!this.audio) {
-        // 使用一个免费的合成器浪潮音乐
-        this.audio = new Audio('https://cdn.pixabay.com/download/audio/2022/10/05/audio_c30a0b5a88.mp3');
+        // 音乐源列表（按优先级排列）
+        const musicSources = [
+          'http://music.163.com/song/media/outer/url?id=1470149634.mp3', // 网易云
+          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',  // 备用源1
+          'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3' // 备用源2
+        ];
+        
+        this.audio = new Audio();
         this.audio.loop = true;
         this.audio.volume = 0.5;
+        
+        // 尝试加载音乐源
+        const tryLoadSource = (index) => {
+          if (index >= musicSources.length) {
+            console.error('所有音乐源都无法加载');
+            alert('无法加载音乐，请检查网络连接。');
+            return;
+          }
+          
+          this.audio.src = musicSources[index];
+          this.audio.load();
+        };
+        
+        // 监听加载错误，尝试下一个源
+        this.audio.addEventListener('error', (e) => {
+          console.warn(`音乐源 ${this.audio.src} 加载失败，尝试下一个...`);
+          tryLoadSource(musicSources.indexOf(this.audio.src) + 1);
+        });
+        
+        // 预加载第一个源
+        tryLoadSource(0);
       }
 
       if (this.isMusicPlaying) {
@@ -713,19 +740,50 @@ export default class UIManager {
           window.setColorChanging(false);
         }
       } else {
-        this.audio.play();
-        this.isMusicPlaying = true;
-        if (this.musicIcon) {
-          this.musicIcon.textContent = '⏸';
-        }
-        if (this.musicBtn) {
-          this.musicBtn.classList.remove('is-primary');
-          this.musicBtn.classList.add('is-success');
-        }
-        // 启动颜色变化
-        if (window.setColorChanging) {
-          window.setColorChanging(true);
-        }
+        this.audio.play().then(() => {
+          this.isMusicPlaying = true;
+          if (this.musicIcon) {
+            this.musicIcon.textContent = '⏸';
+          }
+          if (this.musicBtn) {
+            this.musicBtn.classList.remove('is-primary');
+            this.musicBtn.classList.add('is-success');
+          }
+          // 启动颜色变化
+          if (window.setColorChanging) {
+            window.setColorChanging(true);
+          }
+        }).catch(error => {
+          console.error('播放失败:', error);
+          // 尝试下一个音乐源
+          const currentSrc = this.audio.src;
+          const sources = [
+            'http://music.163.com/song/media/outer/url?id=1470149634.mp3',
+            'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+            'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3'
+          ];
+          const nextIndex = sources.indexOf(currentSrc) + 1;
+          
+          if (nextIndex < sources.length) {
+            console.log('尝试备用音乐源...');
+            this.audio.src = sources[nextIndex];
+            this.audio.play().then(() => {
+              this.isMusicPlaying = true;
+              if (this.musicIcon) this.musicIcon.textContent = '⏸';
+              if (this.musicBtn) {
+                this.musicBtn.classList.remove('is-primary');
+                this.musicBtn.classList.add('is-success');
+              }
+              if (window.setColorChanging) {
+                window.setColorChanging(true);
+              }
+            }).catch(() => {
+              alert('音乐播放失败，请检查网络连接或尝试刷新页面。');
+            });
+          } else {
+            alert('音乐播放失败，可能是因为跨域限制、网络问题或浏览器自动播放策略。请点击音乐按钮尝试播放。');
+          }
+        });
       }
     } catch (error) {
       console.error('Error toggling music:', error);
