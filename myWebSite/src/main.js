@@ -250,11 +250,12 @@ window.setColorChanging = function(enabled) {
 
 // 音乐可视化全局函数
 window.loadMusicFile = function(file) {
-  musicVisualizer.loadLocalAudio(file).then(() => {
-    musicVisualizer.play();
+  return musicVisualizer.loadLocalAudio(file).then(() => {
+    return musicVisualizer.play();
   }).catch(err => {
     console.error('Failed to load music:', err);
     alert('无法加载音乐文件，请尝试其他文件。');
+    throw err;
   });
 };
 

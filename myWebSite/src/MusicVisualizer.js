@@ -122,8 +122,13 @@ export default class MusicVisualizer {
       this.audioElement.loop = true
       this.audioElement.volume = 0.5
       
-      this.audioElement.addEventListener('canplaythrough', () => {
+      this.audioElement.addEventListener('canplay', () => {
         try {
+          // 确保音频上下文是运行状态
+          if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume()
+          }
+          
           if (this.source) this.source.disconnect()
           this.source = this.audioContext.createMediaElementSource(this.audioElement)
           this.source.connect(this.analyser)
@@ -132,24 +137,36 @@ export default class MusicVisualizer {
         } catch (error) {
           reject(error)
         }
-      })
+      }, { once: true })
       
-      this.audioElement.addEventListener('error', reject)
+      this.audioElement.addEventListener('error', (e) => {
+        console.error('Local audio load error:', e)
+        reject(new Error('Failed to load local audio'))
+      }, { once: true })
+      
       this.audioElement.load()
     })
   }
 
   play() {
-    if (this.audioElement) {
-      if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume()
+    return new Promise((resolve, reject) => {
+      if (this.audioElement) {
+        if (this.audioContext.state === 'suspended') {
+          this.audioContext.resume()
+        }
+        
+        this.audioElement.play().then(() => {
+          this.isPlaying = true
+          this.hasAudioData = true
+          resolve()
+        }).catch(e => {
+          console.error('Play error:', e)
+          reject(e)
+        })
+      } else {
+        reject(new Error('No audio element'))
       }
-      
-      this.audioElement.play().then(() => {
-        this.isPlaying = true
-        this.hasAudioData = true
-      }).catch(e => console.error('Play error:', e))
-    }
+    })
   }
 
   pause() {

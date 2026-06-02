@@ -177,13 +177,13 @@ export default class UIManager {
       return result;
     }
     
-    console.warn('No songs from database, using default songs');
+    console.warn('No songs from database, using placeholder songs - please upload local files');
     return [
-      { title: 'Midnight 1980 - Vicious', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Midnight%201980%20-%20Vicious.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9NaWRuaWdodCAxOTgwIC0gVmljaW91cy5tcDMiLCJpYXQiOjE3ODA0MjAxNjAsImV4cCI6MTgxMTk1NjE2MH0.WiP6hLw31X5s3R73qg8R8Z6H4W5m5F8L6J7n5P9L4F6' },
-      { title: 'Dream Chaser - 蓝云木', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/lanyunmu%20-%20Dream%20Chaser.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9sYW55dW5tdSAtIERyZWFtIENoYXNlci5tcDMiLCJpYXQiOjE3ODA0MTYxNDMsImV4cCI6MTgxMTk1MjE0M30.Zwg9oXLC_ipIGKEs-aT0j5kErfFF0hD-u0tteKvCn5E' },
-      { title: 'Nightfall - Timecop1983', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Nightfall%20-%20Timecop1983.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9OaWdodGZhbCBUaW1lY29wMDE4My5tcDMiLCJpYXQiOjE3ODA0MjAxNjAsImV4cCI6MTgxMTk1NjE2MH0.Cg7b2xR8Z5m5F8L6J7n5P9L4F6J7n5P9L4F6J7n5P9L4' },
-      { title: 'Clova - PYLOT', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Clova%20-%20PYLOT.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9Db3ZhIC0gUFlMT1QubXAzIiwiaWF0IjoxNzgwNDIwMTYwLCJleHAiOjE4MTE5NTYxNjB9.jB6n5P9L4F6J7n5P9L4F6J7n5P9L4F6J7n5P9L4F6J7' },
-      { title: 'Milky Way Express - Lupus Nocte', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Milky%20Way%20Express%20-%20Lupus%20Nocte.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9NaWxreSBXYXkgRXhwcmVzcyAtIEx1cHVzIE5vY3RlLm1wMyIsImlhdCI6MTc4MDQyMDE2MCwiZXhwIjoxODExOTU2MTYwfQ.Kl7n5P9L4F6J7n5P9L4F6J7n5P9L4F6J7n5P9L4F6J' }
+      { title: '🎵 请上传音乐文件 1', url: '' },
+      { title: '🎵 请上传音乐文件 2', url: '' },
+      { title: '🎵 请上传音乐文件 3', url: '' },
+      { title: '🎵 请上传音乐文件 4', url: '' },
+      { title: '🎵 请上传音乐文件 5', url: '' }
     ];
   }
 
@@ -221,6 +221,10 @@ export default class UIManager {
     this.statusTextEl = document.getElementById('status-text');
     this.statusSongIndexEl = document.getElementById('status-song-index');
     this.statusPlaylistEl = document.getElementById('status-playlist');
+    this.toggleUiBtn = document.getElementById('toggle-ui-btn');
+    this.toggleUiIcon = document.getElementById('toggle-ui-icon');
+    this.musicUiContainer = document.getElementById('music-ui-container');
+    this.isMusicUiVisible = true; // 默认显示
     console.log('audioFileInput:', !!this.audioFileInput);
     console.log('playVisualizerBtn:', !!this.playVisualizerBtn);
     
@@ -293,6 +297,9 @@ export default class UIManager {
     }
     if (this.nextBtn) {
       this.nextBtn.addEventListener('click', () => this.handleNextSong());
+    }
+    if (this.toggleUiBtn) {
+      this.toggleUiBtn.addEventListener('click', () => this.toggleMusicUI());
     }
     if (this.audioFileInput) {
       this.audioFileInput.addEventListener('change', (e) => this.handleAudioFileSelect(e));
@@ -787,6 +794,35 @@ export default class UIManager {
     console.log('状态:', text);
   }
 
+  // 切换音乐 UI 的显示/隐藏
+  toggleMusicUI() {
+    this.isMusicUiVisible = !this.isMusicUiVisible;
+    
+    if (this.musicUiContainer) {
+      if (this.isMusicUiVisible) {
+        this.musicUiContainer.classList.remove('hidden');
+      } else {
+        this.musicUiContainer.classList.add('hidden');
+      }
+    }
+    
+    if (this.toggleUiIcon) {
+      this.toggleUiIcon.textContent = this.isMusicUiVisible ? '🎛️' : '🔇';
+    }
+    
+    if (this.toggleUiBtn) {
+      if (this.isMusicUiVisible) {
+        this.toggleUiBtn.classList.remove('is-primary');
+        this.toggleUiBtn.classList.add('is-success');
+      } else {
+        this.toggleUiBtn.classList.remove('is-success');
+        this.toggleUiBtn.classList.add('is-primary');
+      }
+    }
+    
+    console.log('音乐 UI 显示状态:', this.isMusicUiVisible ? '显示' : '隐藏');
+  }
+
   // 隐藏正在播放
   hideNowPlaying() {
     if (this.nowPlayingEl) {
@@ -878,8 +914,11 @@ export default class UIManager {
     
     this.updateStatusText('加载中...');
     
-    // 清理 URL 中的多余引号
-    const cleanUrl = currentSong.url.replace(/['"]/g, '');
+    // 清理 URL 中的多余引号和特殊字符
+    let cleanUrl = currentSong.url
+      .replace(/[`'"]/g, '') // 移除反引号、单引号、双引号
+      .trim();
+    console.log('原始 URL:', currentSong.url);
     console.log('使用清理后的 URL:', cleanUrl);
     
     if (window.musicVisualizer) {
@@ -1037,12 +1076,32 @@ export default class UIManager {
         return;
       }
       
+      this.updateStatusText('加载中...');
+      
       if (window.loadMusicFile) {
-        window.loadMusicFile(file);
-        this.showNowPlaying(file.name.replace('.mp3', ''));
+        window.loadMusicFile(file).then(() => {
+          this.showNowPlaying(file.name.replace('.mp3', ''));
+          this.isMusicPlaying = true;
+          this.updateStatusText('播放中');
+          if (this.musicIcon) {
+            this.musicIcon.textContent = '⏸';
+          }
+          if (this.musicBtn) {
+            this.musicBtn.classList.remove('is-primary');
+            this.musicBtn.classList.add('is-success');
+          }
+          if (window.setColorChanging) {
+            window.setColorChanging(true);
+          }
+          this.updatePlayerStatus();
+        }).catch(error => {
+          console.error('播放失败:', error);
+          this.updateStatusText('加载失败');
+        });
       }
     } catch (error) {
       console.error('Error selecting audio file:', error);
+      this.updateStatusText('加载失败');
     }
   }
 
