@@ -8,6 +8,8 @@ export default class MovingGridFloor {
     this.speed = 0.05
     this.gridSize = 200
     this.phase = 0 // 用于节奏闪烁
+    this.colorPhase = 0 // 用于RGB颜色变化
+    this.isColorChanging = false // 是否启用颜色变化
     this.init()
   }
 
@@ -87,6 +89,31 @@ export default class MovingGridFloor {
     // 更新两个网格的透明度来闪烁
     this.grid.material.opacity = 0.4 * flicker + 0.2
     this.grid2.material.opacity = 0.4 * flicker + 0.2
+
+    // RGB颜色变化效果
+    if (this.isColorChanging) {
+      this.colorPhase += delta * 0.002
+      const r = 0.5 + 0.5 * Math.sin(this.colorPhase)
+      const g = 0.5 + 0.5 * Math.sin(this.colorPhase + 2 * Math.PI / 3)
+      const b = 0.5 + 0.5 * Math.sin(this.colorPhase + 4 * Math.PI / 3)
+      
+      const newColor = new THREE.Color(r, g, b)
+      this.grid.material.color = newColor
+      this.grid2.material.color = newColor
+    } else {
+      // 默认颜色：霓虹洋红色
+      this.grid.material.color.setHex(0xFF00FF)
+      this.grid2.material.color.setHex(0xFF00FF)
+    }
+  }
+
+  setColorChanging(enabled) {
+    this.isColorChanging = enabled
+    if (!enabled) {
+      // 恢复默认颜色
+      this.grid.material.color.setHex(0xFF00FF)
+      this.grid2.material.color.setHex(0xFF00FF)
+    }
   }
 
   dispose() {

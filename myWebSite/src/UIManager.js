@@ -708,6 +708,10 @@ export default class UIManager {
           this.musicBtn.classList.remove('is-success');
           this.musicBtn.classList.add('is-primary');
         }
+        // 停止颜色变化
+        if (window.setColorChanging) {
+          window.setColorChanging(false);
+        }
       } else {
         this.audio.play();
         this.isMusicPlaying = true;
@@ -717,6 +721,10 @@ export default class UIManager {
         if (this.musicBtn) {
           this.musicBtn.classList.remove('is-primary');
           this.musicBtn.classList.add('is-success');
+        }
+        // 启动颜色变化
+        if (window.setColorChanging) {
+          window.setColorChanging(true);
         }
       }
     } catch (error) {
