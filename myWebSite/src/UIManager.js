@@ -74,41 +74,95 @@ const blogData = [
   }
 ];
 
-// 留言板数据持久化到 localStorage
-const GUESTBOOK_STORAGE_KEY = 'synthwave-guestbook-messages';
+// Supabase 导入
+import { supabase } from './supabase.js';
 
-// 从 localStorage 加载已保存的留言
-function loadGuestbookMessages() {
+// 留言板数据 - 使用数组存储从 Supabase 加载的数据
+let guestbookMessages = [];
+
+// 从 Supabase 加载留言
+async function loadGuestbookMessages() {
   try {
-    const saved = localStorage.getItem(GUESTBOOK_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
+    const { data, error } = await supabase
+      .from('guestbook_messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading messages from Supabase:', error);
+      return [];
     }
+
+    // 转换为与本地格式兼容的对象
+    return data.map(msg => ({
+      id: msg.id,
+      name: msg.name,
+      tag: msg.tag || '',
+      time: formatDateTime(msg.created_at),
+      text: msg.text
+    }));
   } catch (error) {
-    console.error('Error loading guestbook messages from localStorage:', error);
+    console.error('Error loading guestbook messages:', error);
+    return [];
   }
-  return [];
 }
 
-// 保存留言到 localStorage
-function saveGuestbookMessages(messages) {
+// 格式化日期时间
+function formatDateTime(dateString) {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+// 保存留言到 Supabase
+async function saveGuestbookMessage(message) {
   try {
-    localStorage.setItem(GUESTBOOK_STORAGE_KEY, JSON.stringify(messages));
+    const { data, error } = await supabase
+      .from('guestbook_messages')
+      .insert([
+        {
+          name: message.name,
+          tag: message.tag || null,
+          text: message.text
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving message to Supabase:', error);
+      throw error;
+    }
+
+    // 返回格式化后的消息对象
+    return {
+      id: data.id,
+      name: data.name,
+      tag: data.tag || '',
+      time: formatDateTime(data.created_at),
+      text: data.text
+    };
   } catch (error) {
-    console.error('Error saving guestbook messages to localStorage:', error);
+    console.error('Error saving guestbook message:', error);
+    throw error;
   }
 }
-
-const guestbookMessages = loadGuestbookMessages();
 
 export default class UIManager {
   constructor() {
+    this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
+    this.isLoadingMessages = false;
+
     try {
       this.initElements();
       this.initEventListeners();
       this.createProjectCards();
       this.createBlogList();
-      this.createGuestbookMessages();
+      this.initGuestbook();
       this.loadSavedAvatar();
       console.log('UIManager initialized successfully');
     } catch (error) {
@@ -341,6 +395,28 @@ export default class UIManager {
     }
   }
 
+  // 初始化留言板 - 从 Supabase 加载数据
+  async initGuestbook() {
+    if (!this.isSupabaseConfigured) {
+      console.warn('Supabase is not configured. Guestbook will use local storage fallback.');
+      this.renderMessages(guestbookMessages);
+      return;
+    }
+
+    if (this.isLoadingMessages) return;
+    this.isLoadingMessages = true;
+
+    try {
+      guestbookMessages = await loadGuestbookMessages();
+      this.renderMessages(guestbookMessages);
+    } catch (error) {
+      console.error('Error initializing guestbook:', error);
+      this.renderMessages([]);
+    } finally {
+      this.isLoadingMessages = false;
+    }
+  }
+
   renderBlogPost(post, e) {
     if (!this.blogPreviewContainer) return;
     
@@ -394,7 +470,7 @@ export default class UIManager {
     }
   }
 
-  handleMessageSubmit() {
+  async handleMessageSubmit() {
     try {
       const nameInput = document.getElementById('guest-name');
       const tagInput = document.getElementById('guest-tag');
@@ -409,26 +485,40 @@ export default class UIManager {
         return;
       }
       
-      const now = new Date();
-      const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
       const newMessage = {
-        id: Date.now(),
         name,
         tag,
-        time: timeStr,
         text
       };
       
-      guestbookMessages.unshift(newMessage);
-      saveGuestbookMessages(guestbookMessages); // 保存到 localStorage
-      this.renderMessages(guestbookMessages);
+      if (this.isSupabaseConfigured) {
+        // 使用 Supabase 保存
+        const savedMessage = await saveGuestbookMessage(newMessage);
+        guestbookMessages.unshift(savedMessage);
+        this.renderMessages(guestbookMessages);
+      } else {
+        // 回退到本地存储
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        const localMessage = {
+          id: Date.now(),
+          name,
+          tag,
+          time: timeStr,
+          text
+        };
+        
+        guestbookMessages.unshift(localMessage);
+        this.renderMessages(guestbookMessages);
+      }
       
       if (nameInput) nameInput.value = '';
       if (tagInput) tagInput.value = '';
       if (messageInput) messageInput.value = '';
     } catch (error) {
       console.error('Error submitting message:', error);
+      alert('提交留言失败，请重试！');
     }
   }
 
