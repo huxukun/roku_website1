@@ -20,22 +20,23 @@
       </div>
     </div>
     
-    <!-- 左侧垂直按钮组 - 可以控制显示隐藏 -->
-    <div class="music-controls left-controls hidden">
-      <button id="music-btn" class="control-btn nes-btn is-primary">
-        <span id="music-icon">▶</span>
-      </button>
-      <button id="next-btn" class="control-btn nes-btn is-primary">
-        <span>▶▶</span>
-      </button>
-    </div>
-    
-    <!-- 开关按钮 - 始终显示 -->
-    <div class="toggle-ui-section">
+    <!-- 左侧垂直按钮组 - 开关按钮始终显示，播放控制可隐藏 -->
+    <div class="left-button-group">
+      <!-- 开关按钮 - 始终显示 -->
       <button id="toggle-ui-btn" class="toggle-ui-btn nes-btn is-success">
         <span id="toggle-ui-icon">🎛️</span>
         <span class="notification-dot"></span>
       </button>
+      
+      <!-- 播放控制按钮 - 可以控制显示隐藏 -->
+      <div class="music-controls playback-controls hidden">
+        <button id="music-btn" class="control-btn nes-btn is-primary">
+          <span id="music-icon">▶</span>
+        </button>
+        <button id="next-btn" class="control-btn nes-btn is-primary">
+          <span>▶▶</span>
+        </button>
+      </div>
     </div>
     
     <!-- 右上角上传按钮 - 可以控制显示隐藏 -->

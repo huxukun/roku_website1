@@ -8,19 +8,22 @@ class MusicService {
   }
 
   async fetchSongs() {
+    console.log('MusicService: fetchSongs called');
     try {
-      const { data, error } = await supabase.from('songs').select('*');
+      console.log('MusicService: Querying Supabase for songs...');
+      const { data, error } = await supabase.from('songs').select('*').order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Error fetching songs:', error);
+        console.error('MusicService: Error fetching songs:', error);
         return false;
       }
       
       this.songs = data || [];
-      console.log('Fetched songs:', this.songs.length);
+      console.log('MusicService: Fetched songs:', this.songs.length);
+      console.log('MusicService: Songs data:', this.songs);
       return true;
     } catch (error) {
-      console.error('Exception fetching songs:', error);
+      console.error('MusicService: Exception fetching songs:', error);
       return false;
     }
   }

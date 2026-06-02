@@ -167,17 +167,33 @@ async function saveGuestbookMessageToSupabase(message) {
 
 export default class UIManager {
   loadSongsFromService() {
-    if (window.musicService && window.musicService.getSongsCount() > 0) {
-      const dbSongs = window.musicService.getAllSongs();
-      const result = dbSongs.map(song => ({
-        title: song.title,
-        url: song.file_path
-      }));
-      console.log('Loaded songs from database:', result.length);
-      return result;
+    console.log('UIManager: loadSongsFromService called');
+    console.log('UIManager: window.musicService exists:', !!window.musicService);
+    
+    if (window.musicService) {
+      const songCount = window.musicService.getSongsCount();
+      console.log('UIManager: Songs count from service:', songCount);
+      
+      if (songCount > 0) {
+        const dbSongs = window.musicService.getAllSongs();
+        console.log('UIManager: Raw songs from database:', dbSongs);
+        
+        const result = dbSongs.map(song => ({
+          title: song.title,
+          url: song.file_path
+        }));
+        
+        console.log('UIManager: Processed songs:', result);
+        console.log('UIManager: Loaded songs from database:', result.length);
+        return result;
+      } else {
+        console.warn('UIManager: Music service has no songs');
+      }
+    } else {
+      console.warn('UIManager: window.musicService not available');
     }
     
-    console.warn('No songs from database, using placeholder songs - please upload local files');
+    console.warn('UIManager: No songs from database, using placeholder songs - please upload local files');
     return [
       { title: '🎵 请上传音乐文件 1', url: '' },
       { title: '🎵 请上传音乐文件 2', url: '' },
@@ -876,29 +892,59 @@ export default class UIManager {
     this.playCurrentSong();
   }
 
+  // 验证并清理 URL
+  validateAndCleanUrl(url) {
+    if (!url || url.trim() === '') {
+      return { valid: false, url: '', error: 'URL 为空' };
+    }
+    
+    let cleanUrl = url
+      .replace(/[`'"]/g, '')
+      .trim();
+    
+    try {
+      new URL(cleanUrl);
+    } catch (e) {
+      return { valid: false, url: cleanUrl, error: 'URL 格式无效' };
+    }
+    
+    return { valid: true, url: cleanUrl, error: null };
+  }
+
   // 播放当前歌曲
-  playCurrentSong() {
+  async playCurrentSong() {
     const currentSong = this.songs[this.currentSongIndex];
-    console.log('playCurrentSong called, song:', currentSong);
+    console.log('UIManager: playCurrentSong called, song:', currentSong);
     
     // 检查 URL 是否为空
     if (!currentSong.url || currentSong.url.trim() === '') {
       this.showNowPlaying(currentSong.title + ' - 请点击"上传音乐"');
-      console.warn('URL 为空，建议用户上传文件');
+      console.warn('UIManager: URL 为空，建议用户上传文件');
       return;
     }
     
-    // 清理 URL 中的多余引号和特殊字符
-    let cleanUrl = currentSong.url
-      .replace(/[`'"]/g, '') // 移除反引号、单引号、双引号
-      .trim();
-    console.log('原始 URL:', currentSong.url);
-    console.log('使用清理后的 URL:', cleanUrl);
+    // 验证和清理 URL
+    const urlValidation = this.validateAndCleanUrl(currentSong.url);
+    console.log('UIManager: URL 验证结果:', urlValidation);
     
-    if (window.musicVisualizer) {
-      console.log('Using musicVisualizer to play');
-      window.musicVisualizer.loadAudio(cleanUrl).then(() => {
-        window.musicVisualizer.play();
+    if (!urlValidation.valid) {
+      this.showNowPlaying(`${currentSong.title} - ${urlValidation.error}`);
+      console.error('UIManager: URL 无效:', urlValidation.error);
+      return;
+    }
+    
+    const cleanUrl = urlValidation.url;
+    console.log('UIManager: 原始 URL:', currentSong.url);
+    console.log('UIManager: 使用清理后的 URL:', cleanUrl);
+    
+    try {
+      if (window.musicVisualizer) {
+        console.log('UIManager: Using musicVisualizer to play');
+        this.showNowPlaying(currentSong.title + ' - 加载中...');
+        
+        await window.musicVisualizer.loadAudio(cleanUrl);
+        await window.musicVisualizer.play();
+        
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
         if (this.musicIcon) {
@@ -911,31 +957,40 @@ export default class UIManager {
         if (window.setColorChanging) {
           window.setColorChanging(true);
         }
-      }).catch(error => {
-        console.error('播放失败:', error);
-        this.showNowPlaying(currentSong.title + ' - 加载失败');
-      });
-    } else {
-      console.log('Using fallback audio player');
-      this.audio.src = cleanUrl;
+      } else {
+        console.log('UIManager: Using fallback audio player');
+        if (!this.audio) {
+          this.initAudioPlayer();
+        }
+        
+        this.showNowPlaying(currentSong.title + ' - 加载中...');
+        this.audio.src = cleanUrl;
+        
+        await this.audio.play();
+        
+        this.showNowPlaying(currentSong.title);
+        this.isMusicPlaying = true;
+        if (this.musicIcon) {
+          this.musicIcon.textContent = '⏸';
+        }
+        if (this.musicBtn) {
+          this.musicBtn.classList.remove('is-primary');
+          this.musicBtn.classList.add('is-success');
+        }
+        if (window.setColorChanging) {
+          window.setColorChanging(true);
+        }
+      }
+    } catch (error) {
+      console.error('UIManager: 播放失败:', error);
+      const errorMessage = error.message || '加载失败';
+      this.showNowPlaying(`${currentSong.title} - ${errorMessage}`);
       
-      this.audio.play().then(() => {
-        this.showNowPlaying(currentSong.title);
-        this.isMusicPlaying = true;
-        if (this.musicIcon) {
-          this.musicIcon.textContent = '⏸';
-        }
-        if (this.musicBtn) {
-          this.musicBtn.classList.remove('is-primary');
-          this.musicBtn.classList.add('is-success');
-        }
-        if (window.setColorChanging) {
-          window.setColorChanging(true);
-        }
-      }).catch(error => {
-        console.error('播放失败:', error);
-        this.showNowPlaying(currentSong.title + ' - 加载失败');
-      });
+      // 自动尝试下一首歌曲
+      console.log('UIManager: 自动尝试下一首歌曲');
+      setTimeout(() => {
+        this.playRandomNextSong();
+      }, 2000);
     }
   }
 

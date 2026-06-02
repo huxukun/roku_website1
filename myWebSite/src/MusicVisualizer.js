@@ -78,6 +78,8 @@ export default class MusicVisualizer {
 
   loadAudio(url) {
     return new Promise((resolve, reject) => {
+      console.log('MusicVisualizer: Loading audio from URL:', url)
+      
       if (this.audioElement) {
         this.audioElement.pause()
         this.audioElement = null
@@ -89,10 +91,22 @@ export default class MusicVisualizer {
       this.audioElement.loop = true
       this.audioElement.volume = 0.5
       
-      // 使用 canplay 而不是 canplaythrough，可以更快开始播放
+      // 添加多个事件监听器用于调试
+      this.audioElement.addEventListener('loadstart', () => {
+        console.log('MusicVisualizer: Audio load started')
+      })
+      
+      this.audioElement.addEventListener('progress', (e) => {
+        if (this.isDebugMode) {
+          console.log('MusicVisualizer: Loading progress', e.loaded, e.total)
+        }
+      })
+      
       this.audioElement.addEventListener('canplay', () => {
+        console.log('MusicVisualizer: Audio canplay event fired')
         try {
           if (this.audioContext.state === 'suspended') {
+            console.log('MusicVisualizer: Resuming suspended audio context')
             this.audioContext.resume()
           }
           
@@ -100,17 +114,46 @@ export default class MusicVisualizer {
           this.source = this.audioContext.createMediaElementSource(this.audioElement)
           this.source.connect(this.analyser)
           this.hasAudioData = true
+          console.log('MusicVisualizer: Audio loaded successfully')
           resolve()
         } catch (error) {
+          console.error('MusicVisualizer: Error setting up audio source:', error)
           reject(error)
         }
       }, { once: true })
       
       this.audioElement.addEventListener('error', (e) => {
-        console.error('Audio load error:', e)
-        reject(new Error('Failed to load audio'))
+        console.error('MusicVisualizer: Audio load error - Event:', e)
+        console.error('MusicVisualizer: Audio element error:', this.audioElement.error)
+        
+        let errorMessage = 'Failed to load audio'
+        if (this.audioElement.error) {
+          switch (this.audioElement.error.code) {
+            case 1:
+              errorMessage = '加载被用户中止'
+              break
+            case 2:
+              errorMessage = '网络错误'
+              break
+            case 3:
+              errorMessage = '解码错误'
+              break
+            case 4:
+              errorMessage = 'URL 无效或不可访问'
+              break
+            default:
+              errorMessage = `未知错误 (代码: ${this.audioElement.error.code})`
+          }
+        }
+        console.error('MusicVisualizer:', errorMessage)
+        reject(new Error(errorMessage))
       }, { once: true })
       
+      this.audioElement.addEventListener('stalled', () => {
+        console.warn('MusicVisualizer: Audio loading stalled')
+      })
+      
+      console.log('MusicVisualizer: Starting audio load')
       this.audioElement.load()
     })
   }

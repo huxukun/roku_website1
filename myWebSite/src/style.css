@@ -1571,38 +1571,15 @@ html, body {
 }
 
 /* 左侧垂直按钮组 */
-.left-controls {
-  position: fixed;
-  top: 120px;
-  left: 100px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  z-index: 1000;
-}
-
-.control-btn {
-  width: 70px;
-  height: 70px;
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.control-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 20px var(--neon-cyan);
-}
-
-/* 开关按钮 - 始终显示 */
-.toggle-ui-section {
+.left-button-group {
   position: fixed;
   top: 120px;
   left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
   z-index: 1001;
+  align-items: center;
 }
 
 .toggle-ui-btn {
@@ -1618,6 +1595,29 @@ html, body {
 }
 
 .toggle-ui-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px var(--neon-cyan);
+}
+
+.playback-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.control-btn {
+  width: 70px;
+  height: 70px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 0 20px var(--neon-cyan);
 }
