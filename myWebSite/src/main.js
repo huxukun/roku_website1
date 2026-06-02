@@ -41,13 +41,13 @@ let composer
 const renderScene = new RenderPass(scene.instance, camera.instance)
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(sizes.width, sizes.height),
-  1.5,
-  0.5,
-  0.15
+  0.8,
+  0.3,
+  0.1
 )
-bloomPass.threshold = 0.5
-bloomPass.strength = 1.8
-bloomPass.radius = 0.5
+bloomPass.threshold = 0.7
+bloomPass.strength = 0.6
+bloomPass.radius = 0.3
 
 composer = new EffectComposer(renderer.instance)
 composer.addPass(renderScene)

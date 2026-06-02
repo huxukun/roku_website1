@@ -22,9 +22,9 @@ export default class Scene {
 
     // 垂直渐变：地平线深橙色 → 顶部更深
     const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0)
-    gradient.addColorStop(0, '#1a0800')    // 更深的深橙色（地平线）
-    gradient.addColorStop(0.5, '#0d0520')  // 更深的中间过渡
-    gradient.addColorStop(1, '#030310')    // 非常深的靛蓝色（顶部）
+    gradient.addColorStop(0, '#0d0400')    // 更深的深橙色（地平线）
+    gradient.addColorStop(0.5, '#060310')  // 更深的中间过渡
+    gradient.addColorStop(1, '#010108')    // 非常深的靛蓝色（顶部）
 
     ctx.fillStyle = gradient
     ctx.fillRect(0, 0, canvas.width, canvas.height)

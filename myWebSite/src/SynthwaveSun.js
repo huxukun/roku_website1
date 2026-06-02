@@ -75,10 +75,10 @@ export default class SynthwaveSun {
   }
 
   createLight() {
-    const ambientLight = new THREE.AmbientLight(0xFF9900, 0.4)
+    const ambientLight = new THREE.AmbientLight(0xFF9900, 0.2)
     this.scene.add(ambientLight)
 
-    this.light = new THREE.DirectionalLight(0xFF6600, 0.7)
+    this.light = new THREE.DirectionalLight(0xFF6600, 0.35)
     this.light.position.copy(this.sun.position)
     this.light.target.position.set(0, 0, 0)
     this.scene.add(this.light)
