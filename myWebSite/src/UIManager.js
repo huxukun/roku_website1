@@ -74,7 +74,32 @@ const blogData = [
   }
 ];
 
-const guestbookMessages = [];
+// 留言板数据持久化到 localStorage
+const GUESTBOOK_STORAGE_KEY = 'synthwave-guestbook-messages';
+
+// 从 localStorage 加载已保存的留言
+function loadGuestbookMessages() {
+  try {
+    const saved = localStorage.getItem(GUESTBOOK_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (error) {
+    console.error('Error loading guestbook messages from localStorage:', error);
+  }
+  return [];
+}
+
+// 保存留言到 localStorage
+function saveGuestbookMessages(messages) {
+  try {
+    localStorage.setItem(GUESTBOOK_STORAGE_KEY, JSON.stringify(messages));
+  } catch (error) {
+    console.error('Error saving guestbook messages to localStorage:', error);
+  }
+}
+
+const guestbookMessages = loadGuestbookMessages();
 
 export default class UIManager {
   constructor() {
@@ -396,6 +421,7 @@ export default class UIManager {
       };
       
       guestbookMessages.unshift(newMessage);
+      saveGuestbookMessages(guestbookMessages); // 保存到 localStorage
       this.renderMessages(guestbookMessages);
       
       if (nameInput) nameInput.value = '';
