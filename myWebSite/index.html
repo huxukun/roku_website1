@@ -136,22 +136,31 @@
             <button id="close-guestbook" class="nes-btn is-error close-btn">×</button>
           </div>
           <div class="guestbook-body">
-            <div class="guestbook-input">
-              <h3>✍️ 留下你的足迹</h3>
-              <div class="input-row">
-                <input type="text" id="guest-name" class="nes-input" placeholder="昵称（匿名网友）">
-                <input type="text" id="guest-tag" class="nes-input" placeholder="标签（可选）">
+              <div class="guestbook-status-bar">
+                <span id="storage-status" class="storage-status">⚡ 检查连接中...</span>
+                <button id="refresh-messages" class="nes-btn is-success refresh-btn">🔄 刷新</button>
               </div>
-              <textarea id="guest-message" class="nes-textarea" placeholder="写下你的想法..."></textarea>
-              <div class="input-footer">
-                <button id="submit-message" class="nes-btn is-primary">发送留言 🚀</button>
+              <div class="guestbook-input">
+                <h3>✍️ 留下你的足迹</h3>
+                <div class="input-row">
+                  <input type="text" id="guest-name" class="nes-input" placeholder="昵称（匿名网友）">
+                  <input type="text" id="guest-tag" class="nes-input" placeholder="标签（可选）">
+                </div>
+                <textarea id="guest-message" class="nes-textarea" placeholder="写下你的想法..."></textarea>
+                <div class="input-footer">
+                  <button id="submit-message" class="nes-btn is-primary">发送留言 🚀</button>
+                </div>
+              </div>
+              <div class="guestbook-list">
+                <h3>💬 历史留言</h3>
+                <div id="loading-indicator" class="loading-indicator hidden">
+                  <div class="spinner"></div>
+                  <span>加载中...</span>
+                </div>
+                <div id="error-message" class="error-message hidden"></div>
+                <div id="guest-messages" class="messages-container"></div>
               </div>
             </div>
-            <div class="guestbook-list">
-              <h3>💬 历史留言</h3>
-              <div id="guest-messages" class="messages-container"></div>
-            </div>
-          </div>
           <div class="dialog-footer">
             <button id="close-guestbook-footer" class="nes-btn is-primary">关闭</button>
           </div>

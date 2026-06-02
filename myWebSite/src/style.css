@@ -204,7 +204,7 @@ html, body {
 }
 
 .header-bar h1 {
-  font-size: 4rem;
+  font-size: 2.5rem;
   font-family: 'Press Start 2P', cursive;
   position: relative;
   letter-spacing: 0.1em;
@@ -327,13 +327,13 @@ html, body {
     transparent 2px
   ) !important;
   color: var(--neon-cyan) !important;
-  text-shadow: 0 0 12px var(--neon-cyan) !important;
+  text-shadow: 0 0 8px var(--neon-cyan) !important;
   box-shadow: 
-    0 0 15px var(--neon-cyan),
-    0 0 30px rgba(0, 255, 255, 0.4),
-    inset 0 0 15px rgba(0, 255, 255, 0.15) !important;
-  font-size: 1rem !important;
-  padding: 1rem 1.5rem !important;
+    0 0 10px var(--neon-cyan),
+    0 0 20px rgba(0, 255, 255, 0.3),
+    inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+  font-size: 0.85rem !important;
+  padding: 0.7rem 1.2rem !important;
 }
 
 .nes-btn.is-success:hover {
@@ -360,11 +360,13 @@ html, body {
     transparent 2px
   ) !important;
   color: var(--neon-pink) !important;
-  text-shadow: 0 0 12px var(--neon-pink) !important;
+  text-shadow: 0 0 8px var(--neon-pink) !important;
   box-shadow: 
-    0 0 15px var(--neon-pink),
-    0 0 30px rgba(255, 0, 255, 0.4),
-    inset 0 0 15px rgba(255, 0, 255, 0.15) !important;
+    0 0 10px var(--neon-pink),
+    0 0 20px rgba(255, 0, 255, 0.3),
+    inset 0 0 10px rgba(255, 0, 255, 0.1) !important;
+  font-size: 0.85rem !important;
+  padding: 0.7rem 1.2rem !important;
 }
 
 .nes-btn.is-primary:hover {
@@ -391,11 +393,13 @@ html, body {
     transparent 2px
   ) !important;
   color: #ff4444 !important;
-  text-shadow: 0 0 12px #ff4444 !important;
+  text-shadow: 0 0 8px #ff4444 !important;
   box-shadow: 
-    0 0 15px #ff4444,
-    0 0 30px rgba(255, 68, 68, 0.4),
-    inset 0 0 15px rgba(255, 68, 68, 0.15) !important;
+    0 0 10px #ff4444,
+    0 0 20px rgba(255, 68, 68, 0.3),
+    inset 0 0 10px rgba(255, 68, 68, 0.1) !important;
+  font-size: 0.85rem !important;
+  padding: 0.7rem 1.2rem !important;
 }
 
 .nes-btn.is-error:hover {
@@ -1234,4 +1238,113 @@ html, body {
   margin-top: 1.2rem;
   padding-top: 0.8rem;
   border-top: 2px solid var(--neon-cyan);
+}
+
+/* 竖屏模式下的响应式布局和竖向文字 */
+@media (max-aspect-ratio: 1/1) {
+  .blog-body {
+    flex-direction: column;
+  }
+
+  .blog-sidebar {
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 2px solid var(--neon-cyan);
+    padding-right: 0;
+    padding-bottom: 1rem;
+  }
+
+  .blog-content {
+    min-width: 100%;
+  }
+
+  /* 为中文内容添加竖向文字支持 */
+  .blog-markdown {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    max-height: 45vh;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+}
+
+/* 留言板状态栏 */
+.guestbook-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.8rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--neon-cyan);
+}
+
+.storage-status {
+  font-size: 0.65rem;
+  color: var(--neon-cyan);
+  font-family: 'Press Start 2P', cursive;
+}
+
+.storage-status.online {
+  color: #00ff88;
+}
+
+.storage-status.offline {
+  color: #ffaa00;
+}
+
+.refresh-btn {
+  font-size: 0.6rem !important;
+  padding: 0.3rem 0.6rem !important;
+}
+
+/* 加载指示器 */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 255, 255, 0.2);
+  border-top-color: var(--neon-cyan);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-indicator span {
+  font-size: 0.7rem;
+  color: var(--neon-cyan);
+}
+
+/* 错误信息 */
+.error-message {
+  padding: 1rem;
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid #ff4444;
+  color: #ff4444;
+  font-size: 0.7rem;
+  margin-bottom: 1rem;
+  word-wrap: break-word;
+}
+
+/* 按钮加载状态 */
+.nes-btn.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.nes-btn.loading::after {
+  content: ' ...';
 }
