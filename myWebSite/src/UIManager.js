@@ -80,32 +80,8 @@ import { supabase } from './supabase.js';
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
 
-// 从 Supabase 加载留言
-async function loadGuestbookMessages() {
-  try {
-    const { data, error } = await supabase
-      .from('guestbook_messages')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading messages from Supabase:', error);
-      return [];
-    }
-
-    // 转换为与本地格式兼容的对象
-    return data.map(msg => ({
-      id: msg.id,
-      name: msg.name,
-      tag: msg.tag || '',
-      time: formatDateTime(msg.created_at),
-      text: msg.text
-    }));
-  } catch (error) {
-    console.error('Error loading guestbook messages:', error);
-    return [];
-  }
-}
+// LocalStorage 键名
+const LOCAL_STORAGE_KEY = 'synthwave-guestbook-messages';
 
 // 格式化日期时间
 function formatDateTime(dateString) {
@@ -118,44 +94,78 @@ function formatDateTime(dateString) {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-// 保存留言到 Supabase
-async function saveGuestbookMessage(message) {
+// 从 localStorage 加载留言
+function loadMessagesFromLocalStorage() {
   try {
-    const { data, error } = await supabase
-      .from('guestbook_messages')
-      .insert([
-        {
-          name: message.name,
-          tag: message.tag || null,
-          text: message.text
-        }
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error saving message to Supabase:', error);
-      throw error;
-    }
-
-    // 返回格式化后的消息对象
-    return {
-      id: data.id,
-      name: data.name,
-      tag: data.tag || '',
-      time: formatDateTime(data.created_at),
-      text: data.text
-    };
+    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
   } catch (error) {
-    console.error('Error saving guestbook message:', error);
+    console.error('Error loading messages from localStorage:', error);
+    return [];
+  }
+}
+
+// 保存留言到 localStorage
+function saveMessagesToLocalStorage(messages) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(messages));
+  } catch (error) {
+    console.error('Error saving messages to localStorage:', error);
+  }
+}
+
+// 从 Supabase 加载留言
+async function loadGuestbookMessagesFromSupabase() {
+  const { data, error } = await supabase
+    .from('guestbook_messages')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
     throw error;
   }
+
+  return data.map(msg => ({
+    id: msg.id,
+    name: msg.name,
+    tag: msg.tag || '',
+    time: formatDateTime(msg.created_at),
+    text: msg.text
+  }));
+}
+
+// 保存留言到 Supabase
+async function saveGuestbookMessageToSupabase(message) {
+  const { data, error } = await supabase
+    .from('guestbook_messages')
+    .insert([
+      {
+        name: message.name,
+        tag: message.tag || null,
+        text: message.text
+      }
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    tag: data.tag || '',
+    time: formatDateTime(data.created_at),
+    text: data.text
+  };
 }
 
 export default class UIManager {
   constructor() {
     this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
     this.isLoadingMessages = false;
+    this.isSubmitting = false;
 
     try {
       this.initElements();
@@ -209,6 +219,10 @@ export default class UIManager {
     this.blogPreviewContainer = document.getElementById('blog-preview');
     this.messagesContainer = document.getElementById('guest-messages');
     this.submitMessageBtn = document.getElementById('submit-message');
+    this.refreshBtn = document.getElementById('refresh-messages');
+    this.storageStatus = document.getElementById('storage-status');
+    this.loadingIndicator = document.getElementById('loading-indicator');
+    this.errorMessage = document.getElementById('error-message');
     
     this.isAboutModalOpen = false;
     this.isGalleryModalOpen = false;
@@ -258,10 +272,55 @@ export default class UIManager {
       this.submitMessageBtn.addEventListener('click', () => this.handleMessageSubmit());
     }
     
+    if (this.refreshBtn) {
+      this.refreshBtn.addEventListener('click', () => this.refreshMessages());
+    }
+    
     if (this.avatarUploadBtn && this.avatarUpload) {
       this.avatarUploadBtn.addEventListener('click', () => this.avatarUpload.click());
       this.avatarUpload.addEventListener('change', (e) => this.handleAvatarUpload(e));
     }
+  }
+
+  // 更新存储状态显示
+  updateStorageStatus(online) {
+    if (!this.storageStatus) return;
+    
+    this.storageStatus.classList.remove('online', 'offline');
+    if (online) {
+      this.storageStatus.classList.add('online');
+      this.storageStatus.textContent = '☁️ Supabase 在线';
+    } else {
+      this.storageStatus.classList.add('offline');
+      this.storageStatus.textContent = '💾 本地模式';
+    }
+  }
+
+  // 显示/隐藏加载指示器
+  showLoading(show) {
+    if (!this.loadingIndicator) return;
+    if (show) {
+      this.loadingIndicator.classList.remove('hidden');
+    } else {
+      this.loadingIndicator.classList.add('hidden');
+    }
+  }
+
+  // 显示错误信息
+  showError(message) {
+    if (!this.errorMessage) return;
+    this.errorMessage.textContent = message;
+    this.errorMessage.classList.remove('hidden');
+    
+    setTimeout(() => {
+      this.errorMessage.classList.add('hidden');
+    }, 5000);
+  }
+
+  // 隐藏错误信息
+  hideError() {
+    if (!this.errorMessage) return;
+    this.errorMessage.classList.add('hidden');
   }
 
   openAboutModal() {
@@ -395,25 +454,51 @@ export default class UIManager {
     }
   }
 
-  // 初始化留言板 - 从 Supabase 加载数据
+  // 初始化留言板
   async initGuestbook() {
-    if (!this.isSupabaseConfigured) {
-      console.warn('Supabase is not configured. Guestbook will use local storage fallback.');
+    this.hideError();
+    this.updateStorageStatus(this.isSupabaseConfigured);
+    
+    if (this.isSupabaseConfigured) {
+      await this.loadMessagesFromSupabase();
+    } else {
+      console.warn('Supabase is not configured. Using localStorage.');
+      guestbookMessages = loadMessagesFromLocalStorage();
       this.renderMessages(guestbookMessages);
-      return;
     }
+  }
 
+  // 从 Supabase 加载消息
+  async loadMessagesFromSupabase() {
     if (this.isLoadingMessages) return;
+    
     this.isLoadingMessages = true;
+    this.showLoading(true);
+    this.hideError();
 
     try {
-      guestbookMessages = await loadGuestbookMessages();
+      guestbookMessages = await loadGuestbookMessagesFromSupabase();
       this.renderMessages(guestbookMessages);
+      this.updateStorageStatus(true);
     } catch (error) {
-      console.error('Error initializing guestbook:', error);
-      this.renderMessages([]);
+      console.error('Error loading from Supabase, falling back to localStorage:', error);
+      this.updateStorageStatus(false);
+      guestbookMessages = loadMessagesFromLocalStorage();
+      this.renderMessages(guestbookMessages);
+      this.showError(`连接 Supabase 失败: ${error.message || '未知错误'}\n已切换到本地存储模式`);
     } finally {
       this.isLoadingMessages = false;
+      this.showLoading(false);
+    }
+  }
+
+  // 刷新消息
+  async refreshMessages() {
+    if (this.isSupabaseConfigured) {
+      await this.loadMessagesFromSupabase();
+    } else {
+      guestbookMessages = loadMessagesFromLocalStorage();
+      this.renderMessages(guestbookMessages);
     }
   }
 
@@ -437,21 +522,20 @@ export default class UIManager {
     }
   }
 
-  createGuestbookMessages() {
-    if (!this.messagesContainer) return;
-    
-    try {
-      this.renderMessages(guestbookMessages);
-    } catch (error) {
-      console.error('Error creating guestbook messages:', error);
-    }
-  }
-
   renderMessages(messages) {
     if (!this.messagesContainer) return;
     
     try {
       this.messagesContainer.innerHTML = '';
+      if (messages.length === 0) {
+        this.messagesContainer.innerHTML = `
+          <div style="text-align: center; padding: 2rem; color: var(--neon-cyan); opacity: 0.6;">
+            暂无留言，成为第一个留言的人吧！ 🌟
+          </div>
+        `;
+        return;
+      }
+      
       messages.forEach(msg => {
         const item = document.createElement('div');
         item.className = 'message-item';
@@ -471,6 +555,8 @@ export default class UIManager {
   }
 
   async handleMessageSubmit() {
+    if (this.isSubmitting) return;
+    
     try {
       const nameInput = document.getElementById('guest-name');
       const tagInput = document.getElementById('guest-tag');
@@ -484,42 +570,54 @@ export default class UIManager {
         alert('请输入留言内容！');
         return;
       }
-      
-      const newMessage = {
-        name,
-        tag,
-        text
-      };
+
+      this.isSubmitting = true;
+      this.hideError();
+      this.submitMessageBtn.classList.add('loading');
+
+      const newMessage = { name, tag, text };
       
       if (this.isSupabaseConfigured) {
-        // 使用 Supabase 保存
-        const savedMessage = await saveGuestbookMessage(newMessage);
-        guestbookMessages.unshift(savedMessage);
-        this.renderMessages(guestbookMessages);
+        try {
+          const savedMessage = await saveGuestbookMessageToSupabase(newMessage);
+          guestbookMessages.unshift(savedMessage);
+          this.renderMessages(guestbookMessages);
+        } catch (error) {
+          console.error('Supabase save failed, using localStorage:', error);
+          this.saveLocalMessage(newMessage);
+          this.showError(`保存到云端失败: ${error.message || '未知错误'}\n已保存到本地`);
+        }
       } else {
-        // 回退到本地存储
-        const now = new Date();
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        const localMessage = {
-          id: Date.now(),
-          name,
-          tag,
-          time: timeStr,
-          text
-        };
-        
-        guestbookMessages.unshift(localMessage);
-        this.renderMessages(guestbookMessages);
+        this.saveLocalMessage(newMessage);
       }
       
       if (nameInput) nameInput.value = '';
       if (tagInput) tagInput.value = '';
       if (messageInput) messageInput.value = '';
+      
     } catch (error) {
       console.error('Error submitting message:', error);
-      alert('提交留言失败，请重试！');
+      this.showError(`发送失败: ${error.message || '未知错误'}`);
+    } finally {
+      this.isSubmitting = false;
+      this.submitMessageBtn.classList.remove('loading');
     }
+  }
+
+  // 保存消息到本地
+  saveLocalMessage(message) {
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    const localMessage = {
+      id: Date.now(),
+      ...message,
+      time: timeStr
+    };
+    
+    guestbookMessages.unshift(localMessage);
+    saveMessagesToLocalStorage(guestbookMessages);
+    this.renderMessages(guestbookMessages);
   }
 
   renderSkills() {
