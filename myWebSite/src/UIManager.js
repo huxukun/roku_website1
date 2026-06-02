@@ -119,7 +119,7 @@ async function loadGuestbookMessagesFromSupabase() {
   const { data, error } = await supabase
     .from('messages')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('time', { ascending: false });
 
   if (error) {
     throw error;
@@ -129,20 +129,24 @@ async function loadGuestbookMessagesFromSupabase() {
     id: msg.id,
     name: msg.name,
     tag: msg.tag || '',
-    time: formatDateTime(msg.created_at),
+    time: msg.time || formatDateTime(new Date()),
     text: msg.text
   }));
 }
 
 // 保存留言到 Supabase
 async function saveGuestbookMessageToSupabase(message) {
+  const now = new Date();
+  const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  
   const { data, error } = await supabase
     .from('messages')
     .insert([
       {
         name: message.name,
         tag: message.tag || null,
-        text: message.text
+        text: message.text,
+        time: timeStr
       }
     ])
     .select()
@@ -156,7 +160,7 @@ async function saveGuestbookMessageToSupabase(message) {
     id: data.id,
     name: data.name,
     tag: data.tag || '',
-    time: formatDateTime(data.created_at),
+    time: data.time || timeStr,
     text: data.text
   };
 }
