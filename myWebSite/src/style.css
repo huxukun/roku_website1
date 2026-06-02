@@ -206,73 +206,46 @@ html, body {
 .header-bar h1 {
   font-size: 2.5rem;
   font-family: 'Press Start 2P', cursive;
+  font-style: italic;
   position: relative;
   letter-spacing: 0.1em;
-  color: var(--neon-cyan);
+  background: linear-gradient(180deg, 
+    #00ffff 0%, 
+    #ff00ff 50%, 
+    #ffffff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   text-shadow: 
-    0 0 10px var(--neon-cyan),
-    0 0 20px var(--neon-cyan);
-  animation: glitch 3s infinite;
+    0 0 5px rgba(0, 255, 255, 0.5),
+    0 0 10px rgba(255, 0, 255, 0.5),
+    0 0 15px rgba(255, 255, 255, 0.3);
+  -webkit-text-stroke: 1px rgba(0, 255, 255);
+  text-stroke: 1px rgba(0, 255, 255);
+  animation: welcomePulse 3s ease-in-out infinite;
 }
 
 .header-bar h1::before {
-  content: 'WELCOME';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  left: 2px;
-  text-shadow: -2px 0 var(--neon-pink);
-  clip: rect(0, 600px, 0, 0);
-  animation: glitch-anim 2s infinite linear alternate-reverse;
+  content: none;
 }
 
 .header-bar h1::after {
-  content: 'WELCOME';
-  position: absolute;
-  top: 0;
-  left: -2px;
-  text-shadow: 2px 0 var(--neon-cyan);
-  clip: rect(0, 600px, 0, 0);
-  animation: glitch-anim2 3s infinite linear alternate-reverse;
+  content: none;
 }
 
-@keyframes glitch {
+@keyframes welcomePulse {
   0%, 100% {
-    text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan), 0 0 40px var(--neon-cyan);
+    text-shadow: 
+      0 0 5px rgba(0, 255, 255, 0.5),
+      0 0 10px rgba(255, 0, 255, 0.5),
+      0 0 15px rgba(255, 255, 255, 0.3);
   }
   50% {
-    text-shadow: 0 0 5px var(--neon-pink), 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink);
+    text-shadow: 
+      0 0 8px rgba(0, 255, 255, 0.7),
+      0 0 15px rgba(255, 0, 255, 0.7),
+      0 0 20px rgba(255, 255, 255, 0.5);
   }
-}
-
-@keyframes glitch-anim {
-  0% { clip: rect(42px, 9999px, 44px, 0); }
-  10% { clip: rect(12px, 9999px, 96px, 0); }
-  20% { clip: rect(90px, 9999px, 20px, 0); }
-  30% { clip: rect(82px, 9999px, 98px, 0); }
-  40% { clip: rect(16px, 9999px, 61px, 0); }
-  50% { clip: rect(55px, 9999px, 73px, 0); }
-  60% { clip: rect(4px, 9999px, 15px, 0); }
-  70% { clip: rect(56px, 9999px, 50px, 0); }
-  80% { clip: rect(44px, 9999px, 34px, 0); }
-  90% { clip: rect(72px, 9999px, 77px, 0); }
-  100% { clip: rect(33px, 9999px, 85px, 0); }
-}
-
-@keyframes glitch-anim2 {
-  0% { clip: rect(15px, 9999px, 12px, 0); }
-  10% { clip: rect(71px, 9999px, 67px, 0); }
-  20% { clip: rect(24px, 9999px, 58px, 0); }
-  30% { clip: rect(14px, 9999px, 50px, 0); }
-  40% { clip: rect(22px, 9999px, 18px, 0); }
-  50% { clip: rect(9px, 9999px, 28px, 0); }
-  60% { clip: rect(85px, 9999px, 16px, 0); }
-  70% { clip: rect(28px, 9999px, 68px, 0); }
-  80% { clip: rect(48px, 9999px, 19px, 0); }
-  90% { clip: rect(53px, 9999px, 73px, 0); }
-  100% { clip: rect(65px, 9999px, 46px, 0); }
 }
 
 .button-container {
