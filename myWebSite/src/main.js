@@ -14,6 +14,8 @@ import SynthwaveSun from './SynthwaveSun.js'
 import ElectronicDust from './ElectronicDust.js'
 import WireframeMountain from './WireframeMountain.js'
 import VirtualAvatar from './VirtualAvatar.js'
+import PinkOzoneFog from './PinkOzoneFog.js'
+import MusicVisualizer from './MusicVisualizer.js'
 
 const canvas = document.querySelector('canvas.webgl')
 
@@ -36,6 +38,8 @@ const electronicDust = new ElectronicDust(scene.instance)
 const leftMountain = new WireframeMountain(scene.instance, 'left')
 const rightMountain = new WireframeMountain(scene.instance, 'right')
 const virtualAvatar = new VirtualAvatar(scene.instance, camera.instance, canvas)
+const pinkOzoneFog = new PinkOzoneFog(scene.instance, camera.instance)
+const musicVisualizer = new MusicVisualizer(scene.instance, camera.instance)
 
 let composer
 const renderScene = new RenderPass(scene.instance, camera.instance)
@@ -45,9 +49,9 @@ const bloomPass = new UnrealBloomPass(
   0.5,
   0.05
 )
-bloomPass.threshold = 0.2
-bloomPass.strength = 0.7
-bloomPass.radius = 0.6
+bloomPass.threshold = 0.25
+bloomPass.strength = 0.4
+bloomPass.radius = 0.4
 
 composer = new EffectComposer(renderer.instance)
 composer.addPass(renderScene)
@@ -146,6 +150,8 @@ const tick = (time) => {
   leftMountain.update(time)
   rightMountain.update(time)
   virtualAvatar.update(time)
+  pinkOzoneFog.update(time)
+  musicVisualizer.update(time)
   
   composer.render()
 }
@@ -204,6 +210,14 @@ function cleanup() {
     virtualAvatar.dispose()
   }
 
+  if (pinkOzoneFog) {
+    pinkOzoneFog.dispose()
+  }
+
+  if (musicVisualizer) {
+    musicVisualizer.dispose()
+  }
+
   if (scene) {
     scene.dispose()
   }
@@ -231,6 +245,55 @@ window.setColorChanging = function(enabled) {
   gridFloor.setColorChanging(enabled);
   leftMountain.setColorChanging(enabled);
   rightMountain.setColorChanging(enabled);
+};
+
+// 音乐可视化全局函数
+window.loadMusicFile = function(file) {
+  musicVisualizer.loadLocalAudio(file).then(() => {
+    musicVisualizer.play();
+  }).catch(err => {
+    console.error('Failed to load music:', err);
+    alert('无法加载音乐文件，请尝试其他文件。');
+  });
+};
+
+window.loadMusicURL = function(url) {
+  musicVisualizer.loadAudio(url).then(() => {
+    musicVisualizer.play();
+  }).catch(err => {
+    console.error('Failed to load music:', err);
+    alert('无法加载音乐，请检查网络连接。');
+  });
+};
+
+window.toggleVisualizer = function() {
+  musicVisualizer.toggle();
+};
+
+window.startMusic = function() {
+  console.log('startMusic called');
+  
+  const songs = [
+    'https://music.163.com/song/media/outer/url?id=1983851619.mp3',
+    'https://music.163.com/song/media/outer/url?id=1933959185.mp3',
+    'https://music.163.com/song/media/outer/url?id=1470148845.mp3',
+    'https://music.163.com/song/media/outer/url?id=454966826.mp3',
+    'https://music.163.com/song/media/outer/url?id=1404977581.mp3'
+  ];
+  
+  const randomSong = songs[Math.floor(Math.random() * songs.length)];
+  console.log('Loading song:', randomSong);
+  
+  const proxyUrl = 'http://localhost:3001/proxy?url=' + encodeURIComponent(randomSong);
+  console.log('Proxy URL:', proxyUrl);
+  
+  musicVisualizer.loadAudio(proxyUrl).then(() => {
+    console.log('Audio loaded, playing...');
+    musicVisualizer.play();
+  }).catch(err => {
+    console.error('Failed to load music:', err);
+    alert('音乐加载失败，请检查网络连接');
+  });
 };
 
 // 确保DOM准备好后初始化

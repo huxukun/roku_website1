@@ -6,7 +6,7 @@ export default class MovingGridFloor {
     this.grid = null
     this.grid2 = null
     this.speed = 0.05
-    this.gridSize = 200
+    this.gridSize = 600
     this.phase = 0 // 用于节奏闪烁
     this.colorPhase = 0 // 用于RGB颜色变化
     this.isColorChanging = false // 是否启用颜色变化
@@ -51,8 +51,9 @@ export default class MovingGridFloor {
     const material = new THREE.LineBasicMaterial({
       color: gridColor,
       transparent: true,
-      opacity: 0.8,
-      vertexColors: true
+      opacity: 1.0,
+      vertexColors: true,
+      linewidth: 5
     })
 
     this.grid = new THREE.LineSegments(geometry, material)

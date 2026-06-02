@@ -191,6 +191,13 @@ export default class UIManager {
     this.guestbookBtn = document.getElementById('guestbook-btn');
     this.musicBtn = document.getElementById('music-btn');
     this.musicIcon = document.getElementById('music-icon');
+    this.nextBtn = document.getElementById('next-btn');
+    this.nowPlayingEl = document.getElementById('now-playing');
+    this.songTitleEl = document.getElementById('song-title');
+    this.audioFileInput = document.getElementById('audio-file');
+    this.playVisualizerBtn = document.getElementById('play-visualizer-btn');
+    console.log('audioFileInput:', !!this.audioFileInput);
+    console.log('playVisualizerBtn:', !!this.playVisualizerBtn);
     
     this.avatarUpload = document.getElementById('avatar-upload');
     this.avatarUploadBtn = document.getElementById('avatar-upload-btn');
@@ -204,6 +211,20 @@ export default class UIManager {
     
     this.isMusicPlaying = false;
     this.audio = null;
+    this.currentSongIndex = 0;
+    // 五首歌曲
+    this.songs = [
+      { title: 'Midnight 1980 - Vicious', url: 'https://music.163.com/song/media/outer/url?id=1983851619.mp3' },
+      { title: 'dream chaser - 蓝云木', url: 'https://music.163.com/song/media/outer/url?id=1933959185.mp3' },
+      { title: 'nightfall - timecop1983', url: 'https://music.163.com/song/media/outer/url?id=1470148845.mp3' },
+      { title: 'Clova - PYLOT', url: 'https://music.163.com/song/media/outer/url?id=454966826.mp3' },
+      { title: 'Milky Way Express - Lupus Nocte', url: 'https://music.163.com/song/media/outer/url?id=1404977581.mp3' }
+    ];
+    this.isAudioInitialized = false;
+    // 播放队列：确保5轮内不重复
+    this.playlist = [];
+    this.lastPlayedSongs = []; // 记录最近播放的歌曲索引
+    this.initPlaylist();
     
     this.closeModalBtns = [
       document.getElementById('close-modal'),
@@ -251,6 +272,26 @@ export default class UIManager {
     if (this.musicBtn) {
       this.musicBtn.addEventListener('click', () => this.toggleMusic());
     }
+    if (this.nextBtn) {
+      this.nextBtn.addEventListener('click', () => this.handleNextSong());
+    }
+    if (this.audioFileInput) {
+      this.audioFileInput.addEventListener('change', (e) => this.handleAudioFileSelect(e));
+    }
+    if (this.playVisualizerBtn) {
+      console.log('Adding click listener to playVisualizerBtn');
+      console.log('Button rect:', this.playVisualizerBtn.getBoundingClientRect());
+      this.playVisualizerBtn.addEventListener('click', (e) => {
+        console.log('playVisualizerBtn clicked!', e);
+        this.handlePlayVisualizer();
+      });
+    } else {
+      console.error('playVisualizerBtn is null!');
+    }
+    
+    document.addEventListener('click', (e) => {
+      console.log('Document clicked, target:', e.target.tagName, e.target.id);
+    }, true);
     
     this.closeModalBtns.forEach(btn => {
       btn.addEventListener('click', () => this.closeAllModals());
@@ -689,43 +730,120 @@ export default class UIManager {
     }
   }
 
+  // 显示正在播放的歌曲
+  showNowPlaying(songTitle) {
+    if (this.songTitleEl) {
+      this.songTitleEl.textContent = songTitle;
+    }
+    if (this.nowPlayingEl) {
+      this.nowPlayingEl.classList.remove('hidden');
+      this.nowPlayingEl.classList.add('visible');
+    }
+  }
+
+  // 隐藏正在播放
+  hideNowPlaying() {
+    if (this.nowPlayingEl) {
+      this.nowPlayingEl.classList.remove('visible');
+      this.nowPlayingEl.classList.add('hidden');
+    }
+  }
+
+  // 初始化播放队列（Fisher-Yates 洗牌算法）
+  initPlaylist() {
+    this.playlist = [];
+    for (let i = 0; i < this.songs.length; i++) {
+      this.playlist.push(i);
+    }
+    // 随机打乱播放队列
+    for (let i = this.playlist.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
+    }
+    this.lastPlayedSongs = [];
+  }
+
+  // 获取下一首歌曲索引（确保5轮内不重复）
+  getNextSongIndex() {
+    // 如果播放队列为空，重新初始化
+    if (this.playlist.length === 0) {
+      this.initPlaylist();
+    }
+    
+    // 从队列中取出一首
+    const songIndex = this.playlist.shift();
+    
+    // 记录最近播放的歌曲（最多保留4首）
+    this.lastPlayedSongs.push(songIndex);
+    if (this.lastPlayedSongs.length > 4) {
+      this.lastPlayedSongs.shift();
+    }
+    
+    return songIndex;
+  }
+
+  // 初始化音频播放器
+  initAudioPlayer() {
+    if (this.isAudioInitialized) return;
+    
+    this.audio = new Audio();
+    this.audio.volume = 0.5;
+    
+    // 监听歌曲结束，播放随机下一首
+    this.audio.addEventListener('ended', () => {
+      this.playRandomNextSong();
+    });
+    
+    // 监听加载错误
+    this.audio.addEventListener('error', (e) => {
+      console.warn('歌曲加载失败，尝试下一首...');
+      this.playRandomNextSong();
+    });
+    
+    this.isAudioInitialized = true;
+  }
+
+  // 随机播放下一首
+  playRandomNextSong() {
+    this.currentSongIndex = this.getNextSongIndex();
+    this.playCurrentSong();
+  }
+
+  // 播放当前歌曲
+  playCurrentSong() {
+    const currentSong = this.songs[this.currentSongIndex];
+    
+    this.audio.src = currentSong.url;
+    
+    this.audio.play().then(() => {
+      this.showNowPlaying(currentSong.title);
+      this.isMusicPlaying = true;
+      if (this.musicIcon) {
+        this.musicIcon.textContent = '⏸';
+      }
+      if (this.musicBtn) {
+        this.musicBtn.classList.remove('is-primary');
+        this.musicBtn.classList.add('is-success');
+      }
+      // 启动颜色变化
+      if (window.setColorChanging) {
+        window.setColorChanging(true);
+      }
+    }).catch(error => {
+      console.error('播放失败:', error);
+      // 如果播放失败，尝试下一首
+      setTimeout(() => this.playRandomNextSong(), 500);
+    });
+  }
+
   toggleMusic() {
     try {
-      if (!this.audio) {
-        // 音乐源列表（按优先级排列）
-        const musicSources = [
-          'http://music.163.com/song/media/outer/url?id=1470149634.mp3', // 网易云
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',  // 备用源1
-          'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3' // 备用源2
-        ];
-        
-        this.audio = new Audio();
-        this.audio.loop = true;
-        this.audio.volume = 0.5;
-        
-        // 尝试加载音乐源
-        const tryLoadSource = (index) => {
-          if (index >= musicSources.length) {
-            console.error('所有音乐源都无法加载');
-            alert('无法加载音乐，请检查网络连接。');
-            return;
-          }
-          
-          this.audio.src = musicSources[index];
-          this.audio.load();
-        };
-        
-        // 监听加载错误，尝试下一个源
-        this.audio.addEventListener('error', (e) => {
-          console.warn(`音乐源 ${this.audio.src} 加载失败，尝试下一个...`);
-          tryLoadSource(musicSources.indexOf(this.audio.src) + 1);
-        });
-        
-        // 预加载第一个源
-        tryLoadSource(0);
+      if (!this.isAudioInitialized) {
+        this.initAudioPlayer();
       }
-
+      
       if (this.isMusicPlaying) {
+        // 暂停
         this.audio.pause();
         this.isMusicPlaying = false;
         if (this.musicIcon) {
@@ -740,53 +858,75 @@ export default class UIManager {
           window.setColorChanging(false);
         }
       } else {
-        this.audio.play().then(() => {
-          this.isMusicPlaying = true;
-          if (this.musicIcon) {
-            this.musicIcon.textContent = '⏸';
-          }
-          if (this.musicBtn) {
-            this.musicBtn.classList.remove('is-primary');
-            this.musicBtn.classList.add('is-success');
-          }
-          // 启动颜色变化
-          if (window.setColorChanging) {
-            window.setColorChanging(true);
-          }
-        }).catch(error => {
-          console.error('播放失败:', error);
-          // 尝试下一个音乐源
-          const currentSrc = this.audio.src;
-          const sources = [
-            'http://music.163.com/song/media/outer/url?id=1470149634.mp3',
-            'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-            'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3'
-          ];
-          const nextIndex = sources.indexOf(currentSrc) + 1;
-          
-          if (nextIndex < sources.length) {
-            console.log('尝试备用音乐源...');
-            this.audio.src = sources[nextIndex];
-            this.audio.play().then(() => {
-              this.isMusicPlaying = true;
-              if (this.musicIcon) this.musicIcon.textContent = '⏸';
-              if (this.musicBtn) {
-                this.musicBtn.classList.remove('is-primary');
-                this.musicBtn.classList.add('is-success');
-              }
-              if (window.setColorChanging) {
-                window.setColorChanging(true);
-              }
-            }).catch(() => {
-              alert('音乐播放失败，请检查网络连接或尝试刷新页面。');
-            });
-          } else {
-            alert('音乐播放失败，可能是因为跨域限制、网络问题或浏览器自动播放策略。请点击音乐按钮尝试播放。');
-          }
-        });
+        // 播放
+        if (this.audio.src && this.audio.currentTime > 0 && !this.audio.paused) {
+          // 如果已经加载了，继续播放
+          this.audio.play().then(() => {
+            this.isMusicPlaying = true;
+            if (this.musicIcon) {
+              this.musicIcon.textContent = '⏸';
+            }
+            if (this.musicBtn) {
+              this.musicBtn.classList.remove('is-primary');
+              this.musicBtn.classList.add('is-success');
+            }
+            this.showNowPlaying(this.songs[this.currentSongIndex].title);
+            if (window.setColorChanging) {
+              window.setColorChanging(true);
+            }
+          }).catch((e) => {
+            console.error('继续播放失败:', e);
+            this.playCurrentSong();
+          });
+        } else {
+          // 否则加载并播放当前歌曲
+          this.playCurrentSong();
+        }
       }
     } catch (error) {
       console.error('Error toggling music:', error);
+    }
+  }
+
+  handleNextSong() {
+    try {
+      if (!this.isAudioInitialized) {
+        this.initAudioPlayer();
+      }
+      this.playRandomNextSong();
+    } catch (error) {
+      console.error('Error handling next song:', error);
+    }
+  }
+
+  handleAudioFileSelect(event) {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      if (!file.type.startsWith('audio/') && !file.name.endsWith('.mp3')) {
+        alert('请选择 MP3 音乐文件！');
+        return;
+      }
+      
+      if (window.loadMusicFile) {
+        window.loadMusicFile(file);
+        this.showNowPlaying(file.name.replace('.mp3', ''));
+      }
+    } catch (error) {
+      console.error('Error selecting audio file:', error);
+    }
+  }
+
+  handlePlayVisualizer() {
+    try {
+      if (window.loadMusicURL && this.songs.length > 0) {
+        const randomSong = this.songs[Math.floor(Math.random() * this.songs.length)];
+        window.loadMusicURL(randomSong.url);
+        this.showNowPlaying(randomSong.title);
+      }
+    } catch (error) {
+      console.error('Error playing visualizer:', error);
     }
   }
   
