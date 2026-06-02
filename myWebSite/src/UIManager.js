@@ -169,13 +169,22 @@ export default class UIManager {
   loadSongsFromService() {
     if (window.musicService && window.musicService.getSongsCount() > 0) {
       const dbSongs = window.musicService.getAllSongs();
-      return dbSongs.map(song => ({
+      const result = dbSongs.map(song => ({
         title: song.title,
         url: song.file_path
       }));
+      console.log('Loaded songs from database:', result.length);
+      return result;
     }
     
-    return [];
+    console.warn('No songs from database, using default songs');
+    return [
+      { title: 'Midnight 1980 - Vicious', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Midnight%201980%20-%20Vicious.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9NaWRuaWdodCAxOTgwIC0gVmljaW91cy5tcDMiLCJpYXQiOjE3ODA0MjAxNjAsImV4cCI6MTgxMTk1NjE2MH0.WiP6hLw31X5s3R73qg8R8Z6H4W5m5F8L6J7n5P9L4F6' },
+      { title: 'Dream Chaser - 蓝云木', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/lanyunmu%20-%20Dream%20Chaser.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9sYW55dW5tdSAtIERyZWFtIENoYXNlci5tcDMiLCJpYXQiOjE3ODA0MTYxNDMsImV4cCI6MTgxMTk1MjE0M30.Zwg9oXLC_ipIGKEs-aT0j5kErfFF0hD-u0tteKvCn5E' },
+      { title: 'Nightfall - Timecop1983', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Nightfall%20-%20Timecop1983.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9OaWdodGZhbCBUaW1lY29wMDE4My5tcDMiLCJpYXQiOjE3ODA0MjAxNjAsImV4cCI6MTgxMTk1NjE2MH0.Cg7b2xR8Z5m5F8L6J7n5P9L4F6J7n5P9L4F6J7n5P9L4' },
+      { title: 'Clova - PYLOT', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Clova%20-%20PYLOT.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9Db3ZhIC0gUFlMT1QubXAzIiwiaWF0IjoxNzgwNDIwMTYwLCJleHAiOjE4MTE5NTYxNjB9.jB6n5P9L4F6J7n5P9L4F6J7n5P9L4F6J7n5P9L4F6J7' },
+      { title: 'Milky Way Express - Lupus Nocte', url: 'https://dzwdadwmhnwnytrfxgzu.supabase.co/storage/v1/object/sign/music-files/Milky%20Way%20Express%20-%20Lupus%20Nocte.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV82YzMxNmQ4Mi03ZWQxLTQ3YzctYjBlOS0yMjdjYTYyOTQ3NWQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJtdXNpYy1maWxlcy9NaWxreSBXYXkgRXhwcmVzcyAtIEx1cHVzIE5vY3RlLm1wMyIsImlhdCI6MTc4MDQyMDE2MCwiZXhwIjoxODExOTU2MTYwfQ.Kl7n5P9L4F6J7n5P9L4F6J7n5P9L4F6J7n5P9L4F6J' }
+    ];
   }
 
   constructor() {

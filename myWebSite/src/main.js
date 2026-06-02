@@ -289,3 +289,4 @@ if (document.readyState === 'loading') {
 }
 
 window.musicService = musicService;
+window.musicVisualizer = musicVisualizer;
