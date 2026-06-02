@@ -215,6 +215,23 @@ function cleanup() {
 window.addEventListener('beforeunload', cleanup);
 window.addEventListener('unload', cleanup);
 
+// 全局颜色变化控制
+let isColorChangingEnabled = false;
+
+window.toggleColorChanging = function() {
+  isColorChangingEnabled = !isColorChangingEnabled;
+  gridFloor.setColorChanging(isColorChangingEnabled);
+  leftMountain.setColorChanging(isColorChangingEnabled);
+  rightMountain.setColorChanging(isColorChangingEnabled);
+};
+
+window.setColorChanging = function(enabled) {
+  isColorChangingEnabled = enabled;
+  gridFloor.setColorChanging(enabled);
+  leftMountain.setColorChanging(enabled);
+  rightMountain.setColorChanging(enabled);
+};
+
 // 确保DOM准备好后初始化
 let uiManager = null;
 const init = () => {

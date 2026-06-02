@@ -16,6 +16,9 @@ export default class WireframeMountain {
     this.speed = 8
     
     this.baseHeight = 8
+
+    this.colorPhase = 0 // 用于RGB颜色变化
+    this.isColorChanging = false // 是否启用颜色变化
     
     this.init()
   }
@@ -172,6 +175,19 @@ export default class WireframeMountain {
   update(time) {
     const delta = 0.016
     
+    // RGB颜色变化效果
+    if (this.isColorChanging) {
+      this.colorPhase += delta * 2
+      const r = 0.5 + 0.5 * Math.sin(this.colorPhase)
+      const g = 0.5 + 0.5 * Math.sin(this.colorPhase + 2 * Math.PI / 3)
+      const b = 0.5 + 0.5 * Math.sin(this.colorPhase + 4 * Math.PI / 3)
+      
+      const newColor = new THREE.Color(r, g, b)
+      for (const strip of this.strips) {
+        strip.material.color = newColor
+      }
+    }
+
     for (let i = 0; i < this.strips.length; i++) {
       const strip = this.strips[i]
       strip.position.z += this.speed * delta
@@ -191,6 +207,17 @@ export default class WireframeMountain {
     const floatSpeed = 0.05
     const floatY = Math.sin(time / 1000 * floatSpeed + this.phaseOffset) * floatAmplitude
     this.mountainGroup.position.y = floatY
+  }
+
+  setColorChanging(enabled) {
+    this.isColorChanging = enabled
+    if (!enabled) {
+      // 恢复默认颜色：青色
+      const defaultColor = new THREE.Color(0x00FFFF)
+      for (const strip of this.strips) {
+        strip.material.color = defaultColor
+      }
+    }
   }
 
   dispose() {
