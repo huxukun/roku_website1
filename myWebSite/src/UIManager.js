@@ -200,12 +200,6 @@ export default class UIManager {
       this.initGuestbook();
       this.loadSavedAvatar();
       
-      // 初始化显示状态面板
-      if (this.isMusicUiVisible && this.playerStatusEl) {
-        this.playerStatusEl.classList.remove('hidden');
-        this.playerStatusEl.classList.add('visible');
-      }
-      
       console.log('UIManager initialized successfully');
     } catch (error) {
       console.error('Error initializing UIManager:', error);
@@ -223,17 +217,12 @@ export default class UIManager {
     this.nowPlayingEl = document.getElementById('now-playing');
     this.songTitleEl = document.getElementById('song-title');
     this.audioFileInput = document.getElementById('audio-file');
-    this.playVisualizerBtn = document.getElementById('play-visualizer-btn');
-    this.playerStatusEl = document.getElementById('player-status');
-    this.statusTextEl = document.getElementById('status-text');
-    this.statusSongIndexEl = document.getElementById('status-song-index');
-    this.statusPlaylistEl = document.getElementById('status-playlist');
     this.toggleUiBtn = document.getElementById('toggle-ui-btn');
     this.toggleUiIcon = document.getElementById('toggle-ui-icon');
-    this.musicUiContainer = document.getElementById('music-ui-container');
-    this.isMusicUiVisible = true; // 默认显示
+    this.notificationDot = document.querySelector('.notification-dot');
+    this.musicControlElements = document.querySelectorAll('.music-controls');
+    this.isMusicUiVisible = false; // 默认隐藏
     console.log('audioFileInput:', !!this.audioFileInput);
-    console.log('playVisualizerBtn:', !!this.playVisualizerBtn);
     
     this.avatarUpload = document.getElementById('avatar-upload');
     this.avatarUploadBtn = document.getElementById('avatar-upload-btn');
@@ -772,43 +761,27 @@ export default class UIManager {
       this.nowPlayingEl.classList.remove('hidden');
       this.nowPlayingEl.classList.add('visible');
     }
-    // 播放器状态面板的显示由 toggleMusicUI 控制
-    this.updatePlayerStatus();
   }
 
-  // 更新播放器状态显示
-  updatePlayerStatus() {
-    if (this.statusTextEl) {
-      this.statusTextEl.textContent = this.isMusicPlaying ? '播放中' : '暂停';
-    }
-    if (this.statusSongIndexEl) {
-      this.statusSongIndexEl.textContent = `${this.currentSongIndex + 1} / ${this.songs.length}`;
-    }
-    if (this.statusPlaylistEl) {
-      const playlistDisplay = this.playlist.map(i => i + 1).join(', ');
-      this.statusPlaylistEl.textContent = `[${playlistDisplay}]`;
-    }
-  }
-
-  // 更新状态文本
-  updateStatusText(text) {
-    if (this.statusTextEl) {
-      this.statusTextEl.textContent = text;
-    }
-    console.log('状态:', text);
-  }
-
-  // 切换音乐 UI 的显示/隐藏
+  // 切换音乐相关控制元素的显示/隐藏
   toggleMusicUI() {
     this.isMusicUiVisible = !this.isMusicUiVisible;
     
-    if (this.playerStatusEl) {
+    // 控制所有音乐相关元素
+    this.musicControlElements.forEach(el => {
       if (this.isMusicUiVisible) {
-        this.playerStatusEl.classList.remove('hidden');
-        this.playerStatusEl.classList.add('visible');
+        el.classList.remove('hidden');
       } else {
-        this.playerStatusEl.classList.add('hidden');
-        this.playerStatusEl.classList.remove('visible');
+        el.classList.add('hidden');
+      }
+    });
+    
+    // 控制红点显示：隐藏的时候显示红点，显示的时候隐藏红点
+    if (this.notificationDot) {
+      if (this.isMusicUiVisible) {
+        this.notificationDot.classList.add('hidden');
+      } else {
+        this.notificationDot.classList.remove('hidden');
       }
     }
     
@@ -908,17 +881,12 @@ export default class UIManager {
     const currentSong = this.songs[this.currentSongIndex];
     console.log('playCurrentSong called, song:', currentSong);
     
-    this.updatePlayerStatus();
-    
     // 检查 URL 是否为空
     if (!currentSong.url || currentSong.url.trim() === '') {
-      this.updateStatusText('请上传音乐文件');
       this.showNowPlaying(currentSong.title + ' - 请点击"上传音乐"');
       console.warn('URL 为空，建议用户上传文件');
       return;
     }
-    
-    this.updateStatusText('加载中...');
     
     // 清理 URL 中的多余引号和特殊字符
     let cleanUrl = currentSong.url
@@ -933,7 +901,6 @@ export default class UIManager {
         window.musicVisualizer.play();
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
-        this.updateStatusText('播放中');
         if (this.musicIcon) {
           this.musicIcon.textContent = '⏸';
         }
@@ -946,7 +913,6 @@ export default class UIManager {
         }
       }).catch(error => {
         console.error('播放失败:', error);
-        this.updateStatusText('加载失败，请上传本地音乐');
         this.showNowPlaying(currentSong.title + ' - 加载失败');
       });
     } else {
@@ -956,7 +922,6 @@ export default class UIManager {
       this.audio.play().then(() => {
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
-        this.updateStatusText('播放中');
         if (this.musicIcon) {
           this.musicIcon.textContent = '⏸';
         }
@@ -969,7 +934,6 @@ export default class UIManager {
         }
       }).catch(error => {
         console.error('播放失败:', error);
-        this.updateStatusText('加载失败，请上传本地音乐');
         this.showNowPlaying(currentSong.title + ' - 加载失败');
       });
     }
@@ -992,7 +956,6 @@ export default class UIManager {
           this.audio.pause();
         }
         this.isMusicPlaying = false;
-        this.updateStatusText('暂停');
         if (this.musicIcon) {
           this.musicIcon.textContent = '▶';
         }
@@ -1014,7 +977,6 @@ export default class UIManager {
           console.log('Resuming local file playback');
           window.musicVisualizer.play().then(() => {
             this.isMusicPlaying = true;
-            this.updateStatusText('播放中');
             if (this.musicIcon) {
               this.musicIcon.textContent = '⏸';
             }
@@ -1074,13 +1036,10 @@ export default class UIManager {
         return;
       }
       
-      this.updateStatusText('加载中...');
-      
       if (window.loadMusicFile) {
         window.loadMusicFile(file).then(() => {
           this.showNowPlaying(file.name.replace('.mp3', ''));
           this.isMusicPlaying = true;
-          this.updateStatusText('播放中');
           if (this.musicIcon) {
             this.musicIcon.textContent = '⏸';
           }
@@ -1091,15 +1050,12 @@ export default class UIManager {
           if (window.setColorChanging) {
             window.setColorChanging(true);
           }
-          this.updatePlayerStatus();
         }).catch(error => {
           console.error('播放失败:', error);
-          this.updateStatusText('加载失败');
         });
       }
     } catch (error) {
       console.error('Error selecting audio file:', error);
-      this.updateStatusText('加载失败');
     }
   }
 

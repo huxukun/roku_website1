@@ -1547,76 +1547,21 @@ html, body {
   opacity: 0;
 }
 
-.player-status {
-  position: absolute;
-  top: 180px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: left;
-  font-family: 'Courier New', monospace;
-  color: var(--neon-cyan);
-  font-size: 0.75rem;
-  text-shadow: 0 0 8px var(--neon-cyan);
-  background: rgba(0, 0, 0, 0.7);
-  padding: 12px 20px;
-  border: 2px solid var(--neon-cyan);
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 1s ease-in-out;
-  pointer-events: none;
-  z-index: 50;
-  max-width: 90%;
-  line-height: 2;
-}
-
-.player-status.visible {
-  opacity: 1;
-}
-
-.player-status.hidden {
-  opacity: 0;
-}
-
-.status-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.status-row span:first-child {
-  color: var(--neon-pink);
-  text-shadow: 0 0 8px var(--neon-pink);
-}
-
-/* 音乐 UI 容器 */
-.music-ui-container {
+/* 音乐相关控制元素 */
+.music-controls {
   transition: opacity 0.3s ease, transform 0.3s ease;
   opacity: 1;
-  transform: translateY(0);
+  transform: scale(1);
+  pointer-events: auto;
 }
 
-.music-ui-container.hidden {
+.music-controls.hidden {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: scale(0.9);
   pointer-events: none;
 }
 
-/* 切换 UI 按钮 */
-.toggle-ui-btn {
-  font-family: 'Press Start 2P', cursive;
-  font-size: 0.8rem;
-  padding: 10px 15px;
-  min-width: 60px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.toggle-ui-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 15px var(--neon-cyan);
-}
-
-/* 左侧垂直控制按钮组 */
+/* 左侧垂直按钮组 */
 .left-controls {
   position: fixed;
   top: 120px;
@@ -1625,7 +1570,6 @@ html, body {
   flex-direction: column;
   gap: 20px;
   z-index: 1000;
-  pointer-events: auto;
 }
 
 .control-btn {
@@ -1644,13 +1588,66 @@ html, body {
   box-shadow: 0 0 20px var(--neon-cyan);
 }
 
+/* 开关按钮 - 始终显示 */
+.toggle-ui-section {
+  position: fixed;
+  top: 120px;
+  left: 150px;
+  z-index: 1001;
+}
+
+.toggle-ui-btn {
+  width: 70px;
+  height: 70px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.toggle-ui-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px var(--neon-cyan);
+}
+
+/* 通知红点 */
+.notification-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 15px;
+  height: 15px;
+  background: #ff4444;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #ff4444, 0 0 20px #ff4444, 0 0 30px #ff4444;
+  animation: pulse 1.5s infinite;
+  display: block;
+}
+
+.notification-dot.hidden {
+  display: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
 /* 右上角上传区域 */
 .upload-section {
   position: fixed;
   top: 50px;
   right: 50px;
   z-index: 1000;
-  pointer-events: auto;
 }
 
 .upload-btn {

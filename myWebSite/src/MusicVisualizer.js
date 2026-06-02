@@ -43,7 +43,12 @@ export default class MusicVisualizer {
       const bar = new THREE.Mesh(geometry, material)
       bar.position.set(startX + i * spacing, -6, -20)
       
-      this.bars.push({ mesh: bar, currentScale: 1, baseColor: baseColor.clone() })
+      this.bars.push({ 
+        mesh: bar, 
+        currentScale: 1, 
+        targetScale: 1,
+        baseColor: baseColor.clone() 
+      })
       this.scene.add(bar)
     }
   }
@@ -206,23 +211,28 @@ export default class MusicVisualizer {
         
         const ratio = i / barCount
         
-        // 全部频率都响应，但低音区幅度更大
+        // 进一步增大起伏幅度
         let boost = 1
-        if (ratio < 0.25) {
-          boost = 4.0  // 低音区幅度最大
+        if (ratio < 0.2) {
+          boost = 8.0  // 低音区超大幅增强
+        } else if (ratio < 0.35) {
+          boost = 6.5  // 次低音区大幅增强
         } else if (ratio < 0.5) {
-          boost = 2.5  // 中低频幅度适中
+          boost = 4.5  // 中低频增强
         } else if (ratio < 0.75) {
-          boost = 1.5  // 中高频正常响应
+          boost = 2.8  // 中高频
         } else {
-          boost = 1.2  // 高频也有响应
+          boost = 2.0  // 高频
         }
         
-        const scale = normalizedValue * boost
+        const targetScale = normalizedValue * boost
         const bar = this.bars[i]
         
-        bar.mesh.scale.y = scale
-        bar.mesh.position.y = -6 + scale * 0.5
+        // 减少缓降效果，响应更快
+        bar.currentScale = bar.currentScale * 0.6 + targetScale * 0.4
+        
+        bar.mesh.scale.y = bar.currentScale
+        bar.mesh.position.y = -6 + bar.currentScale * 0.5
         
         // 保持霓虹蓝色的辉光效果
         const intensity = 0.5 + normalizedValue * 0.5
@@ -244,11 +254,12 @@ export default class MusicVisualizer {
         
         // 全部轻微波动
         const idleScale = 0.1 + Math.sin(time * 0.002 + i * 0.1) * 0.05
+        bar.currentScale = bar.currentScale * 0.8 + idleScale * 0.2
         
-        bar.mesh.scale.y = idleScale
-        bar.mesh.position.y = -6 + idleScale * 0.5
+        bar.mesh.scale.y = bar.currentScale
+        bar.mesh.position.y = -6 + bar.currentScale * 0.5
         
-        bar.mesh.material.emissiveIntensity = 0.4 + idleScale * 0.3
+        bar.mesh.material.emissiveIntensity = 0.4 + bar.currentScale * 0.3
         bar.mesh.material.opacity = 0.8
         
         // 霓虹蓝色
