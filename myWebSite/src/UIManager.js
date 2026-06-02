@@ -199,6 +199,13 @@ export default class UIManager {
       this.createBlogList();
       this.initGuestbook();
       this.loadSavedAvatar();
+      
+      // 初始化显示状态面板
+      if (this.isMusicUiVisible && this.playerStatusEl) {
+        this.playerStatusEl.classList.remove('hidden');
+        this.playerStatusEl.classList.add('visible');
+      }
+      
       console.log('UIManager initialized successfully');
     } catch (error) {
       console.error('Error initializing UIManager:', error);
@@ -765,10 +772,7 @@ export default class UIManager {
       this.nowPlayingEl.classList.remove('hidden');
       this.nowPlayingEl.classList.add('visible');
     }
-    if (this.playerStatusEl) {
-      this.playerStatusEl.classList.remove('hidden');
-      this.playerStatusEl.classList.add('visible');
-    }
+    // 播放器状态面板的显示由 toggleMusicUI 控制
     this.updatePlayerStatus();
   }
 
@@ -798,11 +802,13 @@ export default class UIManager {
   toggleMusicUI() {
     this.isMusicUiVisible = !this.isMusicUiVisible;
     
-    if (this.musicUiContainer) {
+    if (this.playerStatusEl) {
       if (this.isMusicUiVisible) {
-        this.musicUiContainer.classList.remove('hidden');
+        this.playerStatusEl.classList.remove('hidden');
+        this.playerStatusEl.classList.add('visible');
       } else {
-        this.musicUiContainer.classList.add('hidden');
+        this.playerStatusEl.classList.add('hidden');
+        this.playerStatusEl.classList.remove('visible');
       }
     }
     
@@ -971,18 +977,22 @@ export default class UIManager {
 
   toggleMusic() {
     try {
+      console.log('toggleMusic called, isMusicPlaying:', this.isMusicPlaying);
+      
       if (!this.isAudioInitialized) {
         this.initAudioPlayer();
       }
       
       if (this.isMusicPlaying) {
         // 暂停
+        console.log('Pausing music');
         if (window.musicVisualizer) {
           window.musicVisualizer.pause();
-        } else {
+        } else if (this.audio) {
           this.audio.pause();
         }
         this.isMusicPlaying = false;
+        this.updateStatusText('暂停');
         if (this.musicIcon) {
           this.musicIcon.textContent = '▶';
         }
@@ -990,33 +1000,21 @@ export default class UIManager {
           this.musicBtn.classList.remove('is-success');
           this.musicBtn.classList.add('is-primary');
         }
-        // 停止颜色变化
         if (window.setColorChanging) {
           window.setColorChanging(false);
         }
       } else {
         // 播放
+        console.log('Playing music');
+        
+        // 检查是否已有上传的本地文件在播放
         if (window.musicVisualizer && window.musicVisualizer.audioElement && 
             window.musicVisualizer.audioElement.src && 
-            window.musicVisualizer.audioElement.currentTime > 0) {
-          // 如果已经加载了，继续播放
-          window.musicVisualizer.play();
-          this.isMusicPlaying = true;
-          if (this.musicIcon) {
-            this.musicIcon.textContent = '⏸';
-          }
-          if (this.musicBtn) {
-            this.musicBtn.classList.remove('is-primary');
-            this.musicBtn.classList.add('is-success');
-          }
-          this.showNowPlaying(this.songs[this.currentSongIndex].title);
-          if (window.setColorChanging) {
-            window.setColorChanging(true);
-          }
-        } else if (this.audio.src && this.audio.currentTime > 0 && !this.audio.paused) {
-          // 如果已经加载了，继续播放
-          this.audio.play().then(() => {
+            window.musicVisualizer.audioElement.src.startsWith('blob:')) {
+          console.log('Resuming local file playback');
+          window.musicVisualizer.play().then(() => {
             this.isMusicPlaying = true;
+            this.updateStatusText('播放中');
             if (this.musicIcon) {
               this.musicIcon.textContent = '⏸';
             }
@@ -1024,7 +1022,6 @@ export default class UIManager {
               this.musicBtn.classList.remove('is-primary');
               this.musicBtn.classList.add('is-success');
             }
-            this.showNowPlaying(this.songs[this.currentSongIndex].title);
             if (window.setColorChanging) {
               window.setColorChanging(true);
             }
@@ -1033,7 +1030,8 @@ export default class UIManager {
             this.playCurrentSong();
           });
         } else {
-          // 否则加载并播放当前歌曲
+          // 默认播放当前选择的歌曲
+          console.log('Playing default song');
           this.playCurrentSong();
         }
       }

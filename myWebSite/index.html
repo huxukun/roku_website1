@@ -41,15 +41,17 @@
       <input type="file" id="audio-file" accept="audio/mp3" hidden>
     </div>
     
+    <!-- 正在播放的白字独立显示 -->
+    <div id="now-playing" class="now-playing hidden">
+      <span>正在播放：</span>
+      <span id="song-title"></span>
+    </div>
+    
     <div class="ui-container">
       <header class="header-bar">
         <h1>WELCOME</h1>
       </header>
       <div id="music-ui-container" class="music-ui-container">
-        <div id="now-playing" class="now-playing hidden">
-          <span>正在播放：</span>
-          <span id="song-title"></span>
-        </div>
         <div id="player-status" class="player-status hidden">
           <div class="status-row">
             <span>状态：</span>
