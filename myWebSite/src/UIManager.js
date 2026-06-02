@@ -166,6 +166,18 @@ async function saveGuestbookMessageToSupabase(message) {
 }
 
 export default class UIManager {
+  loadSongsFromService() {
+    if (window.musicService && window.musicService.getSongsCount() > 0) {
+      const dbSongs = window.musicService.getAllSongs();
+      return dbSongs.map(song => ({
+        title: song.title,
+        url: song.file_path
+      }));
+    }
+    
+    return [];
+  }
+
   constructor() {
     this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
     this.isLoadingMessages = false;
@@ -212,14 +224,8 @@ export default class UIManager {
     this.isMusicPlaying = false;
     this.audio = null;
     this.currentSongIndex = 0;
-    // 五首歌曲
-    this.songs = [
-      { title: 'Midnight 1980 - Vicious', url: 'https://music.163.com/song/media/outer/url?id=1983851619.mp3' },
-      { title: 'dream chaser - 蓝云木', url: 'https://music.163.com/song/media/outer/url?id=1933959185.mp3' },
-      { title: 'nightfall - timecop1983', url: 'https://music.163.com/song/media/outer/url?id=1470148845.mp3' },
-      { title: 'Clova - PYLOT', url: 'https://music.163.com/song/media/outer/url?id=454966826.mp3' },
-      { title: 'Milky Way Express - Lupus Nocte', url: 'https://music.163.com/song/media/outer/url?id=1404977581.mp3' }
-    ];
+    // 优先使用云端数据库的歌曲，没有则使用默认歌曲
+    this.songs = this.loadSongsFromService();
     this.isAudioInitialized = false;
     // 播放队列：确保5轮内不重复
     this.playlist = [];
@@ -813,27 +819,46 @@ export default class UIManager {
   playCurrentSong() {
     const currentSong = this.songs[this.currentSongIndex];
     
-    this.audio.src = currentSong.url;
-    
-    this.audio.play().then(() => {
-      this.showNowPlaying(currentSong.title);
-      this.isMusicPlaying = true;
-      if (this.musicIcon) {
-        this.musicIcon.textContent = '⏸';
-      }
-      if (this.musicBtn) {
-        this.musicBtn.classList.remove('is-primary');
-        this.musicBtn.classList.add('is-success');
-      }
-      // 启动颜色变化
-      if (window.setColorChanging) {
-        window.setColorChanging(true);
-      }
-    }).catch(error => {
-      console.error('播放失败:', error);
-      // 如果播放失败，尝试下一首
-      setTimeout(() => this.playRandomNextSong(), 500);
-    });
+    if (window.musicVisualizer) {
+      window.musicVisualizer.loadAudio(currentSong.url).then(() => {
+        window.musicVisualizer.play();
+        this.showNowPlaying(currentSong.title);
+        this.isMusicPlaying = true;
+        if (this.musicIcon) {
+          this.musicIcon.textContent = '⏸';
+        }
+        if (this.musicBtn) {
+          this.musicBtn.classList.remove('is-primary');
+          this.musicBtn.classList.add('is-success');
+        }
+        if (window.setColorChanging) {
+          window.setColorChanging(true);
+        }
+      }).catch(error => {
+        console.error('播放失败:', error);
+        setTimeout(() => this.playRandomNextSong(), 500);
+      });
+    } else {
+      this.audio.src = currentSong.url;
+      
+      this.audio.play().then(() => {
+        this.showNowPlaying(currentSong.title);
+        this.isMusicPlaying = true;
+        if (this.musicIcon) {
+          this.musicIcon.textContent = '⏸';
+        }
+        if (this.musicBtn) {
+          this.musicBtn.classList.remove('is-primary');
+          this.musicBtn.classList.add('is-success');
+        }
+        if (window.setColorChanging) {
+          window.setColorChanging(true);
+        }
+      }).catch(error => {
+        console.error('播放失败:', error);
+        setTimeout(() => this.playRandomNextSong(), 500);
+      });
+    }
   }
 
   toggleMusic() {
@@ -844,7 +869,11 @@ export default class UIManager {
       
       if (this.isMusicPlaying) {
         // 暂停
-        this.audio.pause();
+        if (window.musicVisualizer) {
+          window.musicVisualizer.pause();
+        } else {
+          this.audio.pause();
+        }
         this.isMusicPlaying = false;
         if (this.musicIcon) {
           this.musicIcon.textContent = '▶';
@@ -859,7 +888,24 @@ export default class UIManager {
         }
       } else {
         // 播放
-        if (this.audio.src && this.audio.currentTime > 0 && !this.audio.paused) {
+        if (window.musicVisualizer && window.musicVisualizer.audioElement && 
+            window.musicVisualizer.audioElement.src && 
+            window.musicVisualizer.audioElement.currentTime > 0) {
+          // 如果已经加载了，继续播放
+          window.musicVisualizer.play();
+          this.isMusicPlaying = true;
+          if (this.musicIcon) {
+            this.musicIcon.textContent = '⏸';
+          }
+          if (this.musicBtn) {
+            this.musicBtn.classList.remove('is-primary');
+            this.musicBtn.classList.add('is-success');
+          }
+          this.showNowPlaying(this.songs[this.currentSongIndex].title);
+          if (window.setColorChanging) {
+            window.setColorChanging(true);
+          }
+        } else if (this.audio.src && this.audio.currentTime > 0 && !this.audio.paused) {
           // 如果已经加载了，继续播放
           this.audio.play().then(() => {
             this.isMusicPlaying = true;
@@ -897,6 +943,11 @@ export default class UIManager {
     } catch (error) {
       console.error('Error handling next song:', error);
     }
+  }
+  
+  playRandomNextSong() {
+    this.currentSongIndex = this.getNextSongIndex();
+    this.playCurrentSong();
   }
 
   handleAudioFileSelect(event) {

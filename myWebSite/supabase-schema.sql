@@ -41,3 +41,29 @@ CREATE TRIGGER update_guestbook_updated_at
     BEFORE UPDATE ON messages
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
+-- 音乐表 - 存储歌曲信息
+-- =============================================
+CREATE TABLE IF NOT EXISTS songs (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    artist VARCHAR(100),
+    file_path VARCHAR(500) NOT NULL,
+    duration INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 启用 RLS
+ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
+
+-- 允许所有人读取歌曲
+CREATE POLICY "Allow public read access to songs" ON songs
+    FOR SELECT USING (true);
+
+-- 允许所有人插入歌曲（需要认证）
+CREATE POLICY "Allow authenticated insert songs" ON songs
+    FOR INSERT WITH CHECK (true);
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_songs_created_at ON songs(created_at DESC);

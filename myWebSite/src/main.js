@@ -16,6 +16,7 @@ import WireframeMountain from './WireframeMountain.js'
 import VirtualAvatar from './VirtualAvatar.js'
 import PinkOzoneFog from './PinkOzoneFog.js'
 import MusicVisualizer from './MusicVisualizer.js'
+import musicService from './MusicService.js'
 
 const canvas = document.querySelector('canvas.webgl')
 
@@ -270,36 +271,14 @@ window.toggleVisualizer = function() {
   musicVisualizer.toggle();
 };
 
-window.startMusic = function() {
-  console.log('startMusic called');
-  
-  const songs = [
-    'https://music.163.com/song/media/outer/url?id=1983851619.mp3',
-    'https://music.163.com/song/media/outer/url?id=1933959185.mp3',
-    'https://music.163.com/song/media/outer/url?id=1470148845.mp3',
-    'https://music.163.com/song/media/outer/url?id=454966826.mp3',
-    'https://music.163.com/song/media/outer/url?id=1404977581.mp3'
-  ];
-  
-  const randomSong = songs[Math.floor(Math.random() * songs.length)];
-  console.log('Loading song:', randomSong);
-  
-  const proxyUrl = 'http://localhost:3001/proxy?url=' + encodeURIComponent(randomSong);
-  console.log('Proxy URL:', proxyUrl);
-  
-  musicVisualizer.loadAudio(proxyUrl).then(() => {
-    console.log('Audio loaded, playing...');
-    musicVisualizer.play();
-  }).catch(err => {
-    console.error('Failed to load music:', err);
-    alert('音乐加载失败，请检查网络连接');
-  });
-};
-
 // 确保DOM准备好后初始化
 let uiManager = null;
-const init = () => {
-  console.log('DOM ready, initializing UIManager...');
+const init = async () => {
+  console.log('DOM ready, fetching songs from database...');
+  
+  await musicService.fetchSongs();
+  
+  console.log('Initializing UIManager...');
   uiManager = new UIManager();
 };
 
@@ -308,3 +287,5 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+window.musicService = musicService;
