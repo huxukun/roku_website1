@@ -37,7 +37,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 
 ```sql
 -- 创建留言板表
-CREATE TABLE IF NOT EXISTS guestbook_messages (
+CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL DEFAULT '匿名网友',
     tag VARCHAR(50),
@@ -47,18 +47,18 @@ CREATE TABLE IF NOT EXISTS guestbook_messages (
 );
 
 -- 启用 Row Level Security
-ALTER TABLE guestbook_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- 允许所有人读取留言
-CREATE POLICY "Allow public read access" ON guestbook_messages
+CREATE POLICY "Allow public read access" ON messages
     FOR SELECT USING (true);
 
 -- 允许所有人插入留言
-CREATE POLICY "Allow public insert access" ON guestbook_messages
+CREATE POLICY "Allow public insert access" ON messages
     FOR INSERT WITH CHECK (true);
 
 -- 创建索引优化查询性能
-CREATE INDEX IF NOT EXISTS idx_guestbook_created_at ON guestbook_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guestbook_created_at ON messages(created_at DESC);
 ```
 
 ### 5️⃣ 验证配置
@@ -134,7 +134,7 @@ A: 检查浏览器控制台是否有错误信息，确保：
 
 ### Q: 如何查看数据库中的数据？
 
-A: 在 Supabase 仪表板 > **Table Editor** > 选择 **guestbook_messages** 表
+A: 在 Supabase 仪表板 > **Table Editor** > 选择 **messages** 表
 
 ### Q: 可以删除留言吗？
 

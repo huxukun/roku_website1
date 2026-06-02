@@ -117,7 +117,7 @@ function saveMessagesToLocalStorage(messages) {
 // 从 Supabase 加载留言
 async function loadGuestbookMessagesFromSupabase() {
   const { data, error } = await supabase
-    .from('guestbook_messages')
+    .from('messages')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -137,7 +137,7 @@ async function loadGuestbookMessagesFromSupabase() {
 // 保存留言到 Supabase
 async function saveGuestbookMessageToSupabase(message) {
   const { data, error } = await supabase
-    .from('guestbook_messages')
+    .from('messages')
     .insert([
       {
         name: message.name,
