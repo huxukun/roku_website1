@@ -282,6 +282,53 @@ html, body {
   pointer-events: auto;
 }
 
+.blog-btn-floating {
+  position: fixed;
+  right: 2rem;
+  bottom: 2rem;
+  z-index: 50;
+  font-size: 1.4rem !important;
+  padding: 1.2rem 2rem !important;
+  border-width: 4px !important;
+  box-shadow: 
+    0 0 25px var(--neon-cyan),
+    0 0 50px rgba(0, 255, 255, 0.5),
+    inset 0 0 20px rgba(0, 255, 255, 0.2) !important;
+  animation: blogPulse 2s ease-in-out infinite;
+}
+
+.blog-btn-floating:hover {
+  transform: translateY(-5px) scale(1.1);
+  box-shadow: 
+    0 0 40px var(--neon-cyan),
+    0 0 80px rgba(0, 255, 255, 0.8),
+    inset 0 0 30px rgba(0, 255, 255, 0.3) !important;
+}
+
+@keyframes blogPulse {
+  0%, 100% { 
+    box-shadow: 
+      0 0 25px var(--neon-cyan),
+      0 0 50px rgba(0, 255, 255, 0.5),
+      inset 0 0 20px rgba(0, 255, 255, 0.2);
+  }
+  50% { 
+    box-shadow: 
+      0 0 35px var(--neon-cyan),
+      0 0 70px rgba(0, 255, 255, 0.7),
+      inset 0 0 25px rgba(0, 255, 255, 0.3);
+  }
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .blog-btn-floating {
+    right: 1rem;
+    bottom: 1rem;
+    font-size: 1rem !important;
+    padding: 0.8rem 1.4rem !important;
+  }
+}
+
 .nes-btn {
   position: relative;
   overflow: hidden;
