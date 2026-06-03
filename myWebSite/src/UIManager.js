@@ -493,6 +493,7 @@ export default class UIManager {
       this.isAboutModalOpen = true;
       if (this.aboutModal) {
         this.renderSkills();
+        this.renderProfile();
         this.aboutModal.classList.remove('hidden');
         setTimeout(() => {
           this.aboutModal.classList.add('visible');

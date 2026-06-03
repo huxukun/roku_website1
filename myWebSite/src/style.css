@@ -1095,10 +1095,31 @@ html, body {
   font-family: 'Press Start 2P', cursive;
 }
 
+.about-bio .bio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.about-bio .bio-controls {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.about-bio .bio-controls .nes-btn {
+  font-size: 0.55rem !important;
+  padding: 0.25rem 0.4rem !important;
+}
+
 .about-bio p {
   color: var(--neon-cyan);
   line-height: 1.6;
   font-size: 0.85rem;
+}
+
+.about-bio p.hidden {
+  display: none;
 }
 
 .skills-container {
