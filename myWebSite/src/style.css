@@ -1029,6 +1029,110 @@ html, body {
   padding-bottom: 0.8rem;
 }
 
+.about-header-right {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.admin-toggle-btn {
+  font-size: 0.8rem !important;
+  padding: 0.3rem 0.5rem !important;
+}
+
+/* 管理员专用元素 - 默认隐藏 */
+.admin-only {
+  display: none !important;
+}
+
+/* 管理员模式下显示 */
+.admin-mode .admin-only {
+  display: flex !important;
+}
+
+/* 管理员弹窗样式 */
+.admin-modal-content {
+  width: 90%;
+  max-width: 400px;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.modal-overlay:not(.hidden) .admin-modal-content {
+  transform: scale(1);
+}
+
+.admin-dialog {
+  padding: 1.5rem !important;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--neon-pink);
+  padding-bottom: 0.8rem;
+}
+
+.admin-header h2 {
+  font-size: 1rem;
+  color: var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-pink);
+  font-family: 'Press Start 2P', cursive;
+}
+
+.admin-body {
+  text-align: center;
+}
+
+.admin-hint {
+  color: var(--neon-cyan);
+  font-size: 0.75rem;
+  margin-bottom: 1rem;
+  font-family: 'Press Start 2P', cursive;
+  line-height: 1.6;
+}
+
+/* Blog 相关样式 */
+.blog-header-right {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.blog-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.blog-editor {
+  padding: 1rem;
+  background: var(--semi-transparent-bg);
+  border: 2px solid var(--neon-pink);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.blog-editor.hidden {
+  display: none;
+}
+
+.blog-editor-controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.blog-editor-controls .nes-btn {
+  font-size: 0.65rem !important;
+  padding: 0.4rem 0.8rem !important;
+}
+
 .about-header h2 {
   font-size: 1rem;
   color: var(--neon-pink);
