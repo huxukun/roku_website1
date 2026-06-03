@@ -43,6 +43,65 @@ CREATE TRIGGER update_guestbook_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================
+-- 个人信息表 - 存储头像和个人介绍
+-- =============================================
+CREATE TABLE IF NOT EXISTS profile (
+    id INTEGER PRIMARY KEY,
+    avatar TEXT,
+    bio TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 启用 RLS
+ALTER TABLE profile ENABLE ROW LEVEL SECURITY;
+
+-- 允许所有人读取个人信息
+CREATE POLICY "Allow public read access to profile" ON profile
+    FOR SELECT USING (true);
+
+-- 允许所有人更新个人信息（可选：你可以修改为仅允许认证用户）
+CREATE POLICY "Allow public update access to profile" ON profile
+    FOR UPDATE USING (true);
+
+-- 允许所有人插入个人信息
+CREATE POLICY "Allow public insert access to profile" ON profile
+    FOR INSERT WITH CHECK (true);
+
+-- 为 profile 表添加更新时间戳触发器
+CREATE TRIGGER update_profile_updated_at
+  BEFORE UPDATE ON profile
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- ========== 博客表 ==========
+CREATE TABLE IF NOT EXISTS blogs (
+  id BIGINT PRIMARY KEY,
+  title VARCHAR(500) NOT NULL,
+  date VARCHAR(50) NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 启用 RLS
+ALTER TABLE blogs ENABLE ROW LEVEL SECURITY;
+
+-- 允许所有人读取博客
+CREATE POLICY "Allow public read access to blogs" ON blogs
+  FOR SELECT USING (true);
+
+-- 允许所有人插入和更新博客（注意：生产环境应该限制为认证用户）
+CREATE POLICY "Allow public write access to blogs" ON blogs
+  FOR ALL USING (true);
+
+-- 为 blogs 表添加更新时间戳触发器
+CREATE TRIGGER update_blogs_updated_at
+  BEFORE UPDATE ON blogs
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
 -- 音乐表 - 存储歌曲信息
 -- =============================================
 CREATE TABLE IF NOT EXISTS songs (

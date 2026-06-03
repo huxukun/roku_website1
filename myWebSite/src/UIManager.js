@@ -76,6 +76,14 @@ const blogData = [
 
 // Supabase 导入
 import { supabase } from './supabase.js';
+import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY } from './profileConfig.js';
+import { 
+  ADMIN_PASSWORD, 
+  verifyAdminPassword, 
+  isAdminAuthenticated, 
+  saveAdminAuth, 
+  clearAdminAuth 
+} from './adminConfig.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
@@ -165,7 +173,138 @@ async function saveGuestbookMessageToSupabase(message) {
   };
 }
 
+// 从 Supabase 加载个人信息
+async function loadProfileFromSupabase() {
+  const { data, error } = await supabase
+    .from('profile')
+    .select('*')
+    .limit(1);
+
+  if (error) {
+    throw error;
+  }
+
+  if (data && data.length > 0) {
+    return data[0];
+  }
+  
+  return null;
+}
+
+// 保存个人信息到 Supabase
+async function saveProfileToSupabase(profile) {
+  const { data, error } = await supabase
+    .from('profile')
+    .upsert([
+      {
+        id: 1, // 使用固定的 id 确保只有一条记录
+        avatar: profile.avatar,
+        bio: profile.bio,
+        updated_at: new Date().toISOString()
+      }
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+// 从 localStorage 加载个人信息
+function loadProfileFromLocalStorage() {
+  try {
+    const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
+    return stored ? JSON.parse(stored) : DEFAULT_PROFILE;
+  } catch (error) {
+    console.error('Error loading profile from localStorage:', error);
+    return DEFAULT_PROFILE;
+  }
+}
+
+// 保存个人信息到 localStorage
+function saveProfileToLocalStorage(profile) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
+  } catch (error) {
+    console.error('Error saving profile to localStorage:', error);
+  }
+}
+
+// 从 Supabase 加载博客文章
+async function loadBlogsFromSupabase() {
+  const { data, error } = await supabase
+    .from('blogs')
+    .select('*')
+    .order('date', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+// 保存博客文章到 Supabase
+async function saveBlogToSupabase(blog) {
+  const { data, error } = await supabase
+    .from('blogs')
+    .upsert([blog])
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+// 从 Supabase 删除博客文章
+async function deleteBlogFromSupabase(id) {
+  const { error } = await supabase
+    .from('blogs')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+// LocalStorage 博客存储键名
+const LOCAL_STORAGE_BLOG_KEY = 'synthwave_blogs';
+
+// 从 localStorage 加载博客
+function loadBlogsFromLocalStorage() {
+  try {
+    const stored = localStorage.getItem(LOCAL_STORAGE_BLOG_KEY);
+    return stored ? JSON.parse(stored) : blogData;
+  } catch (error) {
+    console.error('Error loading blogs from localStorage:', error);
+    return blogData;
+  }
+}
+
+// 保存博客到 localStorage
+function saveBlogsToLocalStorage(blogs) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_BLOG_KEY, JSON.stringify(blogs));
+  } catch (error) {
+    console.error('Error saving blogs to localStorage:', error);
+  }
+}
+
 export default class UIManager {
+  currentProfile = { ...DEFAULT_PROFILE };
+  isProfileEditable = false;
+  isAdminMode = false;
+  currentBlogs = [...blogData];
+  currentEditingBlog = null;
+  isBlogEditing = false;
+
   loadSongsFromService() {
     console.log('UIManager: loadSongsFromService called');
     console.log('UIManager: window.musicService exists:', !!window.musicService);
@@ -207,14 +346,16 @@ export default class UIManager {
     this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
     this.isLoadingMessages = false;
     this.isSubmitting = false;
+    this.isSavingProfile = false;
 
     try {
       this.initElements();
       this.initEventListeners();
       this.createProjectCards();
-      this.createBlogList();
       this.initGuestbook();
-      this.loadSavedAvatar();
+      this.initProfile();
+      this.initAdminMode();
+      this.initBlogs();
       
       console.log('UIManager initialized successfully');
     } catch (error) {
@@ -283,6 +424,30 @@ export default class UIManager {
     this.storageStatus = document.getElementById('storage-status');
     this.loadingIndicator = document.getElementById('loading-indicator');
     this.errorMessage = document.getElementById('error-message');
+    
+    // 个人信息编辑相关元素
+    this.editProfileBtn = document.getElementById('edit-profile-btn');
+    this.saveProfileBtn = document.getElementById('save-profile-btn');
+    this.cancelProfileBtn = document.getElementById('cancel-profile-btn');
+    
+    // 管理员模式相关元素
+    this.adminModal = document.getElementById('admin-modal');
+    this.adminToggleBtn = document.getElementById('admin-toggle-btn');
+    this.blogAdminToggleBtn = document.getElementById('blog-admin-toggle-btn');
+    this.adminPasswordInput = document.getElementById('admin-password-input');
+    this.adminLoginBtn = document.getElementById('admin-login-btn');
+    this.closeAdminModalBtn = document.getElementById('close-admin-modal');
+    
+    // 博客管理相关元素
+    this.addBlogBtn = document.getElementById('add-blog-btn');
+    this.blogEditor = document.getElementById('blog-editor');
+    this.blogPreview = document.getElementById('blog-preview');
+    this.blogTitleInput = document.getElementById('blog-title-input');
+    this.blogDateInput = document.getElementById('blog-date-input');
+    this.blogContentTextarea = document.getElementById('blog-content-textarea');
+    this.saveBlogBtn = document.getElementById('save-blog-btn');
+    this.deleteBlogBtn = document.getElementById('delete-blog-btn');
+    this.cancelBlogEditBtn = document.getElementById('cancel-blog-edit-btn');
     
     this.isAboutModalOpen = false;
     this.isGalleryModalOpen = false;
@@ -363,6 +528,50 @@ export default class UIManager {
       this.avatarUploadBtn.addEventListener('click', () => this.avatarUpload.click());
       this.avatarUpload.addEventListener('change', (e) => this.handleAvatarUpload(e));
     }
+    
+    // 个人信息编辑事件监听器
+    if (this.editProfileBtn) {
+      this.editProfileBtn.addEventListener('click', () => this.toggleProfileEdit());
+    }
+    if (this.saveProfileBtn) {
+      this.saveProfileBtn.addEventListener('click', () => this.saveProfile());
+    }
+    if (this.cancelProfileBtn) {
+      this.cancelProfileBtn.addEventListener('click', () => this.cancelProfileEdit());
+    }
+    
+    // 管理员模式事件监听器
+    if (this.adminToggleBtn) {
+      this.adminToggleBtn.addEventListener('click', () => this.handleAdminToggle());
+    }
+    if (this.blogAdminToggleBtn) {
+      this.blogAdminToggleBtn.addEventListener('click', () => this.handleAdminToggle());
+    }
+    if (this.adminLoginBtn) {
+      this.adminLoginBtn.addEventListener('click', () => this.handleAdminLogin());
+    }
+    if (this.adminPasswordInput) {
+      this.adminPasswordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.handleAdminLogin();
+      });
+    }
+    if (this.closeAdminModalBtn) {
+      this.closeAdminModalBtn.addEventListener('click', () => this.closeAdminModal());
+    }
+    
+    // 博客管理事件监听器
+    if (this.addBlogBtn) {
+      this.addBlogBtn.addEventListener('click', () => this.addNewBlog());
+    }
+    if (this.saveBlogBtn) {
+      this.saveBlogBtn.addEventListener('click', () => this.saveBlog());
+    }
+    if (this.deleteBlogBtn) {
+      this.deleteBlogBtn.addEventListener('click', () => this.deleteBlog());
+    }
+    if (this.cancelBlogEditBtn) {
+      this.cancelBlogEditBtn.addEventListener('click', () => this.cancelBlogEdit());
+    }
   }
 
   // 更新存储状态显示
@@ -412,6 +621,7 @@ export default class UIManager {
       this.isAboutModalOpen = true;
       if (this.aboutModal) {
         this.renderSkills();
+        this.renderProfile();
         this.aboutModal.classList.remove('hidden');
         setTimeout(() => {
           this.aboutModal.classList.add('visible');
@@ -1125,8 +1335,124 @@ export default class UIManager {
       console.error('Error playing visualizer:', error);
     }
   }
-  
-  handleAvatarUpload(event) {
+
+  // 初始化个人信息
+  async initProfile() {
+    try {
+      await this.loadProfile();
+    } catch (error) {
+      console.error('Error initializing profile:', error);
+    }
+  }
+
+  // 加载个人信息
+  async loadProfile() {
+    if (this.isSupabaseConfigured) {
+      try {
+        const profile = await loadProfileFromSupabase();
+        if (profile) {
+          this.currentProfile = {
+            avatar: profile.avatar || DEFAULT_PROFILE.avatar,
+            bio: profile.bio || DEFAULT_PROFILE.bio
+          };
+          this.renderProfile();
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading profile from Supabase, falling back to localStorage:', error);
+      }
+    }
+    
+    // 回退到 localStorage
+    this.currentProfile = loadProfileFromLocalStorage();
+    this.renderProfile();
+  }
+
+  // 渲染个人信息
+  renderProfile() {
+    if (this.profileAvatar) {
+      this.profileAvatar.src = this.currentProfile.avatar;
+    }
+    const bioEl = document.getElementById('profile-bio');
+    if (bioEl) {
+      bioEl.textContent = this.currentProfile.bio;
+    }
+  }
+
+  // 切换编辑模式
+  toggleProfileEdit() {
+    this.isProfileEditable = !this.isProfileEditable;
+    this.updateProfileEditUI();
+  }
+
+  // 更新编辑模式的 UI
+  updateProfileEditUI() {
+    const bioTextarea = document.getElementById('profile-bio-textarea');
+    const bioDisplay = document.getElementById('profile-bio');
+    const editBtn = document.getElementById('edit-profile-btn');
+    const saveBtn = document.getElementById('save-profile-btn');
+    const cancelBtn = document.getElementById('cancel-profile-btn');
+
+    if (this.isProfileEditable) {
+      if (bioTextarea) {
+        bioTextarea.value = this.currentProfile.bio;
+        bioTextarea.classList.remove('hidden');
+      }
+      if (bioDisplay) {
+        bioDisplay.classList.add('hidden');
+      }
+      if (editBtn) editBtn.classList.add('hidden');
+      if (saveBtn) saveBtn.classList.remove('hidden');
+      if (cancelBtn) cancelBtn.classList.remove('hidden');
+    } else {
+      if (bioTextarea) bioTextarea.classList.add('hidden');
+      if (bioDisplay) bioDisplay.classList.remove('hidden');
+      if (editBtn) editBtn.classList.remove('hidden');
+      if (saveBtn) saveBtn.classList.add('hidden');
+      if (cancelBtn) cancelBtn.classList.add('hidden');
+    }
+  }
+
+  // 保存个人信息
+  async saveProfile() {
+    if (this.isSavingProfile) return;
+
+    const bioTextarea = document.getElementById('profile-bio-textarea');
+    if (!bioTextarea) return;
+
+    this.isSavingProfile = true;
+    const newBio = bioTextarea.value;
+
+    // 更新当前数据
+    this.currentProfile.bio = newBio;
+
+    // 保存
+    try {
+      if (this.isSupabaseConfigured) {
+        await saveProfileToSupabase(this.currentProfile);
+      }
+      saveProfileToLocalStorage(this.currentProfile);
+      
+      // 重新渲染并退出编辑模式
+      this.renderProfile();
+      this.isProfileEditable = false;
+      this.updateProfileEditUI();
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('保存失败，请稍后重试');
+    } finally {
+      this.isSavingProfile = false;
+    }
+  }
+
+  // 取消编辑
+  cancelProfileEdit() {
+    this.isProfileEditable = false;
+    this.updateProfileEditUI();
+  }
+
+  // 处理头像上传（同时保存到本地和 Supabase）
+  async handleAvatarUpload(event) {
     try {
       const file = event.target.files[0];
       if (!file) return;
@@ -1137,27 +1463,338 @@ export default class UIManager {
       }
       
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
+        const avatarData = e.target.result;
+        
+        // 更新头像显示
         if (this.profileAvatar) {
-          this.profileAvatar.src = e.target.result;
+          this.profileAvatar.src = avatarData;
         }
-        // 保存到localStorage
-        localStorage.setItem('synthwave-avatar', e.target.result);
+        
+        // 更新当前数据
+        this.currentProfile.avatar = avatarData;
+        
+        // 保存
+        try {
+          if (this.isSupabaseConfigured) {
+            await saveProfileToSupabase(this.currentProfile);
+          }
+          saveProfileToLocalStorage(this.currentProfile);
+        } catch (error) {
+          console.error('Error saving avatar:', error);
+        }
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading avatar:', error);
     }
   }
+
+  // ========== 管理员模式相关方法 ==========
   
-  loadSavedAvatar() {
+  // 初始化管理员模式
+  initAdminMode() {
+    if (isAdminAuthenticated()) {
+      this.enableAdminMode();
+    }
+  }
+
+  // 处理管理员切换按钮
+  handleAdminToggle() {
+    if (this.isAdminMode) {
+      // 退出管理模式
+      this.disableAdminMode();
+      clearAdminAuth();
+    } else {
+      // 打开密码输入弹窗
+      this.openAdminModal();
+    }
+  }
+
+  // 打开管理员密码弹窗
+  openAdminModal() {
+    if (this.adminModal) {
+      this.adminModal.classList.remove('hidden');
+      setTimeout(() => {
+        this.adminModal.classList.add('visible');
+      }, 10);
+      // 清空并聚焦密码输入框
+      if (this.adminPasswordInput) {
+        this.adminPasswordInput.value = '';
+        this.adminPasswordInput.focus();
+      }
+    }
+  }
+
+  // 关闭管理员密码弹窗
+  closeAdminModal() {
+    if (this.adminModal) {
+      this.adminModal.classList.remove('visible');
+      setTimeout(() => {
+        this.adminModal.classList.add('hidden');
+      }, 300);
+    }
+  }
+
+  // 处理管理员登录
+  handleAdminLogin() {
+    const password = this.adminPasswordInput ? this.adminPasswordInput.value : '';
+    if (verifyAdminPassword(password)) {
+      saveAdminAuth();
+      this.enableAdminMode();
+      this.closeAdminModal();
+      alert('✅ 已进入管理模式！');
+    } else {
+      alert('❌ 密码错误！');
+    }
+  }
+
+  // 启用管理员模式
+  enableAdminMode() {
+    this.isAdminMode = true;
+    // 给 body 添加 admin-mode 类
+    document.body.classList.add('admin-mode');
+    // 更新按钮文字
+    this.updateAdminButtons();
+  }
+
+  // 禁用管理员模式
+  disableAdminMode() {
+    this.isAdminMode = false;
+    document.body.classList.remove('admin-mode');
+    this.updateAdminButtons();
+  }
+
+  // 更新管理员按钮状态
+  updateAdminButtons() {
+    if (this.adminToggleBtn) {
+      this.adminToggleBtn.textContent = this.isAdminMode ? '🔒' : '⚙️';
+    }
+    if (this.blogAdminToggleBtn) {
+      this.blogAdminToggleBtn.textContent = this.isAdminMode ? '🔒' : '⚙️';
+    }
+  }
+
+  // ========== 博客管理相关方法 ==========
+
+  // 初始化博客
+  async initBlogs() {
+    await this.loadBlogs();
+    this.createBlogList();
+  }
+
+  // 加载博客文章
+  async loadBlogs() {
+    if (this.isSupabaseConfigured) {
+      try {
+        const blogs = await loadBlogsFromSupabase();
+        if (blogs && blogs.length > 0) {
+          this.currentBlogs = blogs;
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading blogs from Supabase, falling back to localStorage:', error);
+      }
+    }
+    // 回退到 localStorage
+    this.currentBlogs = loadBlogsFromLocalStorage();
+  }
+
+  // 重写 createBlogList 方法
+  createBlogList() {
+    if (!this.blogListContainer) return;
+    
     try {
-      const savedAvatar = localStorage.getItem('synthwave-avatar');
-      if (savedAvatar && this.profileAvatar) {
-        this.profileAvatar.src = savedAvatar;
+      this.blogListContainer.innerHTML = '';
+      this.currentBlogs.forEach((blog, index) => {
+        const item = document.createElement('div');
+        item.className = 'blog-item';
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span>${blog.title}</span>
+            ${this.isAdminMode ? `<button class="edit-blog-icon" data-index="${index}" style="background: none; border: none; cursor: pointer; font-size: 0.8rem;">✏️</button>` : ''}
+          </div>
+          <span class="blog-item-date">${blog.date}</span>
+        `;
+        item.addEventListener('click', (e) => {
+          // 检查是否点击了编辑按钮
+          if (e.target.classList.contains('edit-blog-icon')) {
+            e.stopPropagation();
+            this.editBlog(index);
+          } else {
+            this.renderBlogPost(blog, e);
+          }
+        });
+        this.blogListContainer.appendChild(item);
+      });
+    } catch (error) {
+      console.error('Error creating blog list:', error);
+    }
+  }
+
+  // 添加新博客
+  addNewBlog() {
+    const today = new Date().toISOString().split('T')[0];
+    this.currentEditingBlog = {
+      id: Date.now(),
+      title: '',
+      date: today,
+      content: ''
+    };
+    this.isBlogEditing = true;
+    this.showBlogEditor();
+  }
+
+  // 编辑博客
+  editBlog(index) {
+    const blog = this.currentBlogs[index];
+    this.currentEditingBlog = { ...blog, _index: index };
+    this.isBlogEditing = true;
+    this.showBlogEditor();
+  }
+
+  // 显示博客编辑器
+  showBlogEditor() {
+    if (this.blogPreview) {
+      this.blogPreview.classList.add('hidden');
+    }
+    if (this.blogEditor) {
+      this.blogEditor.classList.remove('hidden');
+    }
+    
+    // 填充编辑器内容
+    if (this.blogTitleInput && this.currentEditingBlog) {
+      this.blogTitleInput.value = this.currentEditingBlog.title || '';
+    }
+    if (this.blogDateInput && this.currentEditingBlog) {
+      this.blogDateInput.value = this.currentEditingBlog.date || '';
+    }
+    if (this.blogContentTextarea && this.currentEditingBlog) {
+      this.blogContentTextarea.value = this.currentEditingBlog.content || '';
+    }
+  }
+
+  // 隐藏博客编辑器
+  hideBlogEditor() {
+    if (this.blogPreview) {
+      this.blogPreview.classList.remove('hidden');
+    }
+    if (this.blogEditor) {
+      this.blogEditor.classList.add('hidden');
+    }
+    this.isBlogEditing = false;
+    this.currentEditingBlog = null;
+  }
+
+  // 保存博客
+  async saveBlog() {
+    if (!this.currentEditingBlog) return;
+    
+    const title = this.blogTitleInput ? this.blogTitleInput.value.trim() : '';
+    const date = this.blogDateInput ? this.blogDateInput.value.trim() : '';
+    const content = this.blogContentTextarea ? this.blogContentTextarea.value.trim() : '';
+    
+    if (!title || !date || !content) {
+      alert('请填写完整的博客信息！');
+      return;
+    }
+    
+    // 更新当前编辑的博客
+    const updatedBlog = {
+      ...this.currentEditingBlog,
+      title,
+      date,
+      content
+    };
+    
+    try {
+      if ('_index' in updatedBlog) {
+        // 更新现有博客
+        this.currentBlogs[updatedBlog._index] = {
+          id: updatedBlog.id,
+          title,
+          date,
+          content
+        };
+      } else {
+        // 添加新博客
+        this.currentBlogs.unshift({
+          id: updatedBlog.id,
+          title,
+          date,
+          content
+        });
+      }
+      
+      // 保存到存储
+      if (this.isSupabaseConfigured) {
+        await saveBlogToSupabase({
+          id: updatedBlog.id,
+          title,
+          date,
+          content
+        });
+      }
+      saveBlogsToLocalStorage(this.currentBlogs);
+      
+      // 刷新列表
+      this.createBlogList();
+      this.hideBlogEditor();
+      alert('✅ 博客保存成功！');
+    } catch (error) {
+      console.error('Error saving blog:', error);
+      alert('❌ 保存失败！');
+    }
+  }
+
+  // 删除博客
+  async deleteBlog() {
+    if (!this.currentEditingBlog || !confirm('确定要删除这篇博客吗？')) {
+      return;
+    }
+    
+    try {
+      if ('_index' in this.currentEditingBlog) {
+        // 从数组中删除
+        this.currentBlogs.splice(this.currentEditingBlog._index, 1);
+        
+        // 从 Supabase 删除
+        if (this.isSupabaseConfigured) {
+          await deleteBlogFromSupabase(this.currentEditingBlog.id);
+        }
+        saveBlogsToLocalStorage(this.currentBlogs);
+        
+        // 刷新列表
+        this.createBlogList();
+        this.hideBlogEditor();
+        alert('✅ 博客已删除！');
       }
     } catch (error) {
-      console.error('Error loading saved avatar:', error);
+      console.error('Error deleting blog:', error);
+      alert('❌ 删除失败！');
+    }
+  }
+
+  // 取消博客编辑
+  cancelBlogEdit() {
+    this.hideBlogEditor();
+  }
+
+  // 更新 openBlogModal 方法
+  openBlogModal() {
+    try {
+      this.closeAllModals();
+      this.isBlogModalOpen = true;
+      if (this.blogModal) {
+        // 重新加载博客列表
+        this.createBlogList();
+        this.blogModal.classList.remove('hidden');
+        setTimeout(() => {
+          this.blogModal.classList.add('visible');
+        }, 10);
+      }
+    } catch (error) {
+      console.error('Error opening blog modal:', error);
     }
   }
 }

@@ -68,6 +68,29 @@
       <button id="blog-btn" class="nes-btn is-success blog-btn-floating">Blog</button>
     </div>
 
+    <!-- 管理员密码输入弹窗 -->
+    <div id="admin-modal" class="modal-overlay hidden">
+      <div class="admin-modal-content">
+        <div class="nes-dialog admin-dialog">
+          <span class="corner-tl"></span>
+          <span class="corner-tr"></span>
+          <span class="corner-bl"></span>
+          <span class="corner-br"></span>
+          <div class="admin-header">
+            <h2>🔐 管理员认证</h2>
+            <button id="close-admin-modal" class="nes-btn is-error close-btn">×</button>
+          </div>
+          <div class="admin-body">
+            <p class="admin-hint">请输入管理员密码以启用编辑功能</p>
+            <input type="password" id="admin-password-input" class="nes-input" placeholder="输入密码">
+          </div>
+          <div class="dialog-footer">
+            <button id="admin-login-btn" class="nes-btn is-primary">🔓 进入管理模式</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="about-modal" class="modal-overlay hidden">
       <div class="about-modal-content">
         <div class="nes-dialog about-dialog">
@@ -77,26 +100,37 @@
           <span class="corner-br"></span>
           <div class="about-header">
             <h2>关于我</h2>
-            <button id="close-modal" class="nes-btn is-error close-btn">×</button>
+            <div class="about-header-right">
+              <button id="admin-toggle-btn" class="nes-btn is-warning admin-toggle-btn">⚙️</button>
+              <button id="close-modal" class="nes-btn is-error close-btn">×</button>
+            </div>
           </div>
           <div class="about-body">
             <div class="profile-avatar-container">
               <div class="profile-avatar-frame">
                 <img id="profile-avatar" src="https://images.unsplash.com/photo-1561948955-570b270e7c36?w=200&h=200&fit=crop" alt="Profile" class="profile-avatar">
                 <input type="file" id="avatar-upload" accept="image/*" class="avatar-input">
-                <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn">📷 更换头像</button>
+                <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only">📷 更换头像</button>
               </div>
             </div>
             <div class="about-sections">
               <div class="about-bio">
-                <h3>个人介绍</h3>
-                <p>
+                <div class="bio-header">
+                  <h3>个人介绍</h3>
+                  <div class="bio-controls admin-only">
+                    <button id="edit-profile-btn" class="nes-btn is-warning">✏️ 编辑</button>
+                    <button id="save-profile-btn" class="nes-btn is-success hidden">💾 保存</button>
+                    <button id="cancel-profile-btn" class="nes-btn is-error hidden">❌ 取消</button>
+                  </div>
+                </div>
+                <p id="profile-bio">
                   欢迎来到赛博网格！
                   <br><br>
                   我是一名数字艺术家和创意开发者，专注于3D视觉化、互动体验以及复古未来主义设计。
                   <br><br>
                   凭借对像素艺术、霓虹灯和合成波美学的热爱，我将数字梦境变成现实。
                 </p>
+                <textarea id="profile-bio-textarea" class="nes-textarea hidden" rows="6"></textarea>
               </div>
               <div class="skills-panel">
                 <h3>技能面板</h3>
@@ -137,16 +171,32 @@
           <span class="corner-br"></span>
           <div class="blog-header">
             <h2>📝 赛博博客</h2>
-            <button id="close-blog" class="nes-btn is-error close-btn">×</button>
+            <div class="blog-header-right">
+              <button id="blog-admin-toggle-btn" class="nes-btn is-warning admin-toggle-btn">⚙️</button>
+              <button id="close-blog" class="nes-btn is-error close-btn">×</button>
+            </div>
           </div>
           <div class="blog-body">
             <div class="blog-sidebar">
-              <h3>📌 文章列表</h3>
+              <div class="blog-sidebar-header">
+                <h3>📌 文章列表</h3>
+                <button id="add-blog-btn" class="nes-btn is-success admin-only" style="font-size: 0.6rem; padding: 0.3rem 0.5rem;">➕ 新建</button>
+              </div>
               <div id="blog-list" class="blog-list"></div>
             </div>
             <div class="blog-content">
               <div id="blog-preview" class="blog-preview">
                 <p class="blog-hint">请选择左侧文章进行预览...</p>
+              </div>
+              <div id="blog-editor" class="blog-editor hidden">
+                <input type="text" id="blog-title-input" class="nes-input" placeholder="文章标题">
+                <input type="text" id="blog-date-input" class="nes-input" placeholder="日期 (YYYY-MM-DD)">
+                <textarea id="blog-content-textarea" class="nes-textarea" rows="12" placeholder="文章内容 (支持换行)"></textarea>
+                <div class="blog-editor-controls">
+                  <button id="save-blog-btn" class="nes-btn is-success">💾 保存</button>
+                  <button id="delete-blog-btn" class="nes-btn is-error admin-only">🗑️ 删除</button>
+                  <button id="cancel-blog-edit-btn" class="nes-btn is-primary">❌ 取消</button>
+                </div>
               </div>
             </div>
           </div>
