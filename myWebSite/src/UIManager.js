@@ -829,23 +829,47 @@ export default class UIManager {
     this.hideError();
     this.updateStorageStatus(this.isSupabaseConfigured);
     
-    // 直接使用本地存储，避免 Supabase 相关问题
-    console.log('Using localStorage for guestbook');
-    guestbookMessages = loadMessagesFromLocalStorage();
-    this.renderMessages(guestbookMessages);
+    if (this.isSupabaseConfigured) {
+      await this.loadMessagesFromSupabase();
+    } else {
+      console.warn('Supabase is not configured. Using localStorage.');
+      guestbookMessages = loadMessagesFromLocalStorage();
+      this.renderMessages(guestbookMessages);
+    }
   }
 
   // 从 Supabase 加载消息
   async loadMessagesFromSupabase() {
-    // 暂时禁用 Supabase 加载，直接使用本地存储
-    guestbookMessages = loadMessagesFromLocalStorage();
-    this.renderMessages(guestbookMessages);
+    if (this.isLoadingMessages) return;
+    
+    this.isLoadingMessages = true;
+    this.showLoading(true);
+    this.hideError();
+
+    try {
+      guestbookMessages = await loadGuestbookMessagesFromSupabase();
+      this.renderMessages(guestbookMessages);
+      this.updateStorageStatus(true);
+    } catch (error) {
+      console.error('Error loading from Supabase, falling back to localStorage:', error);
+      this.updateStorageStatus(false);
+      guestbookMessages = loadMessagesFromLocalStorage();
+      this.renderMessages(guestbookMessages);
+      // 不显示红色错误框，只在控制台打印
+    } finally {
+      this.isLoadingMessages = false;
+      this.showLoading(false);
+    }
   }
 
   // 刷新消息
   async refreshMessages() {
-    guestbookMessages = loadMessagesFromLocalStorage();
-    this.renderMessages(guestbookMessages);
+    if (this.isSupabaseConfigured) {
+      await this.loadMessagesFromSupabase();
+    } else {
+      guestbookMessages = loadMessagesFromLocalStorage();
+      this.renderMessages(guestbookMessages);
+    }
   }
 
   renderBlogPost(post, e) {
@@ -923,8 +947,18 @@ export default class UIManager {
 
       const newMessage = { name, tag, text };
       
-      // 直接使用本地存储，避免 Supabase 相关问题
-      this.saveLocalMessage(newMessage);
+      if (this.isSupabaseConfigured) {
+        try {
+          const savedMessage = await saveGuestbookMessageToSupabase(newMessage);
+          guestbookMessages.unshift(savedMessage);
+          this.renderMessages(guestbookMessages);
+        } catch (error) {
+          console.error('Supabase save failed, using localStorage:', error);
+          this.saveLocalMessage(newMessage);
+        }
+      } else {
+        this.saveLocalMessage(newMessage);
+      }
       
       if (nameInput) nameInput.value = '';
       if (tagInput) tagInput.value = '';
@@ -1380,14 +1414,32 @@ export default class UIManager {
 
   // 初始化个人信息
   async initProfile() {
-    // 直接使用本地存储
-    this.currentProfile = loadProfileFromLocalStorage();
-    this.renderProfile();
+    try {
+      await this.loadProfile();
+    } catch (error) {
+      console.error('Error initializing profile:', error);
+    }
   }
 
   // 加载个人信息
   async loadProfile() {
-    // 直接使用本地存储
+    if (this.isSupabaseConfigured) {
+      try {
+        const profile = await loadProfileFromSupabase();
+        if (profile) {
+          this.currentProfile = {
+            avatar: profile.avatar || DEFAULT_PROFILE.avatar,
+            bio: profile.bio || DEFAULT_PROFILE.bio
+          };
+          this.renderProfile();
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading profile from Supabase, falling back to localStorage:', error);
+      }
+    }
+    
+    // 回退到 localStorage
     this.currentProfile = loadProfileFromLocalStorage();
     this.renderProfile();
   }
@@ -1458,7 +1510,9 @@ export default class UIManager {
 
     // 保存
     try {
-      // 直接保存到本地存储
+      if (this.isSupabaseConfigured) {
+        await saveProfileToSupabase(this.currentProfile);
+      }
       saveProfileToLocalStorage(this.currentProfile);
       
       // 重新渲染并退出编辑模式
@@ -1529,8 +1583,11 @@ export default class UIManager {
           // 更新当前数据
           this.currentProfile.avatar = avatarData;
           
-          // 保存到本地存储
+          // 保存到本地和云端
           try {
+            if (this.isSupabaseConfigured) {
+              await saveProfileToSupabase(this.currentProfile);
+            }
             saveProfileToLocalStorage(this.currentProfile);
             
             // 显示成功效果
@@ -1557,7 +1614,7 @@ export default class UIManager {
             uploadBtn.textContent = '❌ 保存失败';
             uploadBtn.classList.remove('loading');
             uploadBtn.disabled = false;
-            this.showNotification('头像保存失败，请重试。');
+            this.showNotification('头像保存失败，但已预览新头像。请刷新页面后重试。');
             
             setTimeout(() => {
               uploadBtn.textContent = originalText;
@@ -1683,7 +1740,18 @@ export default class UIManager {
 
   // 加载博客文章
   async loadBlogs() {
-    // 直接使用本地存储
+    if (this.isSupabaseConfigured) {
+      try {
+        const blogs = await loadBlogsFromSupabase();
+        if (blogs && blogs.length > 0) {
+          this.currentBlogs = blogs;
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading blogs from Supabase, falling back to localStorage:', error);
+      }
+    }
+    // 回退到 localStorage
     this.currentBlogs = loadBlogsFromLocalStorage();
   }
 
@@ -1864,7 +1932,15 @@ export default class UIManager {
         });
       }
       
-      // 保存到本地存储
+      // 保存到存储
+      if (this.isSupabaseConfigured) {
+        await saveBlogToSupabase({
+          id: updatedBlog.id,
+          title,
+          date,
+          content
+        });
+      }
       saveBlogsToLocalStorage(this.currentBlogs);
       
       // 刷新列表
@@ -1893,7 +1969,10 @@ export default class UIManager {
         // 从数组中删除
         this.currentBlogs.splice(this.currentEditingBlog._index, 1);
         
-        // 保存到本地存储
+        // 从 Supabase 删除
+        if (this.isSupabaseConfigured) {
+          await deleteBlogFromSupabase(this.currentEditingBlog.id);
+        }
         saveBlogsToLocalStorage(this.currentBlogs);
         
         // 刷新列表
