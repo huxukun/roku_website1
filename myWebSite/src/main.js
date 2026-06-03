@@ -254,7 +254,11 @@ window.loadMusicFile = function(file) {
     return musicVisualizer.play();
   }).catch(err => {
     console.error('Failed to load music:', err);
-    alert('无法加载音乐文件，请尝试其他文件。');
+    if (uiManager) {
+      uiManager.showNotification('无法加载音乐文件，请尝试其他文件。');
+    } else {
+      alert('无法加载音乐文件，请尝试其他文件。');
+    }
     throw err;
   });
 };
@@ -264,7 +268,11 @@ window.loadMusicURL = function(url) {
     musicVisualizer.play();
   }).catch(err => {
     console.error('Failed to load music:', err);
-    alert('无法加载音乐，请检查网络连接。');
+    if (uiManager) {
+      uiManager.showNotification('无法加载音乐，请检查网络连接。');
+    } else {
+      alert('无法加载音乐，请检查网络连接。');
+    }
   });
 };
 

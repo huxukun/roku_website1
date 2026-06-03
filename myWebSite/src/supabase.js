@@ -13,12 +13,21 @@ if (supabaseUrl && supabaseAnonKey) {
   supabase = {
     from: () => ({
       select: () => ({
-        order: () => ({ data: [], error: null })
+        order: async () => Promise.resolve({ data: [], error: null }),
+        limit: async () => Promise.resolve({ data: [], error: null })
       }),
       insert: () => ({
         select: () => ({
-          single: () => ({ data: null, error: new Error('Supabase not configured') })
+          single: async () => Promise.resolve({ data: null, error: new Error('Supabase not configured') })
         })
+      }),
+      upsert: () => ({
+        select: () => ({
+          single: async () => Promise.resolve({ data: null, error: new Error('Supabase not configured') })
+        })
+      }),
+      delete: () => ({
+        eq: async () => Promise.resolve({ error: null })
       })
     })
   }

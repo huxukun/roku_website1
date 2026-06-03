@@ -12,6 +12,20 @@
     <canvas class="webgl"></canvas>
     <div class="crt-overlay"></div>
     
+    <!-- 通知容器 -->
+    <div id="notification-container" class="notification-container"></div>
+    
+    <!-- 确认对话框 -->
+    <div id="confirm-modal" class="confirm-modal hidden">
+      <div class="confirm-content">
+        <p id="confirm-message" class="confirm-message"></p>
+        <div class="confirm-buttons">
+          <button id="confirm-yes" class="nes-btn is-error">确定</button>
+          <button id="confirm-no" class="nes-btn is-primary">取消</button>
+        </div>
+      </div>
+    </div>
+    
     <div id="loading-screen" class="loading-screen">
       <div class="loading-content">
         <h1>加载中...</h1>
@@ -110,15 +124,15 @@
               <div class="profile-avatar-frame">
                 <img id="profile-avatar" src="https://images.unsplash.com/photo-1561948955-570b270e7c36?w=200&h=200&fit=crop" alt="Profile" class="profile-avatar">
                 <input type="file" id="avatar-upload" accept="image/*" class="avatar-input">
-                <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only">📷 更换头像</button>
               </div>
+              <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only">📷 更换头像</button>
             </div>
             <div class="about-sections">
               <div class="about-bio">
                 <div class="bio-header">
                   <h3>个人介绍</h3>
                   <div class="bio-controls admin-only">
-                    <button id="edit-profile-btn" class="nes-btn is-warning">✏️ 编辑</button>
+                    <button id="edit-profile-btn" class="nes-btn is-primary edit-profile-btn">✏️ 编辑</button>
                     <button id="save-profile-btn" class="nes-btn is-success hidden">💾 保存</button>
                     <button id="cancel-profile-btn" class="nes-btn is-error hidden">❌ 取消</button>
                   </div>

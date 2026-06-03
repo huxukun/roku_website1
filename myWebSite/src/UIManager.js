@@ -347,6 +347,8 @@ export default class UIManager {
     this.isLoadingMessages = false;
     this.isSubmitting = false;
     this.isSavingProfile = false;
+    this.notificationContainer = document.getElementById('notification-container');
+    this.confirmCallback = null;
 
     try {
       this.initElements();
@@ -356,11 +358,74 @@ export default class UIManager {
       this.initProfile();
       this.initAdminMode();
       this.initBlogs();
+      this.initConfirmDialog();
       
       console.log('UIManager initialized successfully');
     } catch (error) {
       console.error('Error initializing UIManager:', error);
     }
+  }
+
+  // 初始化确认对话框
+  initConfirmDialog() {
+    this.confirmModal = document.getElementById('confirm-modal');
+    this.confirmMessage = document.getElementById('confirm-message');
+    this.confirmYesBtn = document.getElementById('confirm-yes');
+    this.confirmNoBtn = document.getElementById('confirm-no');
+
+    if (this.confirmYesBtn) {
+      this.confirmYesBtn.addEventListener('click', () => {
+        this.handleConfirm(true);
+      });
+    }
+
+    if (this.confirmNoBtn) {
+      this.confirmNoBtn.addEventListener('click', () => {
+        this.handleConfirm(false);
+      });
+    }
+  }
+
+  // 显示确认对话框
+  showConfirm(message) {
+    return new Promise((resolve) => {
+      this.confirmCallback = resolve;
+      if (this.confirmMessage) {
+        this.confirmMessage.textContent = message;
+      }
+      if (this.confirmModal) {
+        this.confirmModal.classList.remove('hidden');
+      }
+    });
+  }
+
+  // 处理确认结果
+  handleConfirm(result) {
+    if (this.confirmModal) {
+      this.confirmModal.classList.add('hidden');
+    }
+    if (this.confirmCallback) {
+      this.confirmCallback(result);
+      this.confirmCallback = null;
+    }
+  }
+
+  // 显示通知
+  showNotification(message, duration = 3000) {
+    if (!this.notificationContainer) return;
+
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    this.notificationContainer.appendChild(notification);
+
+    // 一段时间后淡出并移除
+    setTimeout(() => {
+      notification.classList.add('fade-out');
+      setTimeout(() => {
+        notification.remove();
+      }, 500);
+    }, duration);
   }
 
   initElements() {
@@ -512,7 +577,19 @@ export default class UIManager {
     
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        this.closeAllModals();
+        // 如果在编辑模式下，先退出编辑
+        if (this.isProfileEditable) {
+          this.cancelProfileEdit();
+        } else {
+          this.closeAllModals();
+        }
+      }
+      // Ctrl+S 快速保存
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (this.isProfileEditable) {
+          this.saveProfile();
+        }
       }
     });
     
@@ -752,47 +829,23 @@ export default class UIManager {
     this.hideError();
     this.updateStorageStatus(this.isSupabaseConfigured);
     
-    if (this.isSupabaseConfigured) {
-      await this.loadMessagesFromSupabase();
-    } else {
-      console.warn('Supabase is not configured. Using localStorage.');
-      guestbookMessages = loadMessagesFromLocalStorage();
-      this.renderMessages(guestbookMessages);
-    }
+    // 直接使用本地存储，避免 Supabase 相关问题
+    console.log('Using localStorage for guestbook');
+    guestbookMessages = loadMessagesFromLocalStorage();
+    this.renderMessages(guestbookMessages);
   }
 
   // 从 Supabase 加载消息
   async loadMessagesFromSupabase() {
-    if (this.isLoadingMessages) return;
-    
-    this.isLoadingMessages = true;
-    this.showLoading(true);
-    this.hideError();
-
-    try {
-      guestbookMessages = await loadGuestbookMessagesFromSupabase();
-      this.renderMessages(guestbookMessages);
-      this.updateStorageStatus(true);
-    } catch (error) {
-      console.error('Error loading from Supabase, falling back to localStorage:', error);
-      this.updateStorageStatus(false);
-      guestbookMessages = loadMessagesFromLocalStorage();
-      this.renderMessages(guestbookMessages);
-      this.showError(`连接 Supabase 失败: ${error.message || '未知错误'}\n已切换到本地存储模式`);
-    } finally {
-      this.isLoadingMessages = false;
-      this.showLoading(false);
-    }
+    // 暂时禁用 Supabase 加载，直接使用本地存储
+    guestbookMessages = loadMessagesFromLocalStorage();
+    this.renderMessages(guestbookMessages);
   }
 
   // 刷新消息
   async refreshMessages() {
-    if (this.isSupabaseConfigured) {
-      await this.loadMessagesFromSupabase();
-    } else {
-      guestbookMessages = loadMessagesFromLocalStorage();
-      this.renderMessages(guestbookMessages);
-    }
+    guestbookMessages = loadMessagesFromLocalStorage();
+    this.renderMessages(guestbookMessages);
   }
 
   renderBlogPost(post, e) {
@@ -860,7 +913,7 @@ export default class UIManager {
       const text = messageInput?.value?.trim();
       
       if (!text) {
-        alert('请输入留言内容！');
+        this.showNotification('请输入留言内容！');
         return;
       }
 
@@ -870,19 +923,8 @@ export default class UIManager {
 
       const newMessage = { name, tag, text };
       
-      if (this.isSupabaseConfigured) {
-        try {
-          const savedMessage = await saveGuestbookMessageToSupabase(newMessage);
-          guestbookMessages.unshift(savedMessage);
-          this.renderMessages(guestbookMessages);
-        } catch (error) {
-          console.error('Supabase save failed, using localStorage:', error);
-          this.saveLocalMessage(newMessage);
-          this.showError(`保存到云端失败: ${error.message || '未知错误'}\n已保存到本地`);
-        }
-      } else {
-        this.saveLocalMessage(newMessage);
-      }
+      // 直接使用本地存储，避免 Supabase 相关问题
+      this.saveLocalMessage(newMessage);
       
       if (nameInput) nameInput.value = '';
       if (tagInput) tagInput.value = '';
@@ -890,7 +932,7 @@ export default class UIManager {
       
     } catch (error) {
       console.error('Error submitting message:', error);
-      this.showError(`发送失败: ${error.message || '未知错误'}`);
+      this.showNotification('发送失败，请稍后重试');
     } finally {
       this.isSubmitting = false;
       this.submitMessageBtn.classList.remove('loading');
@@ -1297,7 +1339,7 @@ export default class UIManager {
       if (!file) return;
       
       if (!file.type.startsWith('audio/') && !file.name.endsWith('.mp3')) {
-        alert('请选择 MP3 音乐文件！');
+        this.showNotification('请选择 MP3 音乐文件！');
         return;
       }
       
@@ -1338,32 +1380,14 @@ export default class UIManager {
 
   // 初始化个人信息
   async initProfile() {
-    try {
-      await this.loadProfile();
-    } catch (error) {
-      console.error('Error initializing profile:', error);
-    }
+    // 直接使用本地存储
+    this.currentProfile = loadProfileFromLocalStorage();
+    this.renderProfile();
   }
 
   // 加载个人信息
   async loadProfile() {
-    if (this.isSupabaseConfigured) {
-      try {
-        const profile = await loadProfileFromSupabase();
-        if (profile) {
-          this.currentProfile = {
-            avatar: profile.avatar || DEFAULT_PROFILE.avatar,
-            bio: profile.bio || DEFAULT_PROFILE.bio
-          };
-          this.renderProfile();
-          return;
-        }
-      } catch (error) {
-        console.error('Error loading profile from Supabase, falling back to localStorage:', error);
-      }
-    }
-    
-    // 回退到 localStorage
+    // 直接使用本地存储
     this.currentProfile = loadProfileFromLocalStorage();
     this.renderProfile();
   }
@@ -1375,7 +1399,8 @@ export default class UIManager {
     }
     const bioEl = document.getElementById('profile-bio');
     if (bioEl) {
-      bioEl.textContent = this.currentProfile.bio;
+      // 正确处理换行符
+      bioEl.innerHTML = this.currentProfile.bio.replace(/\n/g, '<br>');
     }
   }
 
@@ -1394,9 +1419,13 @@ export default class UIManager {
     const cancelBtn = document.getElementById('cancel-profile-btn');
 
     if (this.isProfileEditable) {
+      // 进入编辑模式
       if (bioTextarea) {
+        // 将当前内容填入输入框
         bioTextarea.value = this.currentProfile.bio;
         bioTextarea.classList.remove('hidden');
+        // 自动聚焦到输入框
+        setTimeout(() => bioTextarea.focus(), 50);
       }
       if (bioDisplay) {
         bioDisplay.classList.add('hidden');
@@ -1405,6 +1434,7 @@ export default class UIManager {
       if (saveBtn) saveBtn.classList.remove('hidden');
       if (cancelBtn) cancelBtn.classList.remove('hidden');
     } else {
+      // 退出编辑模式
       if (bioTextarea) bioTextarea.classList.add('hidden');
       if (bioDisplay) bioDisplay.classList.remove('hidden');
       if (editBtn) editBtn.classList.remove('hidden');
@@ -1428,18 +1458,17 @@ export default class UIManager {
 
     // 保存
     try {
-      if (this.isSupabaseConfigured) {
-        await saveProfileToSupabase(this.currentProfile);
-      }
+      // 直接保存到本地存储
       saveProfileToLocalStorage(this.currentProfile);
       
       // 重新渲染并退出编辑模式
       this.renderProfile();
       this.isProfileEditable = false;
       this.updateProfileEditUI();
+      this.showNotification('保存成功！');
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('保存失败，请稍后重试');
+      this.showNotification('保存失败，请稍后重试');
     } finally {
       this.isSavingProfile = false;
     }
@@ -1457,36 +1486,105 @@ export default class UIManager {
       const file = event.target.files[0];
       if (!file) return;
       
+      // 验证文件类型
       if (!file.type.startsWith('image/')) {
-        alert('请选择图片文件！');
+        this.showNotification('请选择图片文件！');
         return;
       }
+      
+      // 验证文件大小（最大 2MB）
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      if (file.size > maxSize) {
+        this.showNotification('图片文件过大，请选择小于 2MB 的图片！');
+        return;
+      }
+      
+      // 显示上传中状态
+      const uploadBtn = document.getElementById('avatar-upload-btn');
+      const avatarFrame = document.querySelector('.profile-avatar-frame');
+      const originalText = uploadBtn.textContent;
+      uploadBtn.textContent = '⏳ 上传中...';
+      uploadBtn.disabled = true;
+      uploadBtn.classList.add('loading');
+      avatarFrame.classList.add('uploading');
       
       const reader = new FileReader();
       reader.onload = async (e) => {
         const avatarData = e.target.result;
         
-        // 更新头像显示
-        if (this.profileAvatar) {
-          this.profileAvatar.src = avatarData;
-        }
-        
-        // 更新当前数据
-        this.currentProfile.avatar = avatarData;
-        
-        // 保存
         try {
-          if (this.isSupabaseConfigured) {
-            await saveProfileToSupabase(this.currentProfile);
+          // 更新头像显示
+          if (this.profileAvatar) {
+            // 添加头像切换动画效果
+            this.profileAvatar.style.opacity = '0.5';
+            this.profileAvatar.style.transform = 'scale(0.9)';
+            
+            setTimeout(() => {
+              this.profileAvatar.src = avatarData;
+              this.profileAvatar.style.opacity = '1';
+              this.profileAvatar.style.transform = 'scale(1)';
+            }, 150);
           }
-          saveProfileToLocalStorage(this.currentProfile);
+          
+          // 更新当前数据
+          this.currentProfile.avatar = avatarData;
+          
+          // 保存到本地存储
+          try {
+            saveProfileToLocalStorage(this.currentProfile);
+            
+            // 显示成功效果
+            avatarFrame.classList.remove('uploading');
+            avatarFrame.classList.add('upload-success');
+            setTimeout(() => {
+              avatarFrame.classList.remove('upload-success');
+            }, 500);
+            
+            // 恢复按钮状态并显示成功
+            uploadBtn.textContent = '✅ 已上传';
+            uploadBtn.classList.remove('loading');
+            uploadBtn.disabled = false;
+            
+            setTimeout(() => {
+              uploadBtn.textContent = originalText;
+            }, 2000);
+            
+            this.showNotification('头像上传成功！');
+            
+          } catch (error) {
+            console.error('Error saving avatar:', error);
+            avatarFrame.classList.remove('uploading');
+            uploadBtn.textContent = '❌ 保存失败';
+            uploadBtn.classList.remove('loading');
+            uploadBtn.disabled = false;
+            this.showNotification('头像保存失败，请重试。');
+            
+            setTimeout(() => {
+              uploadBtn.textContent = originalText;
+            }, 2000);
+          }
         } catch (error) {
-          console.error('Error saving avatar:', error);
+          console.error('Error updating avatar:', error);
         }
       };
+      
+      reader.onerror = () => {
+        console.error('Error reading file');
+        avatarFrame.classList.remove('uploading');
+        uploadBtn.textContent = '❌ 读取失败';
+        uploadBtn.classList.remove('loading');
+        uploadBtn.disabled = false;
+        this.showNotification('图片读取失败，请重试！');
+        
+        setTimeout(() => {
+          uploadBtn.textContent = originalText;
+        }, 2000);
+      };
+      
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading avatar:', error);
+      this.showNotification('头像上传失败，请重试！');
     }
   }
 
@@ -1543,9 +1641,9 @@ export default class UIManager {
       saveAdminAuth();
       this.enableAdminMode();
       this.closeAdminModal();
-      alert('✅ 已进入管理模式！');
+      this.showNotification('✅ 已进入管理模式！');
     } else {
-      alert('❌ 密码错误！');
+      this.showNotification('❌ 密码错误！');
     }
   }
 
@@ -1585,18 +1683,7 @@ export default class UIManager {
 
   // 加载博客文章
   async loadBlogs() {
-    if (this.isSupabaseConfigured) {
-      try {
-        const blogs = await loadBlogsFromSupabase();
-        if (blogs && blogs.length > 0) {
-          this.currentBlogs = blogs;
-          return;
-        }
-      } catch (error) {
-        console.error('Error loading blogs from Supabase, falling back to localStorage:', error);
-      }
-    }
-    // 回退到 localStorage
+    // 直接使用本地存储
     this.currentBlogs = loadBlogsFromLocalStorage();
   }
 
@@ -1634,6 +1721,10 @@ export default class UIManager {
 
   // 添加新博客
   addNewBlog() {
+    // 清除之前的预览状态
+    const allItems = document.querySelectorAll('.blog-item');
+    allItems.forEach(el => el.classList.remove('active'));
+    
     const today = new Date().toISOString().split('T')[0];
     this.currentEditingBlog = {
       id: Date.now(),
@@ -1647,6 +1738,10 @@ export default class UIManager {
 
   // 编辑博客
   editBlog(index) {
+    // 清除之前的预览状态
+    const allItems = document.querySelectorAll('.blog-item');
+    allItems.forEach(el => el.classList.remove('active'));
+    
     const blog = this.currentBlogs[index];
     this.currentEditingBlog = { ...blog, _index: index };
     this.isBlogEditing = true;
@@ -1655,9 +1750,11 @@ export default class UIManager {
 
   // 显示博客编辑器
   showBlogEditor() {
+    // 确保预览区域隐藏
     if (this.blogPreview) {
       this.blogPreview.classList.add('hidden');
     }
+    // 确保编辑器显示
     if (this.blogEditor) {
       this.blogEditor.classList.remove('hidden');
     }
@@ -1676,14 +1773,55 @@ export default class UIManager {
 
   // 隐藏博客编辑器
   hideBlogEditor() {
+    // 确保预览区域显示（但内容可能只是提示文字）
     if (this.blogPreview) {
       this.blogPreview.classList.remove('hidden');
     }
+    // 确保编辑器隐藏
     if (this.blogEditor) {
       this.blogEditor.classList.add('hidden');
     }
     this.isBlogEditing = false;
     this.currentEditingBlog = null;
+  }
+
+  // 渲染博客预览
+  renderBlogPost(post, e) {
+    if (!this.blogPreviewContainer) return;
+    
+    try {
+      // 清除所有博客项的激活状态
+      const allItems = document.querySelectorAll('.blog-item');
+      allItems.forEach(el => el.classList.remove('active'));
+      // 给当前选中的项添加激活状态
+      if (e && e.currentTarget) {
+        e.currentTarget.classList.add('active');
+      }
+      
+      // 如果正在编辑，先退出编辑模式
+      if (this.isBlogEditing) {
+        this.isBlogEditing = false;
+        this.currentEditingBlog = null;
+      }
+      
+      // 确保编辑器隐藏
+      if (this.blogEditor) {
+        this.blogEditor.classList.add('hidden');
+      }
+      // 确保预览区域显示
+      if (this.blogPreview) {
+        this.blogPreview.classList.remove('hidden');
+      }
+      
+      // 渲染博客内容
+      this.blogPreviewContainer.innerHTML = `
+        <h3 class="blog-title">${post.title}</h3>
+        <div class="blog-meta">📅 ${post.date}</div>
+        <div class="blog-markdown">${post.content.replace(/\n/g, '<br>')}</div>
+      `;
+    } catch (error) {
+      console.error('Error rendering blog post:', error);
+    }
   }
 
   // 保存博客
@@ -1695,7 +1833,7 @@ export default class UIManager {
     const content = this.blogContentTextarea ? this.blogContentTextarea.value.trim() : '';
     
     if (!title || !date || !content) {
-      alert('请填写完整的博客信息！');
+      this.showNotification('请填写完整的博客信息！');
       return;
     }
     
@@ -1726,30 +1864,27 @@ export default class UIManager {
         });
       }
       
-      // 保存到存储
-      if (this.isSupabaseConfigured) {
-        await saveBlogToSupabase({
-          id: updatedBlog.id,
-          title,
-          date,
-          content
-        });
-      }
+      // 保存到本地存储
       saveBlogsToLocalStorage(this.currentBlogs);
       
       // 刷新列表
       this.createBlogList();
       this.hideBlogEditor();
-      alert('✅ 博客保存成功！');
+      this.showNotification('✅ 博客保存成功！');
     } catch (error) {
       console.error('Error saving blog:', error);
-      alert('❌ 保存失败！');
+      this.showNotification('❌ 保存失败！');
     }
   }
 
   // 删除博客
   async deleteBlog() {
-    if (!this.currentEditingBlog || !confirm('确定要删除这篇博客吗？')) {
+    if (!this.currentEditingBlog) {
+      return;
+    }
+
+    const confirmed = await this.showConfirm('确定要删除这篇博客吗？');
+    if (!confirmed) {
       return;
     }
     
@@ -1758,20 +1893,17 @@ export default class UIManager {
         // 从数组中删除
         this.currentBlogs.splice(this.currentEditingBlog._index, 1);
         
-        // 从 Supabase 删除
-        if (this.isSupabaseConfigured) {
-          await deleteBlogFromSupabase(this.currentEditingBlog.id);
-        }
+        // 保存到本地存储
         saveBlogsToLocalStorage(this.currentBlogs);
         
         // 刷新列表
         this.createBlogList();
         this.hideBlogEditor();
-        alert('✅ 博客已删除！');
+        this.showNotification('✅ 博客已删除！');
       }
     } catch (error) {
       console.error('Error deleting blog:', error);
-      alert('❌ 删除失败！');
+      this.showNotification('❌ 删除失败！');
     }
   }
 
