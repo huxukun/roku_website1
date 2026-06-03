@@ -1,6 +1,5 @@
 // 管理员密码配置
-// ⚠️ 请修改为你自己的强密码！
-export const ADMIN_PASSWORD = 'change_this_secure_password';
+export const ADMIN_PASSWORD = '123456hxk';
 
 // 本地存储键名
 export const ADMIN_AUTH_KEY = 'synthwave_admin_auth';
