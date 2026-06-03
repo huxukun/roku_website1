@@ -76,6 +76,7 @@ const blogData = [
 
 // Supabase 导入
 import { supabase } from './supabase.js';
+import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY } from './profileConfig.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
@@ -165,7 +166,70 @@ async function saveGuestbookMessageToSupabase(message) {
   };
 }
 
+// 从 Supabase 加载个人信息
+async function loadProfileFromSupabase() {
+  const { data, error } = await supabase
+    .from('profile')
+    .select('*')
+    .limit(1);
+
+  if (error) {
+    throw error;
+  }
+
+  if (data && data.length > 0) {
+    return data[0];
+  }
+  
+  return null;
+}
+
+// 保存个人信息到 Supabase
+async function saveProfileToSupabase(profile) {
+  const { data, error } = await supabase
+    .from('profile')
+    .upsert([
+      {
+        id: 1, // 使用固定的 id 确保只有一条记录
+        avatar: profile.avatar,
+        bio: profile.bio,
+        updated_at: new Date().toISOString()
+      }
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+// 从 localStorage 加载个人信息
+function loadProfileFromLocalStorage() {
+  try {
+    const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
+    return stored ? JSON.parse(stored) : DEFAULT_PROFILE;
+  } catch (error) {
+    console.error('Error loading profile from localStorage:', error);
+    return DEFAULT_PROFILE;
+  }
+}
+
+// 保存个人信息到 localStorage
+function saveProfileToLocalStorage(profile) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
+  } catch (error) {
+    console.error('Error saving profile to localStorage:', error);
+  }
+}
+
 export default class UIManager {
+  currentProfile = { ...DEFAULT_PROFILE };
+  isProfileEditable = false;
+
   loadSongsFromService() {
     console.log('UIManager: loadSongsFromService called');
     console.log('UIManager: window.musicService exists:', !!window.musicService);
@@ -207,6 +271,7 @@ export default class UIManager {
     this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
     this.isLoadingMessages = false;
     this.isSubmitting = false;
+    this.isSavingProfile = false;
 
     try {
       this.initElements();
@@ -214,7 +279,7 @@ export default class UIManager {
       this.createProjectCards();
       this.createBlogList();
       this.initGuestbook();
-      this.loadSavedAvatar();
+      this.initProfile();
       
       console.log('UIManager initialized successfully');
     } catch (error) {
@@ -283,6 +348,11 @@ export default class UIManager {
     this.storageStatus = document.getElementById('storage-status');
     this.loadingIndicator = document.getElementById('loading-indicator');
     this.errorMessage = document.getElementById('error-message');
+    
+    // 个人信息编辑相关元素
+    this.editProfileBtn = document.getElementById('edit-profile-btn');
+    this.saveProfileBtn = document.getElementById('save-profile-btn');
+    this.cancelProfileBtn = document.getElementById('cancel-profile-btn');
     
     this.isAboutModalOpen = false;
     this.isGalleryModalOpen = false;
@@ -362,6 +432,17 @@ export default class UIManager {
     if (this.avatarUploadBtn && this.avatarUpload) {
       this.avatarUploadBtn.addEventListener('click', () => this.avatarUpload.click());
       this.avatarUpload.addEventListener('change', (e) => this.handleAvatarUpload(e));
+    }
+    
+    // 个人信息编辑事件监听器
+    if (this.editProfileBtn) {
+      this.editProfileBtn.addEventListener('click', () => this.toggleProfileEdit());
+    }
+    if (this.saveProfileBtn) {
+      this.saveProfileBtn.addEventListener('click', () => this.saveProfile());
+    }
+    if (this.cancelProfileBtn) {
+      this.cancelProfileBtn.addEventListener('click', () => this.cancelProfileEdit());
     }
   }
 
@@ -1125,8 +1206,124 @@ export default class UIManager {
       console.error('Error playing visualizer:', error);
     }
   }
-  
-  handleAvatarUpload(event) {
+
+  // 初始化个人信息
+  async initProfile() {
+    try {
+      await this.loadProfile();
+    } catch (error) {
+      console.error('Error initializing profile:', error);
+    }
+  }
+
+  // 加载个人信息
+  async loadProfile() {
+    if (this.isSupabaseConfigured) {
+      try {
+        const profile = await loadProfileFromSupabase();
+        if (profile) {
+          this.currentProfile = {
+            avatar: profile.avatar || DEFAULT_PROFILE.avatar,
+            bio: profile.bio || DEFAULT_PROFILE.bio
+          };
+          this.renderProfile();
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading profile from Supabase, falling back to localStorage:', error);
+      }
+    }
+    
+    // 回退到 localStorage
+    this.currentProfile = loadProfileFromLocalStorage();
+    this.renderProfile();
+  }
+
+  // 渲染个人信息
+  renderProfile() {
+    if (this.profileAvatar) {
+      this.profileAvatar.src = this.currentProfile.avatar;
+    }
+    const bioEl = document.getElementById('profile-bio');
+    if (bioEl) {
+      bioEl.textContent = this.currentProfile.bio;
+    }
+  }
+
+  // 切换编辑模式
+  toggleProfileEdit() {
+    this.isProfileEditable = !this.isProfileEditable;
+    this.updateProfileEditUI();
+  }
+
+  // 更新编辑模式的 UI
+  updateProfileEditUI() {
+    const bioTextarea = document.getElementById('profile-bio-textarea');
+    const bioDisplay = document.getElementById('profile-bio');
+    const editBtn = document.getElementById('edit-profile-btn');
+    const saveBtn = document.getElementById('save-profile-btn');
+    const cancelBtn = document.getElementById('cancel-profile-btn');
+
+    if (this.isProfileEditable) {
+      if (bioTextarea) {
+        bioTextarea.value = this.currentProfile.bio;
+        bioTextarea.classList.remove('hidden');
+      }
+      if (bioDisplay) {
+        bioDisplay.classList.add('hidden');
+      }
+      if (editBtn) editBtn.classList.add('hidden');
+      if (saveBtn) saveBtn.classList.remove('hidden');
+      if (cancelBtn) cancelBtn.classList.remove('hidden');
+    } else {
+      if (bioTextarea) bioTextarea.classList.add('hidden');
+      if (bioDisplay) bioDisplay.classList.remove('hidden');
+      if (editBtn) editBtn.classList.remove('hidden');
+      if (saveBtn) saveBtn.classList.add('hidden');
+      if (cancelBtn) cancelBtn.classList.add('hidden');
+    }
+  }
+
+  // 保存个人信息
+  async saveProfile() {
+    if (this.isSavingProfile) return;
+
+    const bioTextarea = document.getElementById('profile-bio-textarea');
+    if (!bioTextarea) return;
+
+    this.isSavingProfile = true;
+    const newBio = bioTextarea.value;
+
+    // 更新当前数据
+    this.currentProfile.bio = newBio;
+
+    // 保存
+    try {
+      if (this.isSupabaseConfigured) {
+        await saveProfileToSupabase(this.currentProfile);
+      }
+      saveProfileToLocalStorage(this.currentProfile);
+      
+      // 重新渲染并退出编辑模式
+      this.renderProfile();
+      this.isProfileEditable = false;
+      this.updateProfileEditUI();
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('保存失败，请稍后重试');
+    } finally {
+      this.isSavingProfile = false;
+    }
+  }
+
+  // 取消编辑
+  cancelProfileEdit() {
+    this.isProfileEditable = false;
+    this.updateProfileEditUI();
+  }
+
+  // 处理头像上传（同时保存到本地和 Supabase）
+  async handleAvatarUpload(event) {
     try {
       const file = event.target.files[0];
       if (!file) return;
@@ -1137,27 +1334,30 @@ export default class UIManager {
       }
       
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
+        const avatarData = e.target.result;
+        
+        // 更新头像显示
         if (this.profileAvatar) {
-          this.profileAvatar.src = e.target.result;
+          this.profileAvatar.src = avatarData;
         }
-        // 保存到localStorage
-        localStorage.setItem('synthwave-avatar', e.target.result);
+        
+        // 更新当前数据
+        this.currentProfile.avatar = avatarData;
+        
+        // 保存
+        try {
+          if (this.isSupabaseConfigured) {
+            await saveProfileToSupabase(this.currentProfile);
+          }
+          saveProfileToLocalStorage(this.currentProfile);
+        } catch (error) {
+          console.error('Error saving avatar:', error);
+        }
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading avatar:', error);
-    }
-  }
-  
-  loadSavedAvatar() {
-    try {
-      const savedAvatar = localStorage.getItem('synthwave-avatar');
-      if (savedAvatar && this.profileAvatar) {
-        this.profileAvatar.src = savedAvatar;
-      }
-    } catch (error) {
-      console.error('Error loading saved avatar:', error);
     }
   }
 }

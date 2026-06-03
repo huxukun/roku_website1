@@ -89,14 +89,22 @@
             </div>
             <div class="about-sections">
               <div class="about-bio">
-                <h3>个人介绍</h3>
-                <p>
+                <div class="bio-header">
+                  <h3>个人介绍</h3>
+                  <div class="bio-controls">
+                    <button id="edit-profile-btn" class="nes-btn is-warning">✏️ 编辑</button>
+                    <button id="save-profile-btn" class="nes-btn is-success hidden">💾 保存</button>
+                    <button id="cancel-profile-btn" class="nes-btn is-error hidden">❌ 取消</button>
+                  </div>
+                </div>
+                <p id="profile-bio">
                   欢迎来到赛博网格！
                   <br><br>
                   我是一名数字艺术家和创意开发者，专注于3D视觉化、互动体验以及复古未来主义设计。
                   <br><br>
                   凭借对像素艺术、霓虹灯和合成波美学的热爱，我将数字梦境变成现实。
                 </p>
+                <textarea id="profile-bio-textarea" class="nes-textarea hidden" rows="6"></textarea>
               </div>
               <div class="skills-panel">
                 <h3>技能面板</h3>
