@@ -1019,9 +1019,11 @@ export default class UIManager {
       if (this.isMusicUiVisible) {
         this.toggleUiBtn.classList.remove('is-primary');
         this.toggleUiBtn.classList.add('is-success');
+        this.toggleUiBtn.style.opacity = '1';
       } else {
         this.toggleUiBtn.classList.remove('is-success');
         this.toggleUiBtn.classList.add('is-primary');
+        this.toggleUiBtn.style.opacity = '0.5';
       }
     }
     
