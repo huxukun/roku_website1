@@ -76,7 +76,7 @@ const blogData = [
 
 // Supabase 导入
 import { supabase } from './supabase.js';
-import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY } from './profileConfig.js';
+import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY, getDefaultBio } from './profileConfig.js';
 import { 
   ADMIN_PASSWORD, 
   verifyAdminPassword, 
@@ -84,6 +84,7 @@ import {
   saveAdminAuth, 
   clearAdminAuth 
 } from './adminConfig.js';
+import { t } from './i18n.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
@@ -217,10 +218,25 @@ async function saveProfileToSupabase(profile) {
 function loadProfileFromLocalStorage() {
   try {
     const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT_PROFILE;
+    if (stored) {
+      const profile = JSON.parse(stored);
+      // 如果 bio 为空，使用默认的多语言介绍
+      if (!profile.bio) {
+        profile.bio = getDefaultBio();
+      }
+      return profile;
+    }
+    // 返回带有正确多语言 bio 的默认配置
+    return {
+      ...DEFAULT_PROFILE,
+      bio: getDefaultBio()
+    };
   } catch (error) {
     console.error('Error loading profile from localStorage:', error);
-    return DEFAULT_PROFILE;
+    return {
+      ...DEFAULT_PROFILE,
+      bio: getDefaultBio()
+    };
   }
 }
 
@@ -347,8 +363,6 @@ export default class UIManager {
     this.isLoadingMessages = false;
     this.isSubmitting = false;
     this.isSavingProfile = false;
-    this.notificationContainer = document.getElementById('notification-container');
-    this.confirmCallback = null;
 
     try {
       this.initElements();
@@ -358,74 +372,11 @@ export default class UIManager {
       this.initProfile();
       this.initAdminMode();
       this.initBlogs();
-      this.initConfirmDialog();
       
       console.log('UIManager initialized successfully');
     } catch (error) {
       console.error('Error initializing UIManager:', error);
     }
-  }
-
-  // 初始化确认对话框
-  initConfirmDialog() {
-    this.confirmModal = document.getElementById('confirm-modal');
-    this.confirmMessage = document.getElementById('confirm-message');
-    this.confirmYesBtn = document.getElementById('confirm-yes');
-    this.confirmNoBtn = document.getElementById('confirm-no');
-
-    if (this.confirmYesBtn) {
-      this.confirmYesBtn.addEventListener('click', () => {
-        this.handleConfirm(true);
-      });
-    }
-
-    if (this.confirmNoBtn) {
-      this.confirmNoBtn.addEventListener('click', () => {
-        this.handleConfirm(false);
-      });
-    }
-  }
-
-  // 显示确认对话框
-  showConfirm(message) {
-    return new Promise((resolve) => {
-      this.confirmCallback = resolve;
-      if (this.confirmMessage) {
-        this.confirmMessage.textContent = message;
-      }
-      if (this.confirmModal) {
-        this.confirmModal.classList.remove('hidden');
-      }
-    });
-  }
-
-  // 处理确认结果
-  handleConfirm(result) {
-    if (this.confirmModal) {
-      this.confirmModal.classList.add('hidden');
-    }
-    if (this.confirmCallback) {
-      this.confirmCallback(result);
-      this.confirmCallback = null;
-    }
-  }
-
-  // 显示通知
-  showNotification(message, duration = 3000) {
-    if (!this.notificationContainer) return;
-
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.textContent = message;
-    this.notificationContainer.appendChild(notification);
-
-    // 一段时间后淡出并移除
-    setTimeout(() => {
-      notification.classList.add('fade-out');
-      setTimeout(() => {
-        notification.remove();
-      }, 500);
-    }, duration);
   }
 
   initElements() {
@@ -577,19 +528,7 @@ export default class UIManager {
     
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        // 如果在编辑模式下，先退出编辑
-        if (this.isProfileEditable) {
-          this.cancelProfileEdit();
-        } else {
-          this.closeAllModals();
-        }
-      }
-      // Ctrl+S 快速保存
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (this.isProfileEditable) {
-          this.saveProfile();
-        }
+        this.closeAllModals();
       }
     });
     
@@ -648,6 +587,156 @@ export default class UIManager {
     }
     if (this.cancelBlogEditBtn) {
       this.cancelBlogEditBtn.addEventListener('click', () => this.cancelBlogEdit());
+    }
+    
+    document.addEventListener('languageChange', (e) => {
+      this.handleLanguageChange(e.detail.lang);
+    });
+  }
+  
+  handleLanguageChange(lang) {
+    this.updateNavigationTexts();
+    this.updateAboutModalTexts();
+    this.updateGuestbookTexts();
+    this.updateBlogModalTexts();
+    this.updateGalleryModalTexts();
+    this.updateAdminModalTexts();
+    this.updateMusicControlTexts();
+    this.updateStorageStatusTexts();
+  }
+  
+  updateNavigationTexts() {
+    const aboutBtn = document.querySelector('.about-btn-text');
+    const worksBtn = document.querySelector('.works-btn-text');
+    const guestbookBtn = document.querySelector('.guestbook-btn-text');
+    const blogBtn = document.querySelector('.blog-btn-text');
+    const welcomeText = document.querySelector('.welcome-text');
+    
+    if (aboutBtn) aboutBtn.textContent = t('about');
+    if (worksBtn) worksBtn.textContent = t('works');
+    if (guestbookBtn) guestbookBtn.textContent = t('guestbook');
+    if (blogBtn) blogBtn.textContent = t('blog');
+    if (welcomeText) welcomeText.textContent = t('welcome');
+  }
+  
+  updateMusicControlTexts() {
+    const uploadMusicText = document.querySelector('.upload-music-text');
+    const nowPlayingLabel = document.querySelector('.now-playing-label');
+    
+    if (uploadMusicText) uploadMusicText.textContent = t('upload-music');
+    if (nowPlayingLabel) nowPlayingLabel.textContent = t('now-playing');
+  }
+  
+  updateAboutModalTexts() {
+    const aboutTitle = document.querySelector('.about-modal .modal-title');
+    const bioLabel = document.querySelector('.about-modal .bio-label');
+    const editBtn = document.querySelector('.about-modal .edit-bio-btn .edit-text');
+    const saveBtn = document.querySelector('.about-modal .save-bio-btn .save-text');
+    const cancelBtn = document.querySelector('.about-modal .cancel-bio-btn .cancel-text');
+    const changeAvatarBtn = document.querySelector('.about-modal .change-avatar-text');
+    const skillsLabel = document.querySelector('.about-modal .skills-label');
+    const closeFooter = document.querySelector('.about-modal .close-footer-text');
+    
+    if (aboutTitle) aboutTitle.textContent = t('about-title');
+    if (bioLabel) bioLabel.textContent = t('bio');
+    if (editBtn) editBtn.textContent = t('edit');
+    if (saveBtn) saveBtn.textContent = t('save');
+    if (cancelBtn) cancelBtn.textContent = t('cancel');
+    if (changeAvatarBtn) changeAvatarBtn.textContent = t('change-avatar');
+    if (skillsLabel) skillsLabel.textContent = t('skills');
+    if (closeFooter) closeFooter.textContent = t('close-footer');
+  }
+  
+  updateGuestbookTexts() {
+    const guestbookTitle = document.querySelector('.guestbook-modal .modal-title');
+    const storageStatusText = document.querySelector('.guestbook-modal .storage-status-text');
+    const refreshText = document.querySelector('.guestbook-modal .refresh-text');
+    const leaveMessageLabel = document.querySelector('.guestbook-modal .leave-message-label');
+    const nameInput = document.getElementById('guest-name');
+    const tagInput = document.getElementById('guest-tag');
+    const messageInput = document.querySelector('.guestbook-modal .message-input');
+    const sendText = document.querySelector('.guestbook-modal .send-text');
+    const noMessages = document.querySelector('.guestbook-modal .no-messages');
+    const historyLabel = document.querySelector('.guestbook-modal .history-label');
+    const loadingIndicator = document.querySelector('.guestbook-modal .loading-indicator-text');
+    const closeFooter = document.querySelector('.guestbook-modal .close-guestbook-footer-text');
+    
+    if (guestbookTitle) guestbookTitle.textContent = t('guestbook-title');
+    if (storageStatusText) storageStatusText.textContent = t('storage-status');
+    if (refreshText) refreshText.textContent = t('refresh');
+    if (leaveMessageLabel) leaveMessageLabel.textContent = t('leave-message');
+    if (nameInput) nameInput.placeholder = t('name');
+    if (tagInput) tagInput.placeholder = t('tag');
+    if (messageInput) messageInput.placeholder = t('message-hint');
+    if (sendText) sendText.textContent = t('send');
+    if (noMessages) noMessages.textContent = t('no-messages');
+    if (historyLabel) historyLabel.textContent = t('history');
+    if (loadingIndicator) loadingIndicator.textContent = t('loading');
+    if (closeFooter) closeFooter.textContent = t('close-footer');
+  }
+  
+  updateBlogModalTexts() {
+    const blogTitle = document.querySelector('.blog-modal .modal-title');
+    const articleListLabel = document.querySelector('.blog-modal .article-list-label');
+    const selectArticleHint = document.querySelector('.blog-modal .select-article-hint');
+    const addBlogBtn = document.querySelector('.blog-modal .add-blog-text');
+    const deleteBlogBtn = document.querySelector('.blog-modal .delete-blog-text');
+    const saveBlogBtn = document.querySelector('.blog-modal .save-blog-text');
+    const cancelBlogBtn = document.querySelector('.blog-modal .cancel-blog-text');
+    const titleInput = document.getElementById('blog-title-input');
+    const dateInput = document.getElementById('blog-date-input');
+    const contentTextarea = document.getElementById('blog-content-textarea');
+    const closeFooter = document.querySelector('.blog-modal .close-blog-footer-text');
+    
+    if (blogTitle) blogTitle.textContent = t('blog-title');
+    if (articleListLabel) articleListLabel.textContent = t('article-list');
+    if (selectArticleHint) selectArticleHint.textContent = t('select-article');
+    if (addBlogBtn) addBlogBtn.textContent = t('add-blog');
+    if (deleteBlogBtn) deleteBlogBtn.textContent = t('delete-blog');
+    if (saveBlogBtn) saveBlogBtn.textContent = t('save');
+    if (cancelBlogBtn) cancelBlogBtn.textContent = t('cancel');
+    if (titleInput) titleInput.placeholder = t('blog-placeholder-title');
+    if (dateInput) dateInput.placeholder = t('blog-placeholder-date');
+    if (contentTextarea) contentTextarea.placeholder = t('blog-placeholder-content');
+    if (closeFooter) closeFooter.textContent = t('close-footer');
+  }
+  
+  updateGalleryModalTexts() {
+    const galleryTitle = document.querySelector('.gallery-modal .modal-title');
+    const closeBtn = document.querySelector('.project-modal .project-close-text');
+    
+    if (galleryTitle) galleryTitle.textContent = t('gallery-title');
+    if (closeBtn) closeBtn.textContent = t('project-close');
+  }
+  
+  updateAdminModalTexts() {
+    const adminTitle = document.querySelector('.admin-modal .modal-title');
+    const adminHint = document.querySelector('.admin-modal .admin-hint-text');
+    const passwordInput = document.querySelector('.admin-modal .password-input');
+    const loginBtn = document.querySelector('.admin-modal .login-btn-text');
+    
+    if (adminTitle) adminTitle.textContent = t('admin-title');
+    if (adminHint) adminHint.textContent = t('admin-hint');
+    if (passwordInput) passwordInput.placeholder = t('password');
+    if (loginBtn) loginBtn.textContent = t('login');
+  }
+  
+  updateStorageStatusTexts() {
+    const storageStatus = document.getElementById('storage-status');
+    if (!storageStatus) return;
+    
+    const isOnline = storageStatus.classList.contains('online');
+    const isOffline = storageStatus.classList.contains('offline');
+    const statusText = storageStatus.querySelector('.storage-status-text');
+    
+    if (statusText) {
+      if (isOnline) {
+        statusText.textContent = t('online');
+      } else if (isOffline) {
+        statusText.textContent = t('offline');
+      } else {
+        statusText.textContent = t('storage-status');
+      }
     }
   }
 
@@ -855,7 +944,7 @@ export default class UIManager {
       this.updateStorageStatus(false);
       guestbookMessages = loadMessagesFromLocalStorage();
       this.renderMessages(guestbookMessages);
-      // 不显示红色错误框，只在控制台打印
+      this.showError(`连接 Supabase 失败: ${error.message || '未知错误'}\n已切换到本地存储模式`);
     } finally {
       this.isLoadingMessages = false;
       this.showLoading(false);
@@ -937,7 +1026,7 @@ export default class UIManager {
       const text = messageInput?.value?.trim();
       
       if (!text) {
-        this.showNotification('请输入留言内容！');
+        alert('请输入留言内容！');
         return;
       }
 
@@ -955,6 +1044,7 @@ export default class UIManager {
         } catch (error) {
           console.error('Supabase save failed, using localStorage:', error);
           this.saveLocalMessage(newMessage);
+          this.showError(`保存到云端失败: ${error.message || '未知错误'}\n已保存到本地`);
         }
       } else {
         this.saveLocalMessage(newMessage);
@@ -966,7 +1056,7 @@ export default class UIManager {
       
     } catch (error) {
       console.error('Error submitting message:', error);
-      this.showNotification('发送失败，请稍后重试');
+      this.showError(`发送失败: ${error.message || '未知错误'}`);
     } finally {
       this.isSubmitting = false;
       this.submitMessageBtn.classList.remove('loading');
@@ -1095,9 +1185,11 @@ export default class UIManager {
       if (this.isMusicUiVisible) {
         this.toggleUiBtn.classList.remove('is-primary');
         this.toggleUiBtn.classList.add('is-success');
+        this.toggleUiBtn.style.opacity = '1';
       } else {
         this.toggleUiBtn.classList.remove('is-success');
         this.toggleUiBtn.classList.add('is-primary');
+        this.toggleUiBtn.style.opacity = '0.5';
       }
     }
     
@@ -1373,7 +1465,7 @@ export default class UIManager {
       if (!file) return;
       
       if (!file.type.startsWith('audio/') && !file.name.endsWith('.mp3')) {
-        this.showNotification('请选择 MP3 音乐文件！');
+        alert('请选择 MP3 音乐文件！');
         return;
       }
       
@@ -1429,7 +1521,7 @@ export default class UIManager {
         if (profile) {
           this.currentProfile = {
             avatar: profile.avatar || DEFAULT_PROFILE.avatar,
-            bio: profile.bio || DEFAULT_PROFILE.bio
+            bio: profile.bio || getDefaultBio()
           };
           this.renderProfile();
           return;
@@ -1451,8 +1543,7 @@ export default class UIManager {
     }
     const bioEl = document.getElementById('profile-bio');
     if (bioEl) {
-      // 正确处理换行符
-      bioEl.innerHTML = this.currentProfile.bio.replace(/\n/g, '<br>');
+      bioEl.textContent = this.currentProfile.bio;
     }
   }
 
@@ -1471,13 +1562,9 @@ export default class UIManager {
     const cancelBtn = document.getElementById('cancel-profile-btn');
 
     if (this.isProfileEditable) {
-      // 进入编辑模式
       if (bioTextarea) {
-        // 将当前内容填入输入框
         bioTextarea.value = this.currentProfile.bio;
         bioTextarea.classList.remove('hidden');
-        // 自动聚焦到输入框
-        setTimeout(() => bioTextarea.focus(), 50);
       }
       if (bioDisplay) {
         bioDisplay.classList.add('hidden');
@@ -1486,7 +1573,6 @@ export default class UIManager {
       if (saveBtn) saveBtn.classList.remove('hidden');
       if (cancelBtn) cancelBtn.classList.remove('hidden');
     } else {
-      // 退出编辑模式
       if (bioTextarea) bioTextarea.classList.add('hidden');
       if (bioDisplay) bioDisplay.classList.remove('hidden');
       if (editBtn) editBtn.classList.remove('hidden');
@@ -1519,10 +1605,9 @@ export default class UIManager {
       this.renderProfile();
       this.isProfileEditable = false;
       this.updateProfileEditUI();
-      this.showNotification('保存成功！');
     } catch (error) {
       console.error('Error saving profile:', error);
-      this.showNotification('保存失败，请稍后重试');
+      alert('保存失败，请稍后重试');
     } finally {
       this.isSavingProfile = false;
     }
@@ -1540,108 +1625,36 @@ export default class UIManager {
       const file = event.target.files[0];
       if (!file) return;
       
-      // 验证文件类型
       if (!file.type.startsWith('image/')) {
-        this.showNotification('请选择图片文件！');
+        alert('请选择图片文件！');
         return;
       }
-      
-      // 验证文件大小（最大 2MB）
-      const maxSize = 2 * 1024 * 1024; // 2MB
-      if (file.size > maxSize) {
-        this.showNotification('图片文件过大，请选择小于 2MB 的图片！');
-        return;
-      }
-      
-      // 显示上传中状态
-      const uploadBtn = document.getElementById('avatar-upload-btn');
-      const avatarFrame = document.querySelector('.profile-avatar-frame');
-      const originalText = uploadBtn.textContent;
-      uploadBtn.textContent = '⏳ 上传中...';
-      uploadBtn.disabled = true;
-      uploadBtn.classList.add('loading');
-      avatarFrame.classList.add('uploading');
       
       const reader = new FileReader();
       reader.onload = async (e) => {
         const avatarData = e.target.result;
         
+        // 更新头像显示
+        if (this.profileAvatar) {
+          this.profileAvatar.src = avatarData;
+        }
+        
+        // 更新当前数据
+        this.currentProfile.avatar = avatarData;
+        
+        // 保存
         try {
-          // 更新头像显示
-          if (this.profileAvatar) {
-            // 添加头像切换动画效果
-            this.profileAvatar.style.opacity = '0.5';
-            this.profileAvatar.style.transform = 'scale(0.9)';
-            
-            setTimeout(() => {
-              this.profileAvatar.src = avatarData;
-              this.profileAvatar.style.opacity = '1';
-              this.profileAvatar.style.transform = 'scale(1)';
-            }, 150);
+          if (this.isSupabaseConfigured) {
+            await saveProfileToSupabase(this.currentProfile);
           }
-          
-          // 更新当前数据
-          this.currentProfile.avatar = avatarData;
-          
-          // 保存到本地和云端
-          try {
-            if (this.isSupabaseConfigured) {
-              await saveProfileToSupabase(this.currentProfile);
-            }
-            saveProfileToLocalStorage(this.currentProfile);
-            
-            // 显示成功效果
-            avatarFrame.classList.remove('uploading');
-            avatarFrame.classList.add('upload-success');
-            setTimeout(() => {
-              avatarFrame.classList.remove('upload-success');
-            }, 500);
-            
-            // 恢复按钮状态并显示成功
-            uploadBtn.textContent = '✅ 已上传';
-            uploadBtn.classList.remove('loading');
-            uploadBtn.disabled = false;
-            
-            setTimeout(() => {
-              uploadBtn.textContent = originalText;
-            }, 2000);
-            
-            this.showNotification('头像上传成功！');
-            
-          } catch (error) {
-            console.error('Error saving avatar:', error);
-            avatarFrame.classList.remove('uploading');
-            uploadBtn.textContent = '❌ 保存失败';
-            uploadBtn.classList.remove('loading');
-            uploadBtn.disabled = false;
-            this.showNotification('头像保存失败，但已预览新头像。请刷新页面后重试。');
-            
-            setTimeout(() => {
-              uploadBtn.textContent = originalText;
-            }, 2000);
-          }
+          saveProfileToLocalStorage(this.currentProfile);
         } catch (error) {
-          console.error('Error updating avatar:', error);
+          console.error('Error saving avatar:', error);
         }
       };
-      
-      reader.onerror = () => {
-        console.error('Error reading file');
-        avatarFrame.classList.remove('uploading');
-        uploadBtn.textContent = '❌ 读取失败';
-        uploadBtn.classList.remove('loading');
-        uploadBtn.disabled = false;
-        this.showNotification('图片读取失败，请重试！');
-        
-        setTimeout(() => {
-          uploadBtn.textContent = originalText;
-        }, 2000);
-      };
-      
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading avatar:', error);
-      this.showNotification('头像上传失败，请重试！');
     }
   }
 
@@ -1698,9 +1711,9 @@ export default class UIManager {
       saveAdminAuth();
       this.enableAdminMode();
       this.closeAdminModal();
-      this.showNotification('✅ 已进入管理模式！');
+      alert('✅ 已进入管理模式！');
     } else {
-      this.showNotification('❌ 密码错误！');
+      alert('❌ 密码错误！');
     }
   }
 
@@ -1789,10 +1802,6 @@ export default class UIManager {
 
   // 添加新博客
   addNewBlog() {
-    // 清除之前的预览状态
-    const allItems = document.querySelectorAll('.blog-item');
-    allItems.forEach(el => el.classList.remove('active'));
-    
     const today = new Date().toISOString().split('T')[0];
     this.currentEditingBlog = {
       id: Date.now(),
@@ -1806,10 +1815,6 @@ export default class UIManager {
 
   // 编辑博客
   editBlog(index) {
-    // 清除之前的预览状态
-    const allItems = document.querySelectorAll('.blog-item');
-    allItems.forEach(el => el.classList.remove('active'));
-    
     const blog = this.currentBlogs[index];
     this.currentEditingBlog = { ...blog, _index: index };
     this.isBlogEditing = true;
@@ -1818,11 +1823,9 @@ export default class UIManager {
 
   // 显示博客编辑器
   showBlogEditor() {
-    // 确保预览区域隐藏
     if (this.blogPreview) {
       this.blogPreview.classList.add('hidden');
     }
-    // 确保编辑器显示
     if (this.blogEditor) {
       this.blogEditor.classList.remove('hidden');
     }
@@ -1841,55 +1844,14 @@ export default class UIManager {
 
   // 隐藏博客编辑器
   hideBlogEditor() {
-    // 确保预览区域显示（但内容可能只是提示文字）
     if (this.blogPreview) {
       this.blogPreview.classList.remove('hidden');
     }
-    // 确保编辑器隐藏
     if (this.blogEditor) {
       this.blogEditor.classList.add('hidden');
     }
     this.isBlogEditing = false;
     this.currentEditingBlog = null;
-  }
-
-  // 渲染博客预览
-  renderBlogPost(post, e) {
-    if (!this.blogPreviewContainer) return;
-    
-    try {
-      // 清除所有博客项的激活状态
-      const allItems = document.querySelectorAll('.blog-item');
-      allItems.forEach(el => el.classList.remove('active'));
-      // 给当前选中的项添加激活状态
-      if (e && e.currentTarget) {
-        e.currentTarget.classList.add('active');
-      }
-      
-      // 如果正在编辑，先退出编辑模式
-      if (this.isBlogEditing) {
-        this.isBlogEditing = false;
-        this.currentEditingBlog = null;
-      }
-      
-      // 确保编辑器隐藏
-      if (this.blogEditor) {
-        this.blogEditor.classList.add('hidden');
-      }
-      // 确保预览区域显示
-      if (this.blogPreview) {
-        this.blogPreview.classList.remove('hidden');
-      }
-      
-      // 渲染博客内容
-      this.blogPreviewContainer.innerHTML = `
-        <h3 class="blog-title">${post.title}</h3>
-        <div class="blog-meta">📅 ${post.date}</div>
-        <div class="blog-markdown">${post.content.replace(/\n/g, '<br>')}</div>
-      `;
-    } catch (error) {
-      console.error('Error rendering blog post:', error);
-    }
   }
 
   // 保存博客
@@ -1901,7 +1863,7 @@ export default class UIManager {
     const content = this.blogContentTextarea ? this.blogContentTextarea.value.trim() : '';
     
     if (!title || !date || !content) {
-      this.showNotification('请填写完整的博客信息！');
+      alert('请填写完整的博客信息！');
       return;
     }
     
@@ -1946,21 +1908,16 @@ export default class UIManager {
       // 刷新列表
       this.createBlogList();
       this.hideBlogEditor();
-      this.showNotification('✅ 博客保存成功！');
+      alert('✅ 博客保存成功！');
     } catch (error) {
       console.error('Error saving blog:', error);
-      this.showNotification('❌ 保存失败！');
+      alert('❌ 保存失败！');
     }
   }
 
   // 删除博客
   async deleteBlog() {
-    if (!this.currentEditingBlog) {
-      return;
-    }
-
-    const confirmed = await this.showConfirm('确定要删除这篇博客吗？');
-    if (!confirmed) {
+    if (!this.currentEditingBlog || !confirm('确定要删除这篇博客吗？')) {
       return;
     }
     
@@ -1978,11 +1935,11 @@ export default class UIManager {
         // 刷新列表
         this.createBlogList();
         this.hideBlogEditor();
-        this.showNotification('✅ 博客已删除！');
+        alert('✅ 博客已删除！');
       }
     } catch (error) {
       console.error('Error deleting blog:', error);
-      this.showNotification('❌ 删除失败！');
+      alert('❌ 删除失败！');
     }
   }
 
