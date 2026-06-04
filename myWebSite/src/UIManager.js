@@ -84,7 +84,14 @@ import {
   saveAdminAuth, 
   clearAdminAuth 
 } from './adminConfig.js';
-import { t } from './i18n.js';
+import { 
+  t, 
+  getCurrentLang, 
+  translateContent, 
+  translateObject, 
+  translateArray,
+  clearTranslationCache
+} from './i18n.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
@@ -961,7 +968,7 @@ export default class UIManager {
     }
   }
 
-  renderBlogPost(post, e) {
+  async renderBlogPost(post, e) {
     if (!this.blogPreviewContainer) return;
     
     try {
@@ -971,17 +978,20 @@ export default class UIManager {
         e.currentTarget.classList.add('active');
       }
       
+      const currentLang = getCurrentLang();
+      const translatedPost = await translateObject(post, ['title', 'content'], currentLang);
+      
       this.blogPreviewContainer.innerHTML = `
-        <h3 class="blog-title">${post.title}</h3>
-        <div class="blog-meta">📅 ${post.date}</div>
-        <div class="blog-markdown">${post.content.replace(/\n/g, '<br>')}</div>
+        <h3 class="blog-title">${translatedPost.title}</h3>
+        <div class="blog-meta">📅 ${translatedPost.date}</div>
+        <div class="blog-markdown">${translatedPost.content.replace(/\n/g, '<br>')}</div>
       `;
     } catch (error) {
       console.error('Error rendering blog post:', error);
     }
   }
 
-  renderMessages(messages) {
+  async renderMessages(messages) {
     if (!this.messagesContainer) return;
     
     try {
@@ -989,13 +999,16 @@ export default class UIManager {
       if (messages.length === 0) {
         this.messagesContainer.innerHTML = `
           <div style="text-align: center; padding: 2rem; color: var(--neon-cyan); opacity: 0.6;">
-            暂无留言，成为第一个留言的人吧！ 🌟
+            ${t('no-messages')}
           </div>
         `;
         return;
       }
       
-      messages.forEach(msg => {
+      const currentLang = getCurrentLang();
+      const translatedMessages = await translateArray(messages, ['name', 'text'], currentLang);
+      
+      translatedMessages.forEach(msg => {
         const item = document.createElement('div');
         item.className = 'message-item';
         item.innerHTML = `
@@ -1537,13 +1550,15 @@ export default class UIManager {
   }
 
   // 渲染个人信息
-  renderProfile() {
+  async renderProfile() {
     if (this.profileAvatar) {
       this.profileAvatar.src = this.currentProfile.avatar;
     }
     const bioEl = document.getElementById('profile-bio');
-    if (bioEl) {
-      bioEl.textContent = this.currentProfile.bio;
+    if (bioEl && this.currentProfile.bio) {
+      const currentLang = getCurrentLang();
+      const translatedBio = await translateContent(this.currentProfile.bio, currentLang);
+      bioEl.textContent = translatedBio;
     }
   }
 

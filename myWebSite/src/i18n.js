@@ -245,6 +245,9 @@ export const languages = {
 // 当前语言
 let currentLang = 'zh';
 
+// 翻译缓存
+const translationCache = new Map();
+
 // 获取当前语言
 export function getCurrentLang() {
   return currentLang;
@@ -266,7 +269,7 @@ export function loadSavedLang() {
   }
 }
 
-// 翻译函数
+// 翻译函数 - 用于UI文字
 export function t(key) {
   const lang = languages[currentLang];
   return lang && lang.translations[key] ? lang.translations[key] : key;
@@ -279,4 +282,127 @@ export function getLanguageList() {
     name: languages[key].name,
     flag: languages[key].flag
   }));
+}
+
+// =============================================
+// 内容翻译系统 - 用于数据库内容
+// =============================================
+
+// 语言代码映射
+const languageCodes = {
+  'zh': 'zh-CN',
+  'en': 'en',
+  'ja': 'ja'
+};
+
+// 简易翻译函数（客户端模拟翻译）
+// 注意：生产环境应该调用真实的翻译API
+export async function translateContent(text, targetLang) {
+  if (!text || targetLang === 'zh') {
+    return text;
+  }
+
+  // 检查缓存
+  const cacheKey = `${text}_${targetLang}`;
+  if (translationCache.has(cacheKey)) {
+    return translationCache.get(cacheKey);
+  }
+
+  // 简单的模拟翻译（生产环境请替换为真实API）
+  // 这里我们使用浏览器内置的简单替换作为演示
+  // 真实项目应该使用 DeepL, Google Translate 等API
+  let translated = await doTranslate(text, targetLang);
+  
+  // 缓存结果
+  translationCache.set(cacheKey, translated);
+  
+  return translated;
+}
+
+// 实际翻译实现
+async function doTranslate(text, targetLang) {
+  // 方案1：使用免费的翻译API（如MyMemory）
+  try {
+    const response = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=zh-CN|${languageCodes[targetLang]}`
+    );
+    
+    const data = await response.json();
+    if (data.responseStatus === 200 && data.responseData) {
+      return data.responseData.translatedText;
+    }
+  } catch (e) {
+    console.log('API翻译失败，使用本地翻译', e);
+  }
+
+  // 方案2：本地简单翻译（演示用）
+  return simpleTranslate(text, targetLang);
+}
+
+// 本地简单翻译（演示用）
+function simpleTranslate(text, targetLang) {
+  if (targetLang === 'en') {
+    return text
+      .replace(/欢迎来到赛博网格/g, 'Welcome to Cyber Grid')
+      .replace(/数字艺术家/g, 'digital artist')
+      .replace(/创意开发者/g, 'creative developer')
+      .replace(/3D视觉化/g, '3D visualization')
+      .replace(/互动体验/g, 'interactive experience')
+      .replace(/复古未来主义/g, 'retro-futuristic')
+      .replace(/像素艺术/g, 'pixel art')
+      .replace(/霓虹灯/g, 'neon lights')
+      .replace(/合成波/g, 'synthwave')
+      .replace(/美学/g, 'aesthetics')
+      .replace(/数字梦境/g, 'digital dreams');
+  }
+  
+  if (targetLang === 'ja') {
+    return text
+      .replace(/欢迎来到赛博网格/g, 'サイバーグリッドへようこそ')
+      .replace(/数字艺术家/g, 'デジタルアーティスト')
+      .replace(/创意开发者/g, 'クリエイティブ開発者')
+      .replace(/3D视觉化/g, '3Dビジュアライゼーション')
+      .replace(/互动体验/g, 'インタラクティブ体験')
+      .replace(/复古未来主义/g, 'レトロフューチャー')
+      .replace(/像素艺术/g, 'ピクセルアート')
+      .replace(/霓虹灯/g, 'ネオンライト')
+      .replace(/合成波/g, 'シンセウェーブ')
+      .replace(/美学/g, '美学')
+      .replace(/数字梦境/g, 'デジタルの夢');
+  }
+  
+  return text;
+}
+
+// 翻译多个字段的辅助函数
+export async function translateObject(obj, fields, targetLang) {
+  if (targetLang === 'zh') {
+    return obj;
+  }
+  
+  const translated = { ...obj };
+  
+  for (const field of fields) {
+    if (translated[field]) {
+      translated[field] = await translateContent(translated[field], targetLang);
+    }
+  }
+  
+  return translated;
+}
+
+// 批量翻译
+export async function translateArray(arr, fields, targetLang) {
+  if (targetLang === 'zh') {
+    return arr;
+  }
+  
+  return Promise.all(
+    arr.map(item => translateObject(item, fields, targetLang))
+  );
+}
+
+// 清空翻译缓存
+export function clearTranslationCache() {
+  translationCache.clear();
 }
