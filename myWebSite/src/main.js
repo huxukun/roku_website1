@@ -17,6 +17,7 @@ import VirtualAvatar from './VirtualAvatar.js'
 import PinkOzoneFog from './PinkOzoneFog.js'
 import MusicVisualizer from './MusicVisualizer.js'
 import musicService from './MusicService.js'
+import { loadSavedLang, setCurrentLang, getLanguageList } from './i18n.js'
 
 const canvas = document.querySelector('canvas.webgl')
 
@@ -254,11 +255,7 @@ window.loadMusicFile = function(file) {
     return musicVisualizer.play();
   }).catch(err => {
     console.error('Failed to load music:', err);
-    if (uiManager) {
-      uiManager.showNotification('无法加载音乐文件，请尝试其他文件。');
-    } else {
-      alert('无法加载音乐文件，请尝试其他文件。');
-    }
+    alert('无法加载音乐文件，请尝试其他文件。');
     throw err;
   });
 };
@@ -268,11 +265,7 @@ window.loadMusicURL = function(url) {
     musicVisualizer.play();
   }).catch(err => {
     console.error('Failed to load music:', err);
-    if (uiManager) {
-      uiManager.showNotification('无法加载音乐，请检查网络连接。');
-    } else {
-      alert('无法加载音乐，请检查网络连接。');
-    }
+    alert('无法加载音乐，请检查网络连接。');
   });
 };
 
@@ -280,10 +273,39 @@ window.toggleVisualizer = function() {
   musicVisualizer.toggle();
 };
 
+// 语言切换功能
+function setupLanguageSwitcher() {
+  const langBtn = document.getElementById('lang-btn');
+  const langDropdown = document.getElementById('lang-dropdown');
+  const langOptions = document.querySelectorAll('.lang-option');
+  
+  langBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    langDropdown.classList.toggle('active');
+  });
+  
+  langOptions.forEach(option => {
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const lang = option.dataset.lang;
+      setCurrentLang(lang);
+      langDropdown.classList.remove('active');
+      document.dispatchEvent(new CustomEvent('languageChange', { detail: { lang } }));
+    });
+  });
+  
+  document.addEventListener('click', () => {
+    langDropdown.classList.remove('active');
+  });
+}
+
 // 确保DOM准备好后初始化
 let uiManager = null;
 const init = async () => {
   console.log('DOM ready, fetching songs from database...');
+  
+  loadSavedLang();
+  setupLanguageSwitcher();
   
   await musicService.fetchSongs();
   
