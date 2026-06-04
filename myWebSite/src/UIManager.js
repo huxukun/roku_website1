@@ -84,7 +84,14 @@ import {
   saveAdminAuth, 
   clearAdminAuth 
 } from './adminConfig.js';
-import { t } from './i18n.js';
+import { 
+  t, 
+  getCurrentLang, 
+  translateContent, 
+  translateObject, 
+  translateArray,
+  clearTranslationCache
+} from './i18n.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
@@ -589,12 +596,16 @@ export default class UIManager {
       this.cancelBlogEditBtn.addEventListener('click', () => this.cancelBlogEdit());
     }
     
-    document.addEventListener('languageChange', (e) => {
-      this.handleLanguageChange(e.detail.lang);
+    document.addEventListener('languageChange', async (e) => {
+      await this.handleLanguageChange(e.detail.lang);
     });
   }
   
-  handleLanguageChange(lang) {
+  async handleLanguageChange(lang) {
+    // 清空翻译缓存，确保切换语言时重新翻译
+    clearTranslationCache();
+    
+    // 更新 UI 文字
     this.updateNavigationTexts();
     this.updateAboutModalTexts();
     this.updateGuestbookTexts();
@@ -603,6 +614,19 @@ export default class UIManager {
     this.updateAdminModalTexts();
     this.updateMusicControlTexts();
     this.updateStorageStatusTexts();
+    
+    // 重新翻译数据库内容
+    await this.renderProfile();
+    
+    // 如果博客模态框是打开的，重新翻译博客列表
+    if (this.isBlogModalOpen && this.blogModal) {
+      await this.createBlogList();
+    }
+    
+    // 重新翻译留言板
+    if (guestbookMessages.length > 0) {
+      await this.renderMessages(guestbookMessages);
+    }
   }
   
   updateNavigationTexts() {
@@ -961,7 +985,7 @@ export default class UIManager {
     }
   }
 
-  renderBlogPost(post, e) {
+  async renderBlogPost(post, e) {
     if (!this.blogPreviewContainer) return;
     
     try {
@@ -971,17 +995,20 @@ export default class UIManager {
         e.currentTarget.classList.add('active');
       }
       
+      const currentLang = getCurrentLang();
+      const translatedPost = await translateObject(post, ['title', 'content'], currentLang);
+      
       this.blogPreviewContainer.innerHTML = `
-        <h3 class="blog-title">${post.title}</h3>
-        <div class="blog-meta">📅 ${post.date}</div>
-        <div class="blog-markdown">${post.content.replace(/\n/g, '<br>')}</div>
+        <h3 class="blog-title">${translatedPost.title}</h3>
+        <div class="blog-meta">📅 ${translatedPost.date}</div>
+        <div class="blog-markdown">${translatedPost.content.replace(/\n/g, '<br>')}</div>
       `;
     } catch (error) {
       console.error('Error rendering blog post:', error);
     }
   }
 
-  renderMessages(messages) {
+  async renderMessages(messages) {
     if (!this.messagesContainer) return;
     
     try {
@@ -989,13 +1016,16 @@ export default class UIManager {
       if (messages.length === 0) {
         this.messagesContainer.innerHTML = `
           <div style="text-align: center; padding: 2rem; color: var(--neon-cyan); opacity: 0.6;">
-            暂无留言，成为第一个留言的人吧！ 🌟
+            ${t('no-messages')}
           </div>
         `;
         return;
       }
       
-      messages.forEach(msg => {
+      const currentLang = getCurrentLang();
+      const translatedMessages = await translateArray(messages, ['name', 'text'], currentLang);
+      
+      translatedMessages.forEach(msg => {
         const item = document.createElement('div');
         item.className = 'message-item';
         item.innerHTML = `
@@ -1537,13 +1567,15 @@ export default class UIManager {
   }
 
   // 渲染个人信息
-  renderProfile() {
+  async renderProfile() {
     if (this.profileAvatar) {
       this.profileAvatar.src = this.currentProfile.avatar;
     }
     const bioEl = document.getElementById('profile-bio');
-    if (bioEl) {
-      bioEl.textContent = this.currentProfile.bio;
+    if (bioEl && this.currentProfile.bio) {
+      const currentLang = getCurrentLang();
+      const translatedBio = await translateContent(this.currentProfile.bio, currentLang);
+      bioEl.textContent = translatedBio;
     }
   }
 
@@ -1748,7 +1780,7 @@ export default class UIManager {
   // 初始化博客
   async initBlogs() {
     await this.loadBlogs();
-    this.createBlogList();
+    await this.createBlogList();
   }
 
   // 加载博客文章
@@ -1769,12 +1801,16 @@ export default class UIManager {
   }
 
   // 重写 createBlogList 方法
-  createBlogList() {
+  async createBlogList() {
     if (!this.blogListContainer) return;
     
     try {
       this.blogListContainer.innerHTML = '';
-      this.currentBlogs.forEach((blog, index) => {
+      
+      const currentLang = getCurrentLang();
+      const translatedBlogs = await translateArray(this.currentBlogs, ['title'], currentLang);
+      
+      translatedBlogs.forEach((blog, index) => {
         const item = document.createElement('div');
         item.className = 'blog-item';
         item.innerHTML = `
@@ -1790,7 +1826,7 @@ export default class UIManager {
             e.stopPropagation();
             this.editBlog(index);
           } else {
-            this.renderBlogPost(blog, e);
+            this.renderBlogPost(this.currentBlogs[index], e);
           }
         });
         this.blogListContainer.appendChild(item);
@@ -1906,7 +1942,7 @@ export default class UIManager {
       saveBlogsToLocalStorage(this.currentBlogs);
       
       // 刷新列表
-      this.createBlogList();
+      await this.createBlogList();
       this.hideBlogEditor();
       alert('✅ 博客保存成功！');
     } catch (error) {
@@ -1933,7 +1969,7 @@ export default class UIManager {
         saveBlogsToLocalStorage(this.currentBlogs);
         
         // 刷新列表
-        this.createBlogList();
+        await this.createBlogList();
         this.hideBlogEditor();
         alert('✅ 博客已删除！');
       }
@@ -1949,13 +1985,13 @@ export default class UIManager {
   }
 
   // 更新 openBlogModal 方法
-  openBlogModal() {
+  async openBlogModal() {
     try {
       this.closeAllModals();
       this.isBlogModalOpen = true;
       if (this.blogModal) {
         // 重新加载博客列表
-        this.createBlogList();
+        await this.createBlogList();
         this.blogModal.classList.remove('hidden');
         setTimeout(() => {
           this.blogModal.classList.add('visible');
