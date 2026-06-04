@@ -84,6 +84,7 @@ import {
   saveAdminAuth, 
   clearAdminAuth 
 } from './adminConfig.js';
+import { t } from './i18n.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
 let guestbookMessages = [];
@@ -572,6 +573,83 @@ export default class UIManager {
     if (this.cancelBlogEditBtn) {
       this.cancelBlogEditBtn.addEventListener('click', () => this.cancelBlogEdit());
     }
+    
+    document.addEventListener('languageChange', (e) => {
+      this.handleLanguageChange(e.detail.lang);
+    });
+  }
+  
+  handleLanguageChange(lang) {
+    this.updateAboutModalTexts();
+    this.updateGuestbookTexts();
+    this.updateBlogModalTexts();
+    this.updateGalleryModalTexts();
+  }
+  
+  updateAboutModalTexts() {
+    const aboutTitle = document.querySelector('.about-modal .modal-title');
+    const bioLabel = document.querySelector('.about-modal .bio-label');
+    const editBtn = document.querySelector('.about-modal .edit-bio-btn');
+    const saveBtn = document.querySelector('.about-modal .save-bio-btn');
+    const cancelBtn = document.querySelector('.about-modal .cancel-bio-btn');
+    const changeAvatarBtn = document.getElementById('avatar-upload-btn');
+    const skillsLabel = document.querySelector('.about-modal .skills-label');
+    
+    if (aboutTitle) aboutTitle.textContent = t('about-title');
+    if (bioLabel) bioLabel.textContent = t('bio');
+    if (editBtn) editBtn.textContent = t('edit');
+    if (saveBtn) saveBtn.textContent = t('save');
+    if (cancelBtn) cancelBtn.textContent = t('cancel');
+    if (changeAvatarBtn) changeAvatarBtn.textContent = t('change-avatar');
+    if (skillsLabel) skillsLabel.textContent = t('skills');
+  }
+  
+  updateGuestbookTexts() {
+    const guestbookTitle = document.querySelector('.guestbook-modal .modal-title');
+    const onlineStatus = document.querySelector('.storage-status.online');
+    const offlineStatus = document.querySelector('.storage-status.offline');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const leaveMessageLabel = document.querySelector('.leave-message-label');
+    const nameLabel = document.querySelector('.name-label');
+    const tagLabel = document.querySelector('.tag-label');
+    const messagePlaceholder = document.getElementById('message-input');
+    const sendBtn = document.getElementById('submit-message-btn');
+    const noMessages = document.querySelector('.no-messages');
+    const historyLabel = document.querySelector('.history-label');
+    
+    if (guestbookTitle) guestbookTitle.textContent = t('guestbook-title');
+    if (onlineStatus) onlineStatus.textContent = t('online');
+    if (offlineStatus) offlineStatus.textContent = t('offline');
+    if (refreshBtn) refreshBtn.textContent = t('refresh');
+    if (leaveMessageLabel) leaveMessageLabel.textContent = t('leave-message');
+    if (nameLabel) nameLabel.textContent = t('name');
+    if (tagLabel) tagLabel.textContent = t('tag');
+    if (messagePlaceholder) messagePlaceholder.placeholder = t('message-hint');
+    if (sendBtn) sendBtn.textContent = t('send');
+    if (noMessages) noMessages.textContent = t('no-messages');
+    if (historyLabel) historyLabel.textContent = t('history');
+  }
+  
+  updateBlogModalTexts() {
+    const blogTitle = document.querySelector('.blog-modal .modal-title');
+    const articleListLabel = document.querySelector('.article-list-label');
+    const selectArticleHint = document.querySelector('.select-article-hint');
+    const addBlogBtn = document.getElementById('add-blog-btn');
+    const deleteBlogBtn = document.getElementById('delete-blog-btn');
+    
+    if (blogTitle) blogTitle.textContent = t('blog-title');
+    if (articleListLabel) articleListLabel.textContent = t('article-list');
+    if (selectArticleHint) selectArticleHint.textContent = t('select-article');
+    if (addBlogBtn) addBlogBtn.textContent = t('add-blog');
+    if (deleteBlogBtn) deleteBlogBtn.textContent = t('delete-blog');
+  }
+  
+  updateGalleryModalTexts() {
+    const galleryTitle = document.querySelector('.gallery-modal .modal-title');
+    const closeBtn = document.getElementById('close-project-btn');
+    
+    if (galleryTitle) galleryTitle.textContent = t('gallery-title');
+    if (closeBtn) closeBtn.textContent = t('project-close');
   }
 
   // 更新存储状态显示
