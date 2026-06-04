@@ -76,7 +76,7 @@ const blogData = [
 
 // Supabase 导入
 import { supabase } from './supabase.js';
-import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY } from './profileConfig.js';
+import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY, getDefaultBio } from './profileConfig.js';
 import { 
   ADMIN_PASSWORD, 
   verifyAdminPassword, 
@@ -218,10 +218,25 @@ async function saveProfileToSupabase(profile) {
 function loadProfileFromLocalStorage() {
   try {
     const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT_PROFILE;
+    if (stored) {
+      const profile = JSON.parse(stored);
+      // 如果 bio 为空，使用默认的多语言介绍
+      if (!profile.bio) {
+        profile.bio = getDefaultBio();
+      }
+      return profile;
+    }
+    // 返回带有正确多语言 bio 的默认配置
+    return {
+      ...DEFAULT_PROFILE,
+      bio: getDefaultBio()
+    };
   } catch (error) {
     console.error('Error loading profile from localStorage:', error);
-    return DEFAULT_PROFILE;
+    return {
+      ...DEFAULT_PROFILE,
+      bio: getDefaultBio()
+    };
   }
 }
 
@@ -580,20 +595,47 @@ export default class UIManager {
   }
   
   handleLanguageChange(lang) {
+    this.updateNavigationTexts();
     this.updateAboutModalTexts();
     this.updateGuestbookTexts();
     this.updateBlogModalTexts();
     this.updateGalleryModalTexts();
+    this.updateAdminModalTexts();
+    this.updateMusicControlTexts();
+    this.updateStorageStatusTexts();
+  }
+  
+  updateNavigationTexts() {
+    const aboutBtn = document.querySelector('.about-btn-text');
+    const worksBtn = document.querySelector('.works-btn-text');
+    const guestbookBtn = document.querySelector('.guestbook-btn-text');
+    const blogBtn = document.querySelector('.blog-btn-text');
+    const welcomeText = document.querySelector('.welcome-text');
+    
+    if (aboutBtn) aboutBtn.textContent = t('about');
+    if (worksBtn) worksBtn.textContent = t('works');
+    if (guestbookBtn) guestbookBtn.textContent = t('guestbook');
+    if (blogBtn) blogBtn.textContent = t('blog');
+    if (welcomeText) welcomeText.textContent = t('welcome');
+  }
+  
+  updateMusicControlTexts() {
+    const uploadMusicText = document.querySelector('.upload-music-text');
+    const nowPlayingLabel = document.querySelector('.now-playing-label');
+    
+    if (uploadMusicText) uploadMusicText.textContent = t('upload-music');
+    if (nowPlayingLabel) nowPlayingLabel.textContent = t('now-playing');
   }
   
   updateAboutModalTexts() {
     const aboutTitle = document.querySelector('.about-modal .modal-title');
     const bioLabel = document.querySelector('.about-modal .bio-label');
-    const editBtn = document.querySelector('.about-modal .edit-bio-btn');
-    const saveBtn = document.querySelector('.about-modal .save-bio-btn');
-    const cancelBtn = document.querySelector('.about-modal .cancel-bio-btn');
-    const changeAvatarBtn = document.getElementById('avatar-upload-btn');
+    const editBtn = document.querySelector('.about-modal .edit-bio-btn .edit-text');
+    const saveBtn = document.querySelector('.about-modal .save-bio-btn .save-text');
+    const cancelBtn = document.querySelector('.about-modal .cancel-bio-btn .cancel-text');
+    const changeAvatarBtn = document.querySelector('.about-modal .change-avatar-text');
     const skillsLabel = document.querySelector('.about-modal .skills-label');
+    const closeFooter = document.querySelector('.about-modal .close-footer-text');
     
     if (aboutTitle) aboutTitle.textContent = t('about-title');
     if (bioLabel) bioLabel.textContent = t('bio');
@@ -602,54 +644,100 @@ export default class UIManager {
     if (cancelBtn) cancelBtn.textContent = t('cancel');
     if (changeAvatarBtn) changeAvatarBtn.textContent = t('change-avatar');
     if (skillsLabel) skillsLabel.textContent = t('skills');
+    if (closeFooter) closeFooter.textContent = t('close-footer');
   }
   
   updateGuestbookTexts() {
     const guestbookTitle = document.querySelector('.guestbook-modal .modal-title');
-    const onlineStatus = document.querySelector('.storage-status.online');
-    const offlineStatus = document.querySelector('.storage-status.offline');
-    const refreshBtn = document.getElementById('refresh-btn');
-    const leaveMessageLabel = document.querySelector('.leave-message-label');
-    const nameLabel = document.querySelector('.name-label');
-    const tagLabel = document.querySelector('.tag-label');
-    const messagePlaceholder = document.getElementById('message-input');
-    const sendBtn = document.getElementById('submit-message-btn');
-    const noMessages = document.querySelector('.no-messages');
-    const historyLabel = document.querySelector('.history-label');
+    const storageStatusText = document.querySelector('.guestbook-modal .storage-status-text');
+    const refreshText = document.querySelector('.guestbook-modal .refresh-text');
+    const leaveMessageLabel = document.querySelector('.guestbook-modal .leave-message-label');
+    const nameInput = document.getElementById('guest-name');
+    const tagInput = document.getElementById('guest-tag');
+    const messageInput = document.querySelector('.guestbook-modal .message-input');
+    const sendText = document.querySelector('.guestbook-modal .send-text');
+    const noMessages = document.querySelector('.guestbook-modal .no-messages');
+    const historyLabel = document.querySelector('.guestbook-modal .history-label');
+    const loadingIndicator = document.querySelector('.guestbook-modal .loading-indicator-text');
+    const closeFooter = document.querySelector('.guestbook-modal .close-guestbook-footer-text');
     
     if (guestbookTitle) guestbookTitle.textContent = t('guestbook-title');
-    if (onlineStatus) onlineStatus.textContent = t('online');
-    if (offlineStatus) offlineStatus.textContent = t('offline');
-    if (refreshBtn) refreshBtn.textContent = t('refresh');
+    if (storageStatusText) storageStatusText.textContent = t('storage-status');
+    if (refreshText) refreshText.textContent = t('refresh');
     if (leaveMessageLabel) leaveMessageLabel.textContent = t('leave-message');
-    if (nameLabel) nameLabel.textContent = t('name');
-    if (tagLabel) tagLabel.textContent = t('tag');
-    if (messagePlaceholder) messagePlaceholder.placeholder = t('message-hint');
-    if (sendBtn) sendBtn.textContent = t('send');
+    if (nameInput) nameInput.placeholder = t('name');
+    if (tagInput) tagInput.placeholder = t('tag');
+    if (messageInput) messageInput.placeholder = t('message-hint');
+    if (sendText) sendText.textContent = t('send');
     if (noMessages) noMessages.textContent = t('no-messages');
     if (historyLabel) historyLabel.textContent = t('history');
+    if (loadingIndicator) loadingIndicator.textContent = t('loading');
+    if (closeFooter) closeFooter.textContent = t('close-footer');
   }
   
   updateBlogModalTexts() {
     const blogTitle = document.querySelector('.blog-modal .modal-title');
-    const articleListLabel = document.querySelector('.article-list-label');
-    const selectArticleHint = document.querySelector('.select-article-hint');
-    const addBlogBtn = document.getElementById('add-blog-btn');
-    const deleteBlogBtn = document.getElementById('delete-blog-btn');
+    const articleListLabel = document.querySelector('.blog-modal .article-list-label');
+    const selectArticleHint = document.querySelector('.blog-modal .select-article-hint');
+    const addBlogBtn = document.querySelector('.blog-modal .add-blog-text');
+    const deleteBlogBtn = document.querySelector('.blog-modal .delete-blog-text');
+    const saveBlogBtn = document.querySelector('.blog-modal .save-blog-text');
+    const cancelBlogBtn = document.querySelector('.blog-modal .cancel-blog-text');
+    const titleInput = document.getElementById('blog-title-input');
+    const dateInput = document.getElementById('blog-date-input');
+    const contentTextarea = document.getElementById('blog-content-textarea');
+    const closeFooter = document.querySelector('.blog-modal .close-blog-footer-text');
     
     if (blogTitle) blogTitle.textContent = t('blog-title');
     if (articleListLabel) articleListLabel.textContent = t('article-list');
     if (selectArticleHint) selectArticleHint.textContent = t('select-article');
     if (addBlogBtn) addBlogBtn.textContent = t('add-blog');
     if (deleteBlogBtn) deleteBlogBtn.textContent = t('delete-blog');
+    if (saveBlogBtn) saveBlogBtn.textContent = t('save');
+    if (cancelBlogBtn) cancelBlogBtn.textContent = t('cancel');
+    if (titleInput) titleInput.placeholder = t('blog-placeholder-title');
+    if (dateInput) dateInput.placeholder = t('blog-placeholder-date');
+    if (contentTextarea) contentTextarea.placeholder = t('blog-placeholder-content');
+    if (closeFooter) closeFooter.textContent = t('close-footer');
   }
   
   updateGalleryModalTexts() {
     const galleryTitle = document.querySelector('.gallery-modal .modal-title');
-    const closeBtn = document.getElementById('close-project-btn');
+    const closeBtn = document.querySelector('.project-modal .project-close-text');
     
     if (galleryTitle) galleryTitle.textContent = t('gallery-title');
     if (closeBtn) closeBtn.textContent = t('project-close');
+  }
+  
+  updateAdminModalTexts() {
+    const adminTitle = document.querySelector('.admin-modal .modal-title');
+    const adminHint = document.querySelector('.admin-modal .admin-hint-text');
+    const passwordInput = document.querySelector('.admin-modal .password-input');
+    const loginBtn = document.querySelector('.admin-modal .login-btn-text');
+    
+    if (adminTitle) adminTitle.textContent = t('admin-title');
+    if (adminHint) adminHint.textContent = t('admin-hint');
+    if (passwordInput) passwordInput.placeholder = t('password');
+    if (loginBtn) loginBtn.textContent = t('login');
+  }
+  
+  updateStorageStatusTexts() {
+    const storageStatus = document.getElementById('storage-status');
+    if (!storageStatus) return;
+    
+    const isOnline = storageStatus.classList.contains('online');
+    const isOffline = storageStatus.classList.contains('offline');
+    const statusText = storageStatus.querySelector('.storage-status-text');
+    
+    if (statusText) {
+      if (isOnline) {
+        statusText.textContent = t('online');
+      } else if (isOffline) {
+        statusText.textContent = t('offline');
+      } else {
+        statusText.textContent = t('storage-status');
+      }
+    }
   }
 
   // 更新存储状态显示
@@ -1433,7 +1521,7 @@ export default class UIManager {
         if (profile) {
           this.currentProfile = {
             avatar: profile.avatar || DEFAULT_PROFILE.avatar,
-            bio: profile.bio || DEFAULT_PROFILE.bio
+            bio: profile.bio || getDefaultBio()
           };
           this.renderProfile();
           return;
