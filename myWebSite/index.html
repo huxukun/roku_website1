@@ -20,6 +20,33 @@
       </div>
     </div>
     
+    <!-- 语言切换加载动画 -->
+    <div id="language-loading" class="language-loading hidden">
+      <div class="language-loading-content">
+        <div class="language-loading-icon">
+          <span class="glitch-text">🌐</span>
+        </div>
+        <h2 class="language-loading-title">切换语言中...</h2>
+        <div class="language-loading-spinner">
+          <div class="spinner-ring spinner-ring-1"></div>
+          <div class="spinner-ring spinner-ring-2"></div>
+          <div class="spinner-ring spinner-ring-3"></div>
+        </div>
+        <p class="language-loading-subtitle">正在翻译界面...</p>
+      </div>
+    </div>
+    
+    <!-- 确认对话框 -->
+    <div id="confirm-modal" class="confirm-modal hidden">
+      <div class="confirm-content">
+        <p id="confirm-message" class="confirm-message"></p>
+        <div class="confirm-buttons">
+          <button id="confirm-yes" class="nes-btn is-error"><span class="confirm-yes-text">确定</span></button>
+          <button id="confirm-no" class="nes-btn is-primary"><span class="confirm-no-text">取消</span></button>
+        </div>
+      </div>
+    </div>
+    
     <!-- 左侧垂直按钮组 - 开关按钮始终显示，播放控制可隐藏 -->
     <div class="left-button-group">
       <!-- 开关按钮 - 始终显示 -->
@@ -93,6 +120,12 @@
 
     <div id="about-modal" class="modal-overlay hidden">
       <div class="about-modal-content">
+        <div class="modal-loading hidden" id="about-modal-loading">
+          <div class="modal-loading-content">
+            <div class="modal-loading-spinner"></div>
+            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
+          </div>
+        </div>
         <div class="nes-dialog about-dialog">
           <span class="corner-tl"></span>
           <span class="corner-tr"></span>
@@ -147,6 +180,12 @@
 
     <div id="gallery-modal" class="modal-overlay hidden">
       <div class="gallery-modal-content">
+        <div class="modal-loading hidden" id="gallery-modal-loading">
+          <div class="modal-loading-content">
+            <div class="modal-loading-spinner"></div>
+            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
+          </div>
+        </div>
         <div class="nes-dialog gallery-dialog">
           <span class="corner-tl"></span>
           <span class="corner-tr"></span>
@@ -164,6 +203,12 @@
 
     <div id="blog-modal" class="modal-overlay hidden">
       <div class="blog-modal-content">
+        <div class="modal-loading hidden" id="blog-modal-loading">
+          <div class="modal-loading-content">
+            <div class="modal-loading-spinner"></div>
+            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
+          </div>
+        </div>
         <div class="nes-dialog blog-dialog">
           <span class="corner-tl"></span>
           <span class="corner-tr"></span>
@@ -185,7 +230,14 @@
               <div id="blog-list" class="blog-list"></div>
             </div>
             <div class="blog-content">
-              <div id="blog-preview" class="blog-preview">
+              <div id="blog-preview" class="blog-preview blog-content-loading">
+                <!-- 博客加载动画 -->
+                <div class="blog-preview-loading hidden" id="blog-preview-loading">
+                  <div class="modal-loading-content">
+                    <div class="modal-loading-spinner"></div>
+                    <p class="modal-loading-text" data-i18n="loading">加载中...</p>
+                  </div>
+                </div>
                 <p class="select-article-hint">请选择左侧文章进行预览...</p>
               </div>
               <div id="blog-editor" class="blog-editor hidden">
@@ -209,6 +261,12 @@
 
     <div id="guestbook-modal" class="modal-overlay hidden">
       <div class="guestbook-modal-content">
+        <div class="modal-loading hidden" id="guestbook-modal-loading">
+          <div class="modal-loading-content">
+            <div class="modal-loading-spinner"></div>
+            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
+          </div>
+        </div>
         <div class="nes-dialog guestbook-dialog">
           <span class="corner-tl"></span>
           <span class="corner-tr"></span>

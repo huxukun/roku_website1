@@ -370,19 +370,127 @@ export default class UIManager {
     this.isLoadingMessages = false;
     this.isSubmitting = false;
     this.isSavingProfile = false;
+    this.currentBlogPost = null; // 当前预览的博客
 
     try {
       this.initElements();
       this.initEventListeners();
+      this.initConfirmDialog();
       this.createProjectCards();
       this.initGuestbook();
       this.initProfile();
       this.initAdminMode();
       this.initBlogs();
       
+      // 初始化语言切换加载动画文本
+      this.initLanguageLoadingText();
+      
+      // 初始化时更新 UI 文字
+      this.updateNavigationTexts();
+      this.updateAboutModalTexts();
+      this.updateGuestbookTexts();
+      this.updateBlogModalTexts();
+      this.updateGalleryModalTexts();
+      this.updateAdminModalTexts();
+      this.updateMusicControlTexts();
+      this.updateStorageStatusTexts();
+      
       console.log('UIManager initialized successfully');
     } catch (error) {
       console.error('Error initializing UIManager:', error);
+    }
+  }
+
+  // 初始化语言切换加载动画文本
+  initLanguageLoadingText() {
+    const loadingTitle = document.querySelector('.language-loading-title');
+    const loadingSubtitle = document.querySelector('.language-loading-subtitle');
+    
+    if (loadingTitle) loadingTitle.textContent = t('language-switching');
+    if (loadingSubtitle) loadingSubtitle.textContent = t('language-translating');
+  }
+
+  // 更新模态框加载文本
+  updateModalLoadingTexts() {
+    const loadingTexts = document.querySelectorAll('.modal-loading-text');
+    loadingTexts.forEach(el => {
+      const key = el.dataset.i18n;
+      if (key) {
+        el.textContent = t(key);
+      }
+    });
+  }
+
+  // 显示模态框加载动画
+  showModalLoading(modalId, loadingKey) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    const loadingEl = modal.querySelector('.modal-loading');
+    const loadingText = modal.querySelector('.modal-loading-text');
+    
+    if (loadingEl) {
+      if (loadingText && loadingKey) {
+        loadingText.dataset.i18n = loadingKey;
+        loadingText.textContent = t(loadingKey);
+      }
+      loadingEl.classList.remove('hidden');
+    }
+  }
+
+  // 隐藏模态框加载动画
+  hideModalLoading(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    const loadingEl = modal.querySelector('.modal-loading');
+    if (loadingEl) {
+      loadingEl.classList.add('hidden');
+    }
+  }
+
+  // 初始化确认对话框
+  initConfirmDialog() {
+    this.confirmModal = document.getElementById('confirm-modal');
+    this.confirmMessage = document.getElementById('confirm-message');
+    this.confirmYesBtn = document.getElementById('confirm-yes');
+    this.confirmNoBtn = document.getElementById('confirm-no');
+    this.confirmCallback = null;
+
+    if (this.confirmYesBtn) {
+      this.confirmYesBtn.addEventListener('click', () => {
+        this.handleConfirm(true);
+      });
+    }
+
+    if (this.confirmNoBtn) {
+      this.confirmNoBtn.addEventListener('click', () => {
+        this.handleConfirm(false);
+      });
+    }
+  }
+
+  // 显示确认对话框
+  showConfirm(message) {
+    return new Promise((resolve) => {
+      this.confirmCallback = resolve;
+      if (this.confirmMessage) {
+        this.confirmMessage.textContent = message;
+      }
+      if (this.confirmModal) {
+        this.confirmModal.classList.remove('hidden');
+      }
+    });
+  }
+
+  // 处理确认结果
+  handleConfirm(result) {
+    if (this.confirmModal) {
+      this.confirmModal.classList.add('hidden');
+    }
+    if (this.confirmCallback) {
+      this.confirmCallback(result);
+      this.confirmCallback = null;
     }
   }
 
@@ -602,30 +710,79 @@ export default class UIManager {
   }
   
   async handleLanguageChange(lang) {
-    // 清空翻译缓存，确保切换语言时重新翻译
-    clearTranslationCache();
+    // 显示语言切换加载动画
+    const languageLoading = document.getElementById('language-loading');
+    const loadingTitle = languageLoading?.querySelector('.language-loading-title');
+    const loadingSubtitle = languageLoading?.querySelector('.language-loading-subtitle');
     
-    // 更新 UI 文字
-    this.updateNavigationTexts();
-    this.updateAboutModalTexts();
-    this.updateGuestbookTexts();
-    this.updateBlogModalTexts();
-    this.updateGalleryModalTexts();
-    this.updateAdminModalTexts();
-    this.updateMusicControlTexts();
-    this.updateStorageStatusTexts();
+    // 先用当前语言设置标题，然后立即切换
+    if (loadingTitle) loadingTitle.textContent = t('language-switching');
+    if (loadingSubtitle) loadingSubtitle.textContent = t('language-translating');
     
-    // 重新翻译数据库内容
-    await this.renderProfile();
-    
-    // 如果博客模态框是打开的，重新翻译博客列表
-    if (this.isBlogModalOpen && this.blogModal) {
-      await this.createBlogList();
+    if (languageLoading) {
+      languageLoading.classList.remove('hidden');
     }
     
-    // 重新翻译留言板
-    if (guestbookMessages.length > 0) {
-      await this.renderMessages(guestbookMessages);
+    try {
+      // 清空翻译缓存，确保切换语言时重新翻译
+      clearTranslationCache();
+      
+      // 模拟一个小延迟，让用户看到加载动画
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 更新 UI 文字
+      this.updateNavigationTexts();
+      this.updateAboutModalTexts();
+      this.updateGuestbookTexts();
+      this.updateBlogModalTexts();
+      this.updateGalleryModalTexts();
+      this.updateAdminModalTexts();
+      this.updateMusicControlTexts();
+      this.updateStorageStatusTexts();
+      
+      // 更新模态框加载文本
+      this.updateModalLoadingTexts();
+      
+      // 重新翻译数据库内容
+      await this.renderProfile();
+      
+      // 如果博客模态框是打开的
+      if (this.isBlogModalOpen && this.blogModal) {
+        // 先显示模态框内的加载动画
+        this.showModalLoading('blog-modal', 'opening-blog');
+        
+        // 稍微等待动画可见
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // 重新翻译博客列表
+        await this.createBlogList();
+        
+        // 如果有正在预览的博客，也重新翻译
+        const activeBlogItem = this.blogModal.querySelector('.blog-item.active');
+        if (activeBlogItem && this.currentBlogPost) {
+          await this.renderBlogPost(this.currentBlogPost, null);
+        }
+        
+        // 隐藏加载动画
+        this.hideModalLoading('blog-modal');
+      }
+      
+      // 重新翻译留言板
+      if (guestbookMessages.length > 0) {
+        await this.renderMessages(guestbookMessages);
+      }
+      
+      // 更新加载动画文字为新语言
+      if (loadingTitle) loadingTitle.textContent = t('language-switching');
+      if (loadingSubtitle) loadingSubtitle.textContent = t('language-translating');
+      
+    } finally {
+      // 隐藏语言切换加载动画，添加短暂延迟确保动画效果可见
+      if (languageLoading) {
+        setTimeout(() => {
+          languageLoading.classList.add('hidden');
+        }, 500);
+      }
     }
   }
   
@@ -634,13 +791,12 @@ export default class UIManager {
     const worksBtn = document.querySelector('.works-btn-text');
     const guestbookBtn = document.querySelector('.guestbook-btn-text');
     const blogBtn = document.querySelector('.blog-btn-text');
-    const welcomeText = document.querySelector('.welcome-text');
+    // Welcome 标题不需要翻译，保持 "WELCOME"
     
     if (aboutBtn) aboutBtn.textContent = t('about');
     if (worksBtn) worksBtn.textContent = t('works');
     if (guestbookBtn) guestbookBtn.textContent = t('guestbook');
     if (blogBtn) blogBtn.textContent = t('blog');
-    if (welcomeText) welcomeText.textContent = t('welcome');
   }
   
   updateMusicControlTexts() {
@@ -652,14 +808,14 @@ export default class UIManager {
   }
   
   updateAboutModalTexts() {
-    const aboutTitle = document.querySelector('.about-modal .modal-title');
-    const bioLabel = document.querySelector('.about-modal .bio-label');
-    const editBtn = document.querySelector('.about-modal .edit-bio-btn .edit-text');
-    const saveBtn = document.querySelector('.about-modal .save-bio-btn .save-text');
-    const cancelBtn = document.querySelector('.about-modal .cancel-bio-btn .cancel-text');
-    const changeAvatarBtn = document.querySelector('.about-modal .change-avatar-text');
-    const skillsLabel = document.querySelector('.about-modal .skills-label');
-    const closeFooter = document.querySelector('.about-modal .close-footer-text');
+    const aboutTitle = document.querySelector('#about-modal .modal-title');
+    const bioLabel = document.querySelector('#about-modal .bio-label');
+    const editBtn = document.querySelector('#about-modal .edit-bio-btn .edit-text');
+    const saveBtn = document.querySelector('#about-modal .save-bio-btn .save-text');
+    const cancelBtn = document.querySelector('#about-modal .cancel-bio-btn .cancel-text');
+    const changeAvatarBtn = document.querySelector('#about-modal .change-avatar-text');
+    const skillsLabel = document.querySelector('#about-modal .skills-label');
+    const closeFooter = document.querySelector('#about-modal .close-footer-text');
     
     if (aboutTitle) aboutTitle.textContent = t('about-title');
     if (bioLabel) bioLabel.textContent = t('bio');
@@ -672,18 +828,18 @@ export default class UIManager {
   }
   
   updateGuestbookTexts() {
-    const guestbookTitle = document.querySelector('.guestbook-modal .modal-title');
-    const storageStatusText = document.querySelector('.guestbook-modal .storage-status-text');
-    const refreshText = document.querySelector('.guestbook-modal .refresh-text');
-    const leaveMessageLabel = document.querySelector('.guestbook-modal .leave-message-label');
+    const guestbookTitle = document.querySelector('#guestbook-modal .modal-title');
+    const storageStatusText = document.querySelector('#guestbook-modal .storage-status-text');
+    const refreshText = document.querySelector('#guestbook-modal .refresh-text');
+    const leaveMessageLabel = document.querySelector('#guestbook-modal .leave-message-label');
     const nameInput = document.getElementById('guest-name');
     const tagInput = document.getElementById('guest-tag');
-    const messageInput = document.querySelector('.guestbook-modal .message-input');
-    const sendText = document.querySelector('.guestbook-modal .send-text');
-    const noMessages = document.querySelector('.guestbook-modal .no-messages');
-    const historyLabel = document.querySelector('.guestbook-modal .history-label');
-    const loadingIndicator = document.querySelector('.guestbook-modal .loading-indicator-text');
-    const closeFooter = document.querySelector('.guestbook-modal .close-guestbook-footer-text');
+    const messageInput = document.querySelector('#guestbook-modal .message-input');
+    const sendText = document.querySelector('#guestbook-modal .send-text');
+    const noMessages = document.querySelector('#guestbook-modal .no-messages');
+    const historyLabel = document.querySelector('#guestbook-modal .history-label');
+    const loadingIndicator = document.querySelector('#guestbook-modal .loading-indicator-text');
+    const closeFooter = document.querySelector('#guestbook-modal .close-guestbook-footer-text');
     
     if (guestbookTitle) guestbookTitle.textContent = t('guestbook-title');
     if (storageStatusText) storageStatusText.textContent = t('storage-status');
@@ -700,17 +856,17 @@ export default class UIManager {
   }
   
   updateBlogModalTexts() {
-    const blogTitle = document.querySelector('.blog-modal .modal-title');
-    const articleListLabel = document.querySelector('.blog-modal .article-list-label');
-    const selectArticleHint = document.querySelector('.blog-modal .select-article-hint');
-    const addBlogBtn = document.querySelector('.blog-modal .add-blog-text');
-    const deleteBlogBtn = document.querySelector('.blog-modal .delete-blog-text');
-    const saveBlogBtn = document.querySelector('.blog-modal .save-blog-text');
-    const cancelBlogBtn = document.querySelector('.blog-modal .cancel-blog-text');
+    const blogTitle = document.querySelector('#blog-modal .modal-title');
+    const articleListLabel = document.querySelector('#blog-modal .article-list-label');
+    const selectArticleHint = document.querySelector('#blog-modal .select-article-hint');
+    const addBlogBtn = document.querySelector('#blog-modal .add-blog-text');
+    const deleteBlogBtn = document.querySelector('#blog-modal .delete-blog-text');
+    const saveBlogBtn = document.querySelector('#blog-modal .save-blog-text');
+    const cancelBlogBtn = document.querySelector('#blog-modal .cancel-blog-text');
     const titleInput = document.getElementById('blog-title-input');
     const dateInput = document.getElementById('blog-date-input');
     const contentTextarea = document.getElementById('blog-content-textarea');
-    const closeFooter = document.querySelector('.blog-modal .close-blog-footer-text');
+    const closeFooter = document.querySelector('#blog-modal .close-blog-footer-text');
     
     if (blogTitle) blogTitle.textContent = t('blog-title');
     if (articleListLabel) articleListLabel.textContent = t('article-list');
@@ -726,18 +882,18 @@ export default class UIManager {
   }
   
   updateGalleryModalTexts() {
-    const galleryTitle = document.querySelector('.gallery-modal .modal-title');
-    const closeBtn = document.querySelector('.project-modal .project-close-text');
+    const galleryTitle = document.querySelector('#gallery-modal .modal-title');
+    const closeBtn = document.querySelector('#project-modal .project-close-text');
     
     if (galleryTitle) galleryTitle.textContent = t('gallery-title');
     if (closeBtn) closeBtn.textContent = t('project-close');
   }
   
   updateAdminModalTexts() {
-    const adminTitle = document.querySelector('.admin-modal .modal-title');
-    const adminHint = document.querySelector('.admin-modal .admin-hint-text');
-    const passwordInput = document.querySelector('.admin-modal .password-input');
-    const loginBtn = document.querySelector('.admin-modal .login-btn-text');
+    const adminTitle = document.querySelector('#admin-modal .modal-title');
+    const adminHint = document.querySelector('#admin-modal .admin-hint-text');
+    const passwordInput = document.querySelector('#admin-modal .password-input');
+    const loginBtn = document.querySelector('#admin-modal .login-btn-text');
     
     if (adminTitle) adminTitle.textContent = t('admin-title');
     if (adminHint) adminHint.textContent = t('admin-hint');
@@ -805,78 +961,169 @@ export default class UIManager {
     this.errorMessage.classList.add('hidden');
   }
 
-  openAboutModal() {
+  async openAboutModal() {
     try {
+      // 先更新所有文字内容，确保语言是最新的
+      this.updateAboutModalTexts();
+      
       this.closeAllModals();
+      // 确保在 closeAllModals 完成后再执行后续操作
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
       this.isAboutModalOpen = true;
       if (this.aboutModal) {
-        this.renderSkills();
-        this.renderProfile();
+        // 先显示模态框
         this.aboutModal.classList.remove('hidden');
-        setTimeout(() => {
-          this.aboutModal.classList.add('visible');
-        }, 10);
+        
+        // 显示加载动画
+        this.showModalLoading('about-modal', 'opening-about');
+        
+        // 等待动画可见，确保用户能看到加载效果
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // 加载数据
+        this.renderSkills();
+        await this.renderProfile();
+        
+        // 隐藏加载动画
+        this.hideModalLoading('about-modal');
       }
     } catch (error) {
       console.error('Error opening about modal:', error);
+      this.hideModalLoading('about-modal');
     }
   }
 
-  openGalleryModal() {
+  async openGalleryModal() {
     try {
+      // 先更新所有文字内容，确保语言是最新的
+      this.updateGalleryModalTexts();
+      
       this.closeAllModals();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
       this.isGalleryModalOpen = true;
       if (this.galleryModal) {
+        // 先显示模态框
         this.galleryModal.classList.remove('hidden');
-        setTimeout(() => {
-          this.galleryModal.classList.add('visible');
-        }, 10);
+        
+        // 显示加载动画
+        this.showModalLoading('gallery-modal', 'opening-works');
+        
+        // 等待动画可见，确保用户能看到加载效果
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // 隐藏加载动画
+        this.hideModalLoading('gallery-modal');
       }
     } catch (error) {
       console.error('Error opening gallery modal:', error);
+      this.hideModalLoading('gallery-modal');
     }
   }
 
-  openBlogModal() {
+  async openBlogModal() {
     try {
+      // 先更新所有文字内容，确保语言是最新的
+      this.updateBlogModalTexts();
+      
       this.closeAllModals();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
       this.isBlogModalOpen = true;
       if (this.blogModal) {
+        // 先显示模态框
         this.blogModal.classList.remove('hidden');
-        setTimeout(() => {
-          this.blogModal.classList.add('visible');
-        }, 10);
+        
+        // 显示加载动画
+        this.showModalLoading('blog-modal', 'opening-blog');
+        
+        // 等待动画可见，确保用户能看到加载效果
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // 重置当前博客状态
+        this.currentBlogPost = null;
+        
+        // 渲染博客列表
+        await this.createBlogList();
+        
+        // 重置预览区域为默认提示
+        if (this.blogPreviewContainer) {
+          // 获取博客预览加载元素
+          const blogPreviewLoading = document.getElementById('blog-preview-loading');
+          
+          // 清空预览区域
+          this.blogPreviewContainer.innerHTML = '';
+          
+          // 重新添加加载动画容器
+          if (blogPreviewLoading) {
+            this.blogPreviewContainer.appendChild(blogPreviewLoading);
+          }
+          
+          // 添加提示文字
+          const hint = document.createElement('p');
+          hint.className = 'select-article-hint';
+          hint.textContent = t('select-article');
+          hint.dataset.i18n = 'select-article';
+          this.blogPreviewContainer.appendChild(hint);
+        }
+        
+        // 隐藏加载动画
+        this.hideModalLoading('blog-modal');
       }
     } catch (error) {
       console.error('Error opening blog modal:', error);
+      this.hideModalLoading('blog-modal');
     }
   }
 
-  openGuestbookModal() {
+  async openGuestbookModal() {
     try {
+      // 先更新所有文字内容，确保语言是最新的
+      this.updateGuestbookTexts();
+      
       this.closeAllModals();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
       this.isGuestbookModalOpen = true;
       if (this.guestbookModal) {
+        // 先显示模态框
         this.guestbookModal.classList.remove('hidden');
-        setTimeout(() => {
-          this.guestbookModal.classList.add('visible');
-        }, 10);
+        
+        // 显示加载动画
+        this.showModalLoading('guestbook-modal', 'opening-guestbook');
+        
+        // 等待动画可见，确保用户能看到加载效果
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // 加载留言数据
+        await this.loadMessagesFromSupabase();
+        
+        // 隐藏加载动画
+        this.hideModalLoading('guestbook-modal');
       }
     } catch (error) {
       console.error('Error opening guestbook modal:', error);
+      this.hideModalLoading('guestbook-modal');
     }
   }
 
   closeAllModals() {
     try {
+      // 先取消任何可能存在的定时器，避免冲突
+      if (this.modalCloseTimeout) {
+        clearTimeout(this.modalCloseTimeout);
+      }
+      
+      // 立即隐藏所有模态框，不再使用延迟
       [this.aboutModal, this.galleryModal, this.blogModal, this.guestbookModal, this.projectModal].forEach(modal => {
         if (modal) {
+          modal.classList.add('hidden');
           modal.classList.remove('visible');
-          setTimeout(() => {
-            modal.classList.add('hidden');
-          }, 300);
         }
       });
+      
+      // 重置所有状态标志
       this.isAboutModalOpen = false;
       this.isGalleryModalOpen = false;
       this.isBlogModalOpen = false;
@@ -892,9 +1139,11 @@ export default class UIManager {
     
     try {
       this.projectCardsContainer.innerHTML = '';
-      projectsData.forEach(project => {
+      projectsData.forEach((project, index) => {
         const card = document.createElement('div');
-        card.className = 'project-card';
+        card.className = 'project-card content-fade-in';
+        // 设置延迟动画，让每个卡片依次淡入
+        card.style.animationDelay = `${index * 0.15}s`;
         card.innerHTML = `
           <div class="project-card-image">
             <img src="${project.image}" alt="${project.title}">
@@ -917,21 +1166,33 @@ export default class UIManager {
     }
   }
 
-  createBlogList() {
+  async createBlogList() {
     if (!this.blogListContainer) return;
     
     try {
       this.blogListContainer.innerHTML = '';
-      blogData.forEach(post => {
+      const currentLang = getCurrentLang();
+      
+      // 并行翻译所有博客标题，提升效率
+      const translatedPosts = await Promise.all(
+        blogData.map(post => translateObject(post, ['title'], currentLang))
+      );
+      
+      translatedPosts.forEach((translatedPost, index) => {
+        const originalPost = blogData[index];
         const item = document.createElement('div');
         item.className = 'blog-item';
         item.innerHTML = `
-          ${post.title}
-          <span class="blog-item-date">${post.date}</span>
+          ${translatedPost.title}
+          <span class="blog-item-date">${originalPost.date}</span>
         `;
-        item.addEventListener('click', (e) => this.renderBlogPost(post, e));
+        item.addEventListener('click', (e) => this.renderBlogPost(originalPost, e));
         this.blogListContainer.appendChild(item);
       });
+      
+      // 确保没有任何项目被选中
+      const allItems = this.blogListContainer.querySelectorAll('.blog-item');
+      allItems.forEach(item => item.classList.remove('active'));
     } catch (error) {
       console.error('Error creating blog list:', error);
     }
@@ -995,16 +1256,57 @@ export default class UIManager {
         e.currentTarget.classList.add('active');
       }
       
+      // 保存当前博客引用，用于语言切换时重新翻译
+      this.currentBlogPost = post;
+      
+      // 获取博客预览加载元素
+      const blogPreviewLoading = document.getElementById('blog-preview-loading');
+      
+      // 显示加载动画
+      if (blogPreviewLoading) {
+        blogPreviewLoading.classList.remove('hidden');
+      }
+      
+      // 稍微延迟让动画可见，同时模拟加载过程
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       const currentLang = getCurrentLang();
       const translatedPost = await translateObject(post, ['title', 'content'], currentLang);
       
-      this.blogPreviewContainer.innerHTML = `
+      // 添加内容淡入动画前先清理加载动画
+      if (blogPreviewLoading) {
+        blogPreviewLoading.classList.add('hidden');
+      }
+      
+      // 清除现有内容，然后添加新内容
+      this.blogPreviewContainer.innerHTML = '';
+      
+      // 添加加载动画容器回去
+      if (blogPreviewLoading) {
+        this.blogPreviewContainer.appendChild(blogPreviewLoading);
+      }
+      
+      // 添加内容淡入动画
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'content-fade-in';
+      contentDiv.innerHTML = `
         <h3 class="blog-title">${translatedPost.title}</h3>
         <div class="blog-meta">📅 ${translatedPost.date}</div>
         <div class="blog-markdown">${translatedPost.content.replace(/\n/g, '<br>')}</div>
       `;
+      this.blogPreviewContainer.appendChild(contentDiv);
+      
+      // 动画结束后移除 class
+      setTimeout(() => {
+        contentDiv.classList.remove('content-fade-in');
+      }, 500);
     } catch (error) {
       console.error('Error rendering blog post:', error);
+      // 发生错误也要移除加载动画
+      const blogPreviewLoading = document.getElementById('blog-preview-loading');
+      if (blogPreviewLoading) {
+        blogPreviewLoading.classList.add('hidden');
+      }
     }
   }
 
@@ -1015,7 +1317,7 @@ export default class UIManager {
       this.messagesContainer.innerHTML = '';
       if (messages.length === 0) {
         this.messagesContainer.innerHTML = `
-          <div style="text-align: center; padding: 2rem; color: var(--neon-cyan); opacity: 0.6;">
+          <div style="text-align: center; padding: 2rem; color: var(--neon-cyan); opacity: 0.6;" class="content-fade-in">
             ${t('no-messages')}
           </div>
         `;
@@ -1025,9 +1327,11 @@ export default class UIManager {
       const currentLang = getCurrentLang();
       const translatedMessages = await translateArray(messages, ['name', 'text'], currentLang);
       
-      translatedMessages.forEach(msg => {
+      translatedMessages.forEach((msg, index) => {
         const item = document.createElement('div');
-        item.className = 'message-item';
+        item.className = 'message-item content-fade-in';
+        // 设置延迟动画，让每条留言依次淡入
+        item.style.animationDelay = `${index * 0.1}s`;
         item.innerHTML = `
           <div class="message-header">
             <span class="message-author">${msg.name}</span>
@@ -1056,7 +1360,7 @@ export default class UIManager {
       const text = messageInput?.value?.trim();
       
       if (!text) {
-        alert('请输入留言内容！');
+        this.showNotification('请输入留言内容！');
         return;
       }
 
@@ -1114,9 +1418,11 @@ export default class UIManager {
     
     try {
       this.skillsContainer.innerHTML = '';
-      skillsData.forEach(skill => {
+      skillsData.forEach((skill, index) => {
         const skillItem = document.createElement('div');
-        skillItem.className = 'skill-item';
+        skillItem.className = 'skill-item content-fade-in';
+        // 设置延迟动画，让每个技能依次淡入
+        skillItem.style.animationDelay = `${index * 0.1}s`;
         skillItem.innerHTML = `
           <div class="skill-label">
             <span>${skill.name}</span>
@@ -1165,6 +1471,13 @@ export default class UIManager {
 
       if (this.projectModal) {
         this.projectModal.classList.remove('hidden');
+        
+        // 添加内容淡入动画
+        const projectDialog = this.projectModal.querySelector('.project-dialog');
+        if (projectDialog) {
+          projectDialog.classList.add('content-fade-in');
+        }
+        
         setTimeout(() => {
           this.projectModal.classList.add('visible');
         }, 10);
@@ -1495,7 +1808,7 @@ export default class UIManager {
       if (!file) return;
       
       if (!file.type.startsWith('audio/') && !file.name.endsWith('.mp3')) {
-        alert('请选择 MP3 音乐文件！');
+        this.showNotification('请选择 MP3 音乐文件！');
         return;
       }
       
@@ -1551,9 +1864,9 @@ export default class UIManager {
         if (profile) {
           this.currentProfile = {
             avatar: profile.avatar || DEFAULT_PROFILE.avatar,
-            bio: profile.bio || getDefaultBio()
+            bio: profile.bio || DEFAULT_PROFILE.bio
           };
-          this.renderProfile();
+          await this.renderProfile();
           return;
         }
       } catch (error) {
@@ -1563,7 +1876,7 @@ export default class UIManager {
     
     // 回退到 localStorage
     this.currentProfile = loadProfileFromLocalStorage();
-    this.renderProfile();
+    await this.renderProfile();
   }
 
   // 渲染个人信息
@@ -1572,11 +1885,43 @@ export default class UIManager {
       this.profileAvatar.src = this.currentProfile.avatar;
     }
     const bioEl = document.getElementById('profile-bio');
-    if (bioEl && this.currentProfile.bio) {
+    if (bioEl) {
+      // 获取当前语言
       const currentLang = getCurrentLang();
-      const translatedBio = await translateContent(this.currentProfile.bio, currentLang);
-      bioEl.textContent = translatedBio;
+      
+      // 添加淡入动画
+      bioEl.classList.add('content-fade-in');
+      
+      // 检查是否是默认个人简介（通过检查是否包含中文关键词）
+      const isDefaultBio = this.isDefaultProfileBio(this.currentProfile.bio);
+      
+      if (isDefaultBio) {
+        // 直接使用 i18n 中预定义的多语言版本
+        bioEl.textContent = t('default-bio');
+      } else if (this.currentProfile.bio) {
+        // 用户自定义个人简介，进行翻译
+        bioEl.textContent = await translateContent(this.currentProfile.bio, currentLang);
+      }
+      
+      // 动画结束后移除 class
+      setTimeout(() => {
+        bioEl.classList.remove('content-fade-in');
+      }, 500);
     }
+  }
+
+  // 判断是否是默认个人简介
+  isDefaultProfileBio(bio) {
+    if (!bio) return true;
+    const defaultBioZh = '欢迎来到赛博网格';
+    const defaultBioEn = 'Welcome to Cyber Grid';
+    const defaultBioJa = 'サイバーグリッドへようこそ';
+    
+    return bio.includes(defaultBioZh) || 
+           bio.includes(defaultBioEn) || 
+           bio.includes(defaultBioJa) ||
+           bio === 'default-bio' || 
+           bio === 'DEFAULT_BIO';
   }
 
   // 切换编辑模式
@@ -1634,12 +1979,12 @@ export default class UIManager {
       saveProfileToLocalStorage(this.currentProfile);
       
       // 重新渲染并退出编辑模式
-      this.renderProfile();
+      await this.renderProfile();
       this.isProfileEditable = false;
       this.updateProfileEditUI();
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('保存失败，请稍后重试');
+      this.showNotification('保存失败，请稍后重试');
     } finally {
       this.isSavingProfile = false;
     }
@@ -1658,7 +2003,7 @@ export default class UIManager {
       if (!file) return;
       
       if (!file.type.startsWith('image/')) {
-        alert('请选择图片文件！');
+        this.showNotification('请选择图片文件！');
         return;
       }
       
@@ -1743,9 +2088,9 @@ export default class UIManager {
       saveAdminAuth();
       this.enableAdminMode();
       this.closeAdminModal();
-      alert('✅ 已进入管理模式！');
+      this.showNotification('✅ 已进入管理模式！');
     } else {
-      alert('❌ 密码错误！');
+      this.showNotification('❌ 密码错误！');
     }
   }
 
@@ -1944,16 +2289,22 @@ export default class UIManager {
       // 刷新列表
       await this.createBlogList();
       this.hideBlogEditor();
-      alert('✅ 博客保存成功！');
+      this.showNotification('✅ 博客保存成功！');
     } catch (error) {
       console.error('Error saving blog:', error);
-      alert('❌ 保存失败！');
+      this.showNotification('❌ 保存失败！');
     }
   }
 
   // 删除博客
   async deleteBlog() {
-    if (!this.currentEditingBlog || !confirm('确定要删除这篇博客吗？')) {
+    if (!this.currentEditingBlog) {
+      return;
+    }
+    
+    // 使用自定义确认对话框
+    const confirmed = await this.showConfirm('确定要删除这篇博客吗？');
+    if (!confirmed) {
       return;
     }
     
@@ -1971,11 +2322,11 @@ export default class UIManager {
         // 刷新列表
         await this.createBlogList();
         this.hideBlogEditor();
-        alert('✅ 博客已删除！');
+        this.showNotification('✅ 博客已删除！');
       }
     } catch (error) {
       console.error('Error deleting blog:', error);
-      alert('❌ 删除失败！');
+      this.showNotification('❌ 删除失败！');
     }
   }
 
