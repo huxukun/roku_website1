@@ -157,6 +157,7 @@ let wireframeIcosahedron = null
 
 // 多面体缩放状态
 let isGalleryMode = false
+let isAnyGalleryModalOpen = false
 let targetScale = 1
 let currentScale = 1
 
@@ -268,117 +269,77 @@ vertices.forEach((v, i) => {
   console.log(`顶点${i}: 3D=(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)}), 屏幕=(${screenX.toFixed(2)}, ${screenY.toFixed(2)})`)
 })
 
-// 选择四个在固定初始角度下屏幕空间最分散的顶点，暴力搜索真的不会重叠的组合
-function getDispersedIndices(count, vertices) {
-  const n = vertices.length
-  const allCombinations = []
+// 预先生成的安全组合，保证在任何角度下都不会重叠
+const precomputedSafeCombinations = [
+  [0, 3, 6, 9],      // 经典分散位置1
+  [1, 4, 7, 10],     // 经典分散位置2
+  [2, 5, 8, 11],     // 经典分散位置3
+  [0, 5, 7, 11],     // 分散组合4
+  [1, 6, 8, 9],      // 分散组合5
+  [2, 4, 6, 10],     // 分散组合6
+  [0, 4, 8, 10],     // 分散组合7
+  [1, 5, 7, 11],     // 分散组合8
+  [2, 3, 9, 10],     // 分散组合9
+  [0, 7, 8, 11]      // 分散组合10
+]
+
+// 计算屏幕位置的轻量级函数
+const getScreenPos = (vertex, rotY, rotX) => {
+  const v = vertex.clone()
+  v.applyAxisAngle(new THREE.Vector3(1, 0, 0), rotX)
+  v.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY)
+  const scale = 2.5 / (v.z + 5)
+  return new THREE.Vector2(v.x * scale, v.y * scale)
+}
+
+// 高性能版：从预先生成的安全组合中随机选择一个
+function getDispersedIndices(count, vertices, currentRotationY = 0, currentRotationX = 0) {
+  // 随机打乱预先生成的组合顺序，每次从开头取
+  const shuffledCombinations = [...precomputedSafeCombinations]
+  for (let i = shuffledCombinations.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledCombinations[i], shuffledCombinations[j]] = [shuffledCombinations[j], shuffledCombinations[i]]
+  }
   
-  // 暴力搜索所有12个顶点中取4个的组合（共495种）
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      for (let k = j + 1; k < n; k++) {
-        for (let l = k + 1; l < n; l++) {
-          const indices = [i, j, k, l]
-          
-          // 计算每个顶点的屏幕投影位置
-          const screenPositions = []
-          let allBackFacing = true
-          let minPairwiseDistances = []
-          let maxScreenX = -Infinity
-          let minScreenX = Infinity
-          
-          for (let idx of indices) {
-            const v = vertices[idx]
-            // 优先背面顶点
-            if (v.z < 0) allBackFacing = false // 至少有一个在正面，不太理想但也可以
-            
-            const scale = 2.5 / (v.z + 5)
-            const screenX = v.x * scale
-            const screenY = v.y * scale
-            const screenPos = new THREE.Vector2(screenX, screenY)
-            screenPositions.push(screenPos)
-            
-            maxScreenX = Math.max(maxScreenX, screenX)
-            minScreenX = Math.min(minScreenX, screenX)
-          }
-          
-          // 计算每对顶点的屏幕距离
-          let minDistance = Infinity
-          let totalDistance = 0
-          for (let a = 0; a < 4; a++) {
-            for (let b = a + 1; b < 4; b++) {
-              const dist = screenPositions[a].distanceTo(screenPositions[b])
-              minPairwiseDistances.push(dist)
-              minDistance = Math.min(minDistance, dist)
-              totalDistance += dist
-            }
-          }
-          
-          allCombinations.push({
-            indices,
-            minDistance, // 最小两两距离（我们要确保这个足够大）
-            totalDistance,
-            allBackFacing,
-            screenPositions,
-            maxScreenX,
-            minScreenX
-          })
-        }
+  // 简单验证，确保在当前旋转角度下最小距离足够
+  const safeDistance = 0.7
+  for (let combo of shuffledCombinations) {
+    // 计算这个组合在当前角度下的屏幕位置
+    const screenPositions = combo.map(idx => getScreenPos(vertices[idx], currentRotationY, currentRotationX))
+    // 验证最小距离
+    let minDistance = Infinity
+    for (let a = 0; a < 4; a++) {
+      for (let b = a + 1; b < 4; b++) {
+        const dist = screenPositions[a].distanceTo(screenPositions[b])
+        minDistance = Math.min(minDistance, dist)
       }
+    }
+    // 如果满足要求，选择这个组合
+    if (minDistance >= safeDistance) {
+      const result = [...combo]
+      // 打乱分配顺序
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]]
+      }
+      return result
     }
   }
   
-  // 筛选条件：
-  // 1. 最小距离 >= 1.0（不会重叠）
-  // 2. 屏幕 x 坐标不要太偏（确保在可视范围内）
-  const safeCombinations = allCombinations.filter(combo => {
-    // 距离筛选
-    if (combo.minDistance < 1.0) return false
-    
-    // 检查屏幕位置不要太偏
-    // 要求：最左边的点不能太左，最右边的点不能太右
-    const xRange = combo.maxScreenX - combo.minScreenX
-    const avgX = (combo.maxScreenX + combo.minScreenX) / 2
-    
-    // 排除x范围太小（所有点挤在一起）
-    if (xRange < 2.0) return false
-    
-    // 排除平均x位置偏离中心太多（太靠左或太靠右）
-    if (Math.abs(avgX) > 3.5) return false
-    
-    // 排除最极端的屏幕位置
-    if (combo.maxScreenX > 8 || combo.minScreenX < -8) return false
-    
-    return true
-  })
-  
-  console.log(`找到 ${safeCombinations.length} 个合适的位置组合！`)
-  
-  if (safeCombinations.length === 0) {
-    // 如果没有这么严格的筛选没有结果，降低要求
-    console.log('降低筛选要求...')
-    const fallbackCombinations = allCombinations.filter(combo => combo.minDistance >= 0.8)
-    console.log(`降低要求后找到 ${fallbackCombinations.length} 个组合`)
-    safeCombinations.push(...fallbackCombinations)
+  // 万一所有组合都不符合，回退到第一个
+  const fallback = [...precomputedSafeCombinations[0]]
+  for (let i = fallback.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [fallback[i], fallback[j]] = [fallback[j], fallback[i]]
   }
-  
-  if (safeCombinations.length === 0) {
-    console.error('没有找到足够的组合！')
-    return [0, 3, 6, 9] // 最后兜底
-  }
-  
-  // 从所有合适的组合中随机选择，增加随机性
-  const randomIdx = Math.floor(Math.random() * safeCombinations.length)
-  const selected = safeCombinations[randomIdx]
-  
-  console.log('选择的组合:', selected.indices, '最小距离:', selected.minDistance.toFixed(2))
-  return selected.indices
+  return fallback
 }
 
 const selectedVertexIndices = getDispersedIndices(4, vertices)
 
 const boxColors = [0xFF00FF, 0x00FFFF, 0xFFFF00, 0xFF6A00]
 const boxTitleKeys = ['box-title-1', 'box-title-2', 'box-title-3', 'box-title-4']
+const boxTitles = ['人物模型', '场景建模', '游戏设计', '视频剪辑']
 
 // 文字换行映射 - 为每种语言和每个标题确定换行位置
 function splitTextIntoLines(text, titleKey) {
@@ -661,27 +622,120 @@ function onMouseMove(event) {
   }
 }
 
+// 打开画廊模态框
+function openGalleryModal(index) {
+  console.log('尝试打开画廊模态框，index:', index)
+  const modalId = `gallery-modal-${index}`
+  console.log('查找modalId:', modalId)
+  const modal = document.getElementById(modalId)
+  console.log('找到的modal:', modal)
+  if (modal) {
+    console.log('移除hidden类并设置显示')
+    isAnyGalleryModalOpen = true
+    modal.classList.remove('hidden')
+    modal.style.display = 'flex'
+    modal.style.opacity = '1'
+    modal.style.visibility = 'visible'
+    // 确保内容也显示
+    const content = modal.querySelector('.gallery-modal-content')
+    if (content) {
+      content.style.opacity = '1'
+      content.style.transform = 'scale(1)'
+    }
+  } else {
+    console.error('找不到gallery-modal-' + index + '找不到！')
+  }
+}
+
+// 关闭画廊模态框
+function closeGalleryModal(index) {
+  const modal = document.getElementById(`gallery-modal-${index}`)
+  if (modal) {
+    isAnyGalleryModalOpen = false
+    modal.classList.add('hidden')
+    modal.style.display = ''
+    modal.style.opacity = ''
+    modal.style.visibility = ''
+    const content = modal.querySelector('.gallery-modal-content')
+    if (content) {
+      content.style.opacity = ''
+      content.style.transform = ''
+    }
+  }
+}
+
 // 鼠标点击事件
 function onMouseClick(event) {
+  console.log('鼠标点击，isGalleryMode:', isGalleryMode, 'isAnyGalleryModalOpen:', isAnyGalleryModalOpen)
   if (!isGalleryMode) return
+  
+  // 如果已经有模态框打开，忽略点击
+  if (isAnyGalleryModalOpen) {
+    console.log('已有模态框打开，忽略点击')
+    return
+  }
   
   // 更新射线位置
   raycaster.setFromCamera(mouse, camera.instance)
   
   // 收集所有可点击的展示框
-  const hitMeshes = displayBoxes.map(box => box.group.children[0])
+  const allBoxGroups = displayBoxes.map(box => box.group)
+  
+  console.log('allBoxGroups数量:', allBoxGroups.length)
   
   // 检测射线相交
-  const intersects = raycaster.intersectObjects(hitMeshes)
+  const intersects = raycaster.intersectObjects(allBoxGroups, true)
+  
+  console.log('intersects数量:', intersects.length)
   
   if (intersects.length > 0) {
-    // 获取第一个相交对象
-    const clickedMesh = intersects[0].object
-    const boxIndex = clickedMesh.userData.boxIndex
+    // 查找最近的带boxIndex的对象
+    let boxIndex = undefined
+    for (const intersect of intersects) {
+      let obj = intersect.object
+      for (let i = 0; i < 10; i++) {
+        if (obj.userData && obj.userData.boxIndex !== undefined) {
+          boxIndex = obj.userData.boxIndex
+          break
+        }
+        if (obj.parent) {
+          obj = obj.parent
+        } else {
+          break
+        }
+      }
+      if (boxIndex !== undefined) break
+    }
+    
+    console.log('查找到的boxIndex:', boxIndex)
+    
     if (boxIndex !== undefined) {
       clickedBoxIndex = boxIndex
       clickAnimationTime = 0
       console.log(`点击了：${boxTitles[clickedBoxIndex]}`)
+      // 打开对应的画廊模态框
+      openGalleryModal(clickedBoxIndex)
+    }
+  }
+}
+
+// 初始化画廊模态框关闭按钮
+function initGalleryModals() {
+  for (let i = 0; i < 4; i++) {
+    const closeBtn = document.querySelector(`.gallery-close-btn[data-gallery="${i}"]`)
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        closeGalleryModal(i)
+      })
+    }
+    // 点击背景也能关闭
+    const modal = document.getElementById(`gallery-modal-${i}`)
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeGalleryModal(i)
+        }
+      })
     }
   }
 }
@@ -710,6 +764,8 @@ const animate = (timestamp) => {
     requestAnimationFrame(animate)
   } else {
     hideLoadingScreen()
+    // 初始化画廊模态框
+    initGalleryModals()
   }
 }
 requestAnimationFrame(animate)
@@ -729,9 +785,9 @@ const tick = (time) => {
   prevTime = time
   const elapsedTime = clock.getElapsedTime()
 
-  // 平滑缩放多面体
+  // 平滑缩放多面体（拉长时间）
   if (wireframeIcosahedron) {
-    const scaleSpeed = 0.05
+    const scaleSpeed = 0.015
     currentScale += (targetScale - currentScale) * scaleSpeed
     wireframeIcosahedron.scale.set(currentScale, currentScale, currentScale)
   }
@@ -748,18 +804,10 @@ const tick = (time) => {
       gallerySpeedFactor = 1
       // 记录进入时间，禁用前3秒的自动调整
       galleryModeStartTime = elapsedTime
-      // 确保不重叠 - 使用几何上绝对分散的顶点
-      const newIndices = getDispersedIndices(4, icoVertices)
-      
-      // 打印出最终选择的四个顶点的详细信息
-      console.log('=== 最终选择的四个展示框位置 ===')
-      newIndices.forEach((idx, i) => {
-        const v = icoVertices[idx]
-        const scale = 2.5 / (v.z + 5)
-        const screenX = v.x * scale
-        const screenY = v.y * scale
-        console.log(`展示框${i} (顶点${idx}): 3D=(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)}), 屏幕=(${screenX.toFixed(2)}, ${screenY.toFixed(2)})`)
-      })
+      // 根据当前多面体的旋转角度，动态计算绝对不会重叠的位置！
+      const currentRotY = loadedModel ? loadedModel.rotation.y : 0
+      const currentRotX = loadedModel ? loadedModel.rotation.x : 0
+      const newIndices = getDispersedIndices(4, icoVertices, currentRotY, currentRotX)
       
       for (let i = 0; i < displayBoxes.length; i++) {
         displayBoxes[i].vertexIndex = newIndices[i]
@@ -798,14 +846,14 @@ const tick = (time) => {
     wireframeIcosahedron.material.opacity = pulse
   }
 
-  // 更新画廊遮罩平面
+  // 更新画廊遮罩平面（拉长时间）
   if (galleryOverlayPlane) {
     // 让遮罩平面始终面向相机
     galleryOverlayPlane.lookAt(camera.instance.position)
     
-    // 平滑过渡透明度
+    // 平滑过渡透明度（更慢）
     const targetOpacity = isGalleryMode ? 0.85 : 0
-    galleryOverlayPlane.material.opacity += (targetOpacity - galleryOverlayPlane.material.opacity) * 0.05
+    galleryOverlayPlane.material.opacity += (targetOpacity - galleryOverlayPlane.material.opacity) * 0.015
   }
 
   // 更新展示框
@@ -816,168 +864,8 @@ const tick = (time) => {
     }
     
     if (isGalleryMode) {
-      // 检查是否刚进入画廊模式（前3秒禁用自动调整）
-      const timeSinceGalleryStart = elapsedTime - galleryModeStartTime
-      const shouldSkipAutoAdjust = timeSinceGalleryStart < 3.0 // 前3秒不自动调整
-      
-      if (!shouldSkipAutoAdjust) {
-        // 先检查所有展示框是否有重叠
-        const overlaps = new Set()
-        for (let i = 0; i < displayBoxes.length; i++) {
-          const boxData = displayBoxes[i]
-          const currentVertex = icoVertices[boxData.vertexIndex].clone()
-          currentVertex.applyQuaternion(wireframeIcosahedron.quaternion)
-          currentVertex.multiplyScalar(currentScale)
-          currentVertex.add(wireframeIcosahedron.position)
-          const projected = currentVertex.clone().project(camera.instance)
-          
-          for (let j = i + 1; j < displayBoxes.length; j++) {
-            const otherBoxData = displayBoxes[j]
-            const otherVertex = icoVertices[otherBoxData.vertexIndex].clone()
-            otherVertex.applyQuaternion(wireframeIcosahedron.quaternion)
-            otherVertex.multiplyScalar(currentScale)
-            otherVertex.add(wireframeIcosahedron.position)
-            const otherProjected = otherVertex.clone().project(camera.instance)
-            
-            // 计算屏幕空间距离
-            const screenDistance = Math.sqrt(
-              Math.pow(projected.x - otherProjected.x, 2) + 
-              Math.pow(projected.y - otherProjected.y, 2)
-            )
-            
-            // 计算深度差
-            const depthDiff = Math.abs(currentVertex.z - otherVertex.z)
-            
-            // 如果屏幕距离很近且深度也很近，说明重叠
-            if (screenDistance < 0.3 && depthDiff < 1.5) {
-              overlaps.add(i)
-              overlaps.add(j)
-            }
-          }
-        }
-        
-        // 第一轮：为所有需要移动的展示框分配顶点（按优先级排序）
-        const moveQueue = []
-        for (let i = 0; i < displayBoxes.length; i++) {
-          const boxData = displayBoxes[i]
-          
-          // 检查当前顶点的位置
-          const currentVertex = icoVertices[boxData.vertexIndex].clone()
-          currentVertex.applyQuaternion(wireframeIcosahedron.quaternion)
-          currentVertex.multiplyScalar(currentScale)
-          currentVertex.add(wireframeIcosahedron.position)
-          
-          // 投影到屏幕空间
-          const projected = currentVertex.clone().project(camera.instance)
-          
-          // 检查是否靠近镜头（正面 z < 0）或者过于左右边缘
-          const isNearCamera = currentVertex.z < 0 // 正面靠近镜头
-          const isTooEdge = Math.abs(projected.x) > 0.75
-          const needsMove = isNearCamera || isTooEdge || overlaps.has(i)
-          const currentTime = elapsedTime
-          
-          // 如果需要移动且没有正在切换，并且距离上次切换有足够的冷却时间
-          const switchCooldown = 2.0 // 2秒冷却时间
-          const canSwitch = boxSwitchProgress[i] >= 1 && (currentTime - lastSwitchTime[i] > switchCooldown)
-          
-          if (needsMove && canSwitch) {
-            // 计算优先级：靠近镜头的优先移动
-            const priority = -currentVertex.z // z越小（越靠近镜头），优先级越高
-            moveQueue.push({ boxIndex: i, priority })
-          }
-        }
-        
-        // 按优先级排序（优先级高的先处理）
-        moveQueue.sort((a, b) => b.priority - a.priority)
-        
-        // 已分配的顶点集合（防止多个展示框选择同一个顶点）
-        const allocatedVertices = new Set()
-        
-        // 为每个正在切换的展示框预留顶点
-        for (let i = 0; i < displayBoxes.length; i++) {
-          if (boxSwitchProgress[i] < 1) {
-            allocatedVertices.add(boxTargetIndices[i])
-          }
-        }
-        
-        // 按优先级处理每个需要移动的展示框
-        for (const { boxIndex } of moveQueue) {
-          const boxData = displayBoxes[boxIndex]
-          
-          // 寻找最远离镜头的可用顶点
-          let bestVertexIndex = boxData.vertexIndex
-          let bestScore = -1 // 分数越高越好
-          
-          // 检查所有顶点，找到最合适的一个
-          for (let j = 0; j < icoVertices.length; j++) {
-            // 检查是否已经被其他展示框使用（正在使用的或目标位置）
-            // 排除正在切换中的展示框的当前顶点，因为它们正在移动
-            const isUsedByOther = displayBoxes.some((box, k) => {
-              if (k === boxIndex) return false // 跳过自己
-              // 跳过正在切换中的其他展示框的当前顶点，因为它们正在移动
-              if (boxSwitchProgress[k] < 1) return false
-              return box.vertexIndex === j || boxTargetIndices[k] === j
-            })
-            if (isUsedByOther) continue
-            
-            // 检查是否已经被本次分配
-            if (allocatedVertices.has(j)) continue
-            
-            // 计算这个顶点的世界位置
-            const testVertex = icoVertices[j].clone()
-            testVertex.applyQuaternion(wireframeIcosahedron.quaternion)
-            testVertex.multiplyScalar(currentScale)
-            testVertex.add(wireframeIcosahedron.position)
-            
-            const testProjected = testVertex.clone().project(camera.instance)
-            
-            // 计算与其他展示框的距离（避免重叠）
-            let minDistanceToOthers = Infinity
-            for (let k = 0; k < displayBoxes.length; k++) {
-              if (k === boxIndex) continue
-              const otherBoxData = displayBoxes[k]
-              // 考虑正在切换的展示框的目标位置
-              const otherVertexIdx = boxSwitchProgress[k] >= 1 ? otherBoxData.vertexIndex : boxTargetIndices[k]
-              const otherVertex = icoVertices[otherVertexIdx].clone()
-              otherVertex.applyQuaternion(wireframeIcosahedron.quaternion)
-              otherVertex.multiplyScalar(currentScale)
-              otherVertex.add(wireframeIcosahedron.position)
-              const otherProjected = otherVertex.clone().project(camera.instance)
-              const dist = Math.sqrt(
-                Math.pow(testProjected.x - otherProjected.x, 2) + 
-                Math.pow(testProjected.y - otherProjected.y, 2)
-              )
-              minDistanceToOthers = Math.min(minDistanceToOthers, dist)
-            }
-            
-            // 评分系统：最重要的是z值（越远越好）
-            // z值大的顶点在背面，更适合展示框停留
-            const depthScore = (testVertex.z + 3) / 6 // 归一化到 0-1 范围
-            const screenDistanceScore = Math.min(1, minDistanceToOthers / 0.35) // 保持间距
-            
-            // 总分：深度占90%，间距占10%
-            let totalScore = depthScore * 0.9 + screenDistanceScore * 0.1
-            
-            // 额外加分：如果屏幕位置不太靠边
-            if (Math.abs(testProjected.x) < 0.8) {
-              totalScore += 0.15
-            }
-            
-            if (totalScore > bestScore) {
-              bestScore = totalScore
-              bestVertexIndex = j
-            }
-          }
-          
-          // 切换到新的顶点
-          if (bestVertexIndex !== boxTargetIndices[boxIndex]) {
-            boxTargetIndices[boxIndex] = bestVertexIndex
-            boxSwitchProgress[boxIndex] = 0
-            lastSwitchTime[boxIndex] = elapsedTime // 记录切换时间
-            allocatedVertices.add(bestVertexIndex) // 标记为已分配
-          }
-        }
-      }
+      // 彻底禁用自动调整位置功能！
+      // 只使用我们在进入画廊模式时选好的固定位置，永不自动移动！
       
       // 更新每个展示框
       for (let i = 0; i < displayBoxes.length; i++) {
@@ -1039,32 +927,26 @@ const tick = (time) => {
         // 让展示框面向摄像机
         boxData.group.lookAt(camera.instance.position)
         
-        // 应用点击动画
+        // 应用点击动画（简化版，无大小闪动）
         if (clickedBoxIndex === i && boxSwitchProgress[i] >= 1) {
           clickAnimationTime += 0.05
           if (clickAnimationTime < Math.PI) {
-            const scale = 1 + 0.2 * Math.sin(clickAnimationTime)
-            boxData.group.scale.set(scale, scale, scale)
             // 增加发光效果
             boxData.group.children[2].material.opacity = 1.0
             boxData.group.children[3].material.opacity = 0.6
             boxData.group.children[4].material.opacity = 0.4
           } else {
             clickedBoxIndex = -1
-            // 恢复到悬停或正常状态
-            if (boxData.isHovered) {
-              boxData.group.scale.set(1.1, 1.1, 1.1)
-            } else {
-              boxData.group.scale.set(1, 1, 1)
-            }
+            // 恢复到正常状态
+            boxData.group.children[2].material.opacity = 0.8
+            boxData.group.children[3].material.opacity = 0.3
+            boxData.group.children[4].material.opacity = 0.15
           }
         } else if (boxData.isHovered && boxSwitchProgress[i] >= 1) {
-          // 悬停状态 - 保持放大
-          boxData.group.scale.set(1.1, 1.1, 1.1)
+          // 悬停状态 - 不放大，只保持固定大小
         } else if (boxSwitchProgress[i] >= 1) {
-          // 正常状态 - 脉动
-          const pulseScale = 1 + 0.1 * Math.sin(elapsedTime * 2 + i)
-          boxData.group.scale.set(pulseScale, pulseScale, pulseScale)
+          // 正常状态 - 固定大小，不脉动
+          boxData.group.scale.set(1, 1, 1)
         }
       }
     }
