@@ -996,29 +996,15 @@ export default class UIManager {
 
   async openGalleryModal() {
     try {
-      // 先更新所有文字内容，确保语言是最新的
-      this.updateGalleryModalTexts();
+      // 切换画廊模式
+      const isActive = window.toggleGalleryMode();
       
-      this.closeAllModals();
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
-      this.isGalleryModalOpen = true;
-      if (this.galleryModal) {
-        // 先显示模态框
-        this.galleryModal.classList.remove('hidden');
-        
-        // 显示加载动画
-        this.showModalLoading('gallery-modal', 'opening-works');
-        
-        // 等待动画可见，确保用户能看到加载效果
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-        // 隐藏加载动画
-        this.hideModalLoading('gallery-modal');
+      // 如果切换到非画廊模式，确保关闭所有模态框
+      if (!isActive) {
+        this.closeAllModals();
       }
     } catch (error) {
-      console.error('Error opening gallery modal:', error);
-      this.hideModalLoading('gallery-modal');
+      console.error('Error toggling gallery mode:', error);
     }
   }
 
@@ -1122,6 +1108,11 @@ export default class UIManager {
           modal.classList.remove('visible');
         }
       });
+      
+      // 如果当前处于画廊模式，也退出画廊模式
+      if (window.isGalleryModeActive && window.isGalleryModeActive()) {
+        window.toggleGalleryMode();
+      }
       
       // 重置所有状态标志
       this.isAboutModalOpen = false;

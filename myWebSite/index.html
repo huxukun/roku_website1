@@ -11,6 +11,8 @@
   <body>
     <canvas class="webgl"></canvas>
     <div class="crt-overlay"></div>
+    <!-- 画廊模式遮罩层 -->
+    <div id="gallery-overlay" class="gallery-overlay hidden"></div>
     
     <div id="loading-screen" class="loading-screen">
       <div class="loading-content">
@@ -178,28 +180,7 @@
       </div>
     </div>
 
-    <div id="gallery-modal" class="modal-overlay hidden">
-      <div class="gallery-modal-content">
-        <div class="modal-loading hidden" id="gallery-modal-loading">
-          <div class="modal-loading-content">
-            <div class="modal-loading-spinner"></div>
-            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
-          </div>
-        </div>
-        <div class="nes-dialog gallery-dialog">
-          <span class="corner-tl"></span>
-          <span class="corner-tr"></span>
-          <span class="corner-bl"></span>
-          <span class="corner-br"></span>
-          <div class="gallery-header">
-            <h2 class="modal-title">我的作品</h2>
-            <button id="close-gallery" class="nes-btn is-error close-btn">×</button>
-          </div>
-          <div id="project-cards-container" class="project-cards">
-          </div>
-        </div>
-      </div>
-    </div>
+
 
     <div id="blog-modal" class="modal-overlay hidden">
       <div class="blog-modal-content">
@@ -312,34 +293,32 @@
       </div>
     </div>
 
-    <div id="project-modal" class="modal-overlay hidden">
-      <div class="project-modal-content">
-        <div class="nes-dialog project-dialog">
-          <span class="corner-tl"></span>
-          <span class="corner-tr"></span>
-          <span class="corner-bl"></span>
-          <span class="corner-br"></span>
-          <div class="project-header">
-            <h2 id="project-title" class="project-title">作品标题</h2>
-            <button id="close-project" class="nes-btn is-error close-btn">×</button>
-          </div>
-          <div class="project-body">
-            <div class="project-image-container">
-              <img id="project-image" src="" alt="Project Image">
-            </div>
-            <div class="project-info">
-              <p id="project-description" class="project-description"></p>
-              <div id="project-tags" class="project-tags"></div>
-            </div>
-          </div>
-          <div class="dialog-footer">
-            <button id="close-project-btn" class="nes-btn is-primary"><span class="project-close-text">返回</span></button>
-          </div>
+    <div id="app"></div>
+    
+    <!-- 励志语录触发按钮 -->
+    <button id="quote-trigger-btn" title="Daily Inspiration" data-i18n-title="daily-inspiration">
+      💪
+    </button>
+    
+    <!-- 励志语录模态框 -->
+    <div id="quote-modal-overlay" class="quote-modal-overlay hidden">
+      <div id="quote-modal-content" class="quote-modal-content">
+        <!-- 关闭按钮 -->
+        <button id="quote-close-btn" title="Close">✕</button>
+        
+        <!-- 语录内容 -->
+        <div class="quote-content">
+          <div class="quote-icon">💪</div>
+          <p id="modal-quote-text" class="quote-text"></p>
+          <p id="modal-quote-author" class="quote-author"></p>
+        </div>
+        
+        <!-- 刷新按钮 -->
+        <div class="quote-refresh-container">
+          <button id="modal-refresh-btn" data-i18n="refresh-quote">🔄</button>
         </div>
       </div>
     </div>
-
-    <div id="app"></div>
     
     <div class="lang-switcher">
       <button id="lang-btn" class="lang-btn" title="切换语言 / Change Language / 言語切り替え">

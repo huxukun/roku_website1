@@ -19,6 +19,9 @@ export default class ElectronicDust {
     
     this.pushForces = new Float32Array(this.count * 3)
     
+    this.isGalleryMode = false
+    this.baseOpacity = 0.5
+    
     this.init()
   }
 
@@ -85,6 +88,10 @@ export default class ElectronicDust {
   setMouse(x, y) {
     this.targetMouse.x = x
     this.targetMouse.y = y
+  }
+
+  setGalleryMode(enabled) {
+    this.isGalleryMode = enabled
   }
 
   update(time) {
@@ -165,9 +172,11 @@ export default class ElectronicDust {
       const color2 = colorShift < 0.5 ? cyberBlue : deepPurple
       const blendFactor = (colorShift < 0.5 ? colorShift * 2 : (colorShift - 0.5) * 2)
       
-      colors[i3] = (color1.r * (1 - blendFactor) + color2.r * blendFactor) * flicker
-      colors[i3 + 1] = (color1.g * (1 - blendFactor) + color2.g * blendFactor) * flicker
-      colors[i3 + 2] = (color1.b * (1 - blendFactor) + color2.b * blendFactor) * flicker
+      // 画廊模式下增加亮度
+      const brightnessMultiplier = this.isGalleryMode ? 1.8 : 1.0
+      colors[i3] = (color1.r * (1 - blendFactor) + color2.r * blendFactor) * flicker * brightnessMultiplier
+      colors[i3 + 1] = (color1.g * (1 - blendFactor) + color2.g * blendFactor) * flicker * brightnessMultiplier
+      colors[i3 + 2] = (color1.b * (1 - blendFactor) + color2.b * blendFactor) * flicker * brightnessMultiplier
 
       if (positions[i3 + 1] > 22) {
         positions[i3] = (Math.random() - 0.5) * 50
@@ -188,6 +197,10 @@ export default class ElectronicDust {
 
     this.particles.geometry.attributes.position.needsUpdate = true
     this.particles.geometry.attributes.color.needsUpdate = true
+    
+    // 画廊模式下增加粒子透明度
+    const targetOpacity = this.isGalleryMode ? 0.8 : 0.5
+    this.particles.material.opacity += (targetOpacity - this.particles.material.opacity) * 0.05
   }
 
   dispose() {

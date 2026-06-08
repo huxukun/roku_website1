@@ -21,6 +21,7 @@ export default class WireframeMountain {
 
     this.colorPhase = 0 // 用于RGB颜色变化
     this.isColorChanging = false // 是否启用颜色变化
+    this.isGalleryMode = false // 画廊模式
     
     this.init()
   }
@@ -212,7 +213,10 @@ export default class WireframeMountain {
       const normalizedDist = Math.max(0, Math.min(progress, 1))
       const baseOpacity = 0.1 + normalizedDist * 0.85
       const flickerOpacity = baseOpacity * (1 + heartbeatPulse * 0.4)
-      strip.material.opacity = Math.min(flickerOpacity, 1.0)
+      
+      // 画廊模式下透明度过渡到 0
+      const targetOpacity = this.isGalleryMode ? 0.0 : Math.min(flickerOpacity, 1.0)
+      strip.material.opacity += (targetOpacity - strip.material.opacity) * 0.1
     }
 
     const floatAmplitude = 0.08
@@ -230,6 +234,10 @@ export default class WireframeMountain {
         strip.material.color = defaultColor
       }
     }
+  }
+
+  setGalleryMode(enabled) {
+    this.isGalleryMode = enabled
   }
 
   dispose() {

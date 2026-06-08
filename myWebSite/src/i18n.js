@@ -85,6 +85,17 @@ export const languages = {
       'opening-guestbook': '正在打开留言板...',
       'opening-works': '正在打开作品展示...',
       'opening-blog': '正在打开博客...',
+      
+      // 励志语录
+      'daily-inspiration': '💪 每日励志',
+      'refresh-quote': '🔄 换一条',
+      'quote-source': '来源',
+      
+      // 展示框标题
+      'box-title-1': '人物模型',
+      'box-title-2': '场景建模',
+      'box-title-3': '游戏设计',
+      'box-title-4': '视频剪辑',
     }
   },
   'en': {
@@ -172,6 +183,17 @@ export const languages = {
       'opening-guestbook': 'Opening Guestbook...',
       'opening-works': 'Opening Works...',
       'opening-blog': 'Opening Blog...',
+      
+      // Motivation Quotes
+      'daily-inspiration': '💪 Daily Inspiration',
+      'refresh-quote': '🔄 New Quote',
+      'quote-source': 'Source',
+      
+      // Display Box Titles
+      'box-title-1': 'Character Modeling',
+      'box-title-2': 'Scene Modeling',
+      'box-title-3': 'Game Design',
+      'box-title-4': 'Video Editing',
     }
   },
   'ja': {
@@ -259,6 +281,17 @@ export const languages = {
       'opening-guestbook': 'ゲストブックを開いています...',
       'opening-works': '作品展示を開いています...',
       'opening-blog': 'ブログを開いています...',
+      
+      // 励志语录
+      'daily-inspiration': '💪 今日の名言',
+      'refresh-quote': '🔄 次の名言',
+      'quote-source': '提供者',
+      
+      // 展示框标题
+      'box-title-1': 'キャラクターモデル',
+      'box-title-2': 'シーンモデリング',
+      'box-title-3': 'ゲームデザイン',
+      'box-title-4': '動画編集',
     }
   }
 };

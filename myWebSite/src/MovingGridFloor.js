@@ -10,6 +10,7 @@ export default class MovingGridFloor {
     this.phase = 0 // 用于节奏闪烁
     this.colorPhase = 0 // 用于RGB颜色变化
     this.isColorChanging = false // 是否启用颜色变化
+    this.isGalleryMode = false // 画廊模式
     this.init()
   }
 
@@ -87,9 +88,13 @@ export default class MovingGridFloor {
     this.phase += delta * beatFreq
     const flicker = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(this.phase * Math.PI * 2))
 
+    // 画廊模式下增加亮度
+    const brightnessBoost = this.isGalleryMode ? 1.6 : 1.0
+    const baseOpacity = this.isGalleryMode ? 0.6 : 0.4
+
     // 更新两个网格的透明度来闪烁
-    this.grid.material.opacity = 0.4 * flicker + 0.2
-    this.grid2.material.opacity = 0.4 * flicker + 0.2
+    this.grid.material.opacity = Math.min(1.0, (baseOpacity * flicker + (this.isGalleryMode ? 0.3 : 0.2)) * brightnessBoost)
+    this.grid2.material.opacity = Math.min(1.0, (baseOpacity * flicker + (this.isGalleryMode ? 0.3 : 0.2)) * brightnessBoost)
 
     // RGB颜色变化效果
     if (this.isColorChanging) {
@@ -115,6 +120,10 @@ export default class MovingGridFloor {
       this.grid.material.color.setHex(0xFF00FF)
       this.grid2.material.color.setHex(0xFF00FF)
     }
+  }
+
+  setGalleryMode(enabled) {
+    this.isGalleryMode = enabled
   }
 
   dispose() {

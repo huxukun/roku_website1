@@ -89,6 +89,31 @@ html, body {
   animation: flicker 4s infinite;
 }
 
+/* 画廊模式遮罩层 - 调整到 canvas 下方 */
+.gallery-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(1, 1, 8, 0.7) 0%,
+    rgba(3, 3, 12, 0.85) 50%,
+    rgba(5, 5, 16, 0.95) 100%
+  );
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.8s ease-in-out, visibility 0.8s ease-in-out;
+}
+
+.gallery-overlay:not(.hidden) {
+  opacity: 1;
+  visibility: visible;
+}
+
 @keyframes flicker {
   0% { opacity: 0.15; }
   10% { opacity: 0.18; }
@@ -489,6 +514,182 @@ html, body {
   opacity: 0.8;
 }
 
+/* 励志语录脉冲动画 */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* 励志语录触发按钮 */
+#quote-trigger-btn {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 100;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(5, 5, 16, 0.7);
+  border: 2px solid rgba(0, 255, 255, 0.5);
+  color: #00ffff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+}
+
+#quote-trigger-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+}
+
+/* 励志语录关闭按钮 */
+#quote-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: transparent;
+  border: 1px solid #ff00ff;
+  color: #ff00ff;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  line-height: 60px;
+  text-align: center;
+  overflow: hidden;
+  min-width: 60px;
+  min-height: 60px;
+}
+
+#quote-close-btn:hover {
+  background: rgba(255, 0, 255, 0.1);
+  box-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+}
+
+/* 励志语录刷新按钮 */
+#modal-refresh-btn {
+  background: transparent;
+  border: 2px solid #00ffff;
+  color: #00ffff;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  line-height: 50px;
+  text-align: center;
+  transform-origin: center center;
+  min-width: 50px;
+  min-height: 50px;
+}
+
+#modal-refresh-btn:hover {
+  background: rgba(0, 255, 255, 0.1);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+  transform: rotate(180deg) scale(1.1);
+}
+
+/* 励志语录模态框遮罩 */
+.quote-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.quote-modal-overlay:not(.hidden) {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 励志语录模态框内容 */
+.quote-modal-content {
+  max-width: 700px;
+  width: 90%;
+  padding: 40px;
+  background: rgba(5, 5, 16, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* 语录内容区域 */
+.quote-content {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.quote-icon {
+  font-size: 3rem;
+  margin-bottom: 20px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.quote-text {
+  color: #ffffff;
+  font-size: 1.1rem;
+  line-height: 1.8;
+  margin: 0 0 20px 0;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 30px rgba(255, 255, 255, 0.4);
+  word-wrap: break-word;
+  font-family: 'Press Start 2P', cursive;
+}
+
+.quote-author {
+  color: #ffffff;
+  font-size: 0.9rem;
+  margin: 0;
+  opacity: 0.9;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  font-family: 'Press Start 2P', cursive;
+}
+
+/* 刷新按钮容器 */
+.quote-refresh-container {
+  text-align: center;
+}
 /* 模态框加载动画 */
 .modal-loading {
   position: absolute;
@@ -1134,14 +1335,17 @@ html, body {
 }
 
 .close-btn {
-  width: 40px;
-  height: 40px;
+  width: 60px;
+  height: 60px;
   padding: 0;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   line-height: 1;
   display: flex;
   justify-content: center;
   align-items: center;
+  box-sizing: border-box;
+  min-width: 60px;
+  min-height: 60px;
 }
 
 .project-body {
@@ -2321,3 +2525,5 @@ html, body {
   font-size: 0.7rem;
   opacity: 0.8;
 }
+ 
+ 
