@@ -12,7 +12,7 @@ export default defineConfig({
     include: ['three', 'three/examples/jsm/controls/OrbitControls']
   },
   build: {
-    cssMinify: 'esbuild',
+    cssMinify: false,
     cssCodeSplit: false,
     sourcemap: false,
     target: 'es2015',
