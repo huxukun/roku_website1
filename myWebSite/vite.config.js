@@ -15,8 +15,10 @@ export default defineConfig({
   },
   build: {
     cssMinify: 'esbuild',
+    cssCodeSplit: false,
     sourcemap: false,
     target: 'es2015',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: undefined
