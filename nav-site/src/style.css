@@ -1,0 +1,531 @@
+/* ============================================================
+   AR NAV · 极简科技风骑行导航样式
+   纯黑背景 = AR 透明 · 青色荧光 = 高对比度
+   ============================================================ */
+
+/* ---------- 基础重置 ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000000;
+  color: #00ffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               "PingFang SC", "Microsoft YaHei", sans-serif;
+  touch-action: none;
+  position: relative;
+}
+
+/* ---------- 3D Canvas ---------- */
+.webgl {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  pointer-events: none;
+  display: block;
+}
+
+/* ---------- 导航信息层 ---------- */
+.nav-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ============================================================
+   顶部状态栏
+   ============================================================ */
+.status-bar {
+  position: absolute;
+  top: 2vh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4vw;
+  padding: 1.5vh 4vw;
+  background: rgba(0, 20, 30, 0.45);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 2vh;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5vh;
+  min-width: 20vw;
+}
+
+.status-label {
+  font-size: 2.5vw;
+  color: rgba(0, 255, 255, 0.6);
+  letter-spacing: 0.2em;
+}
+
+.status-value {
+  font-size: 3.5vw;
+  color: #00ffff;
+  font-weight: 500;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
+}
+
+/* 指南针 */
+.status-compass {
+  min-width: 15vw;
+}
+
+.compass-arrow {
+  font-size: 6vw;
+  line-height: 1;
+  color: #00ff88;
+  text-shadow: 0 0 10px #00ff88, 0 0 20px rgba(0, 255, 136, 0.5);
+  transform-origin: center;
+  transition: transform 0.15s ease-out;
+}
+
+.compass-text {
+  font-size: 3vw;
+  color: #00ff88;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.7);
+}
+
+/* ============================================================
+   中央导航指示
+   ============================================================ */
+.center-display {
+  position: absolute;
+  top: 20vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80vw;
+  height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.big-arrow-container {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vh;
+}
+
+.big-arrow {
+  font-size: 25vw;
+  line-height: 1;
+  color: #00ffff;
+  text-shadow:
+    0 0 15px rgba(0, 255, 255, 0.8),
+    0 0 30px rgba(0, 255, 255, 0.5),
+    0 0 60px rgba(0, 255, 255, 0.3);
+  animation: arrow-pulse 2s ease-in-out infinite;
+  transform-origin: center;
+  transition: transform 0.25s ease-out;
+}
+
+@keyframes arrow-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+
+.arrow-distance {
+  font-size: 7vw;
+  color: #00ffff;
+  font-weight: 600;
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+  letter-spacing: 0.05em;
+}
+
+.arrow-hint {
+  font-size: 5vw;
+  color: #00ff88;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.7);
+  letter-spacing: 0.2em;
+}
+
+/* ============================================================
+   底部信息面板
+   ============================================================ */
+.bottom-panel {
+  position: absolute;
+  bottom: 2vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 94vw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5vh;
+}
+
+/* ---- 主要信息卡 ---- */
+.info-card {
+  background: rgba(0, 20, 30, 0.55);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 2vh;
+  padding: 2vh 3vw;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    inset 0 0 20px rgba(0, 255, 255, 0.05),
+    0 0 15px rgba(0, 255, 255, 0.1);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 2vw;
+}
+
+.info-row + .info-row {
+  margin-top: 1.5vh;
+  padding-top: 1.5vh;
+  border-top: 1px solid rgba(0, 255, 255, 0.15);
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 2vw;
+  flex: 1;
+}
+
+.info-item.small .info-icon {
+  font-size: 5vw;
+}
+
+.info-item.small .info-value {
+  font-size: 3.5vw;
+}
+
+.info-item.small .info-label {
+  font-size: 2.2vw;
+}
+
+.info-icon {
+  font-size: 7vw;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+}
+
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vh;
+}
+
+.info-label {
+  font-size: 2.5vw;
+  color: rgba(0, 255, 255, 0.55);
+  letter-spacing: 0.15em;
+}
+
+.info-value {
+  font-size: 5vw;
+  color: #00ffff;
+  font-weight: 600;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+  line-height: 1.1;
+}
+
+/* ---- 次要信息卡 ---- */
+.info-secondary {
+  padding: 1.5vh 2.5vw;
+  background: rgba(0, 20, 30, 0.35);
+}
+
+/* ============================================================
+   语音提示浮动
+   ============================================================ */
+.voice-hint {
+  position: absolute;
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1.5vh 4vw;
+  background: rgba(0, 255, 255, 0.12);
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  border-radius: 4vh;
+  color: #00ffff;
+  font-size: 3.5vw;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
+  letter-spacing: 0.1em;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.voice-hint.show {
+  opacity: 1;
+}
+
+/* ============================================================
+   传感器状态指示
+   ============================================================ */
+.sensor-status {
+  position: absolute;
+  top: 2vh;
+  right: 2vw;
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.sensor-dot {
+  width: 2vw;
+  height: 2vw;
+  border-radius: 50%;
+  background: #ff4444;
+  box-shadow: 0 0 6px rgba(255, 68, 68, 0.7);
+  transition: all 0.3s;
+}
+
+.sensor-dot.active {
+  background: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.8);
+  animation: sensor-blink 2s ease-in-out infinite;
+}
+
+@keyframes sensor-blink {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+/* ============================================================
+   初始化提示层
+   ============================================================ */
+.init-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease;
+}
+
+.init-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.init-content {
+  width: 85vw;
+  max-width: 600px;
+  text-align: center;
+}
+
+.init-title {
+  font-size: 15vw;
+  color: #00ffff;
+  font-weight: 200;
+  letter-spacing: 0.3em;
+  text-shadow:
+    0 0 20px rgba(0, 255, 255, 0.6),
+    0 0 40px rgba(0, 255, 255, 0.4);
+  margin-bottom: 1vh;
+}
+
+.init-subtitle {
+  font-size: 3.5vw;
+  color: rgba(0, 255, 255, 0.5);
+  letter-spacing: 0.3em;
+  margin-bottom: 8vh;
+}
+
+.init-step {
+  margin: 4vh 0;
+}
+
+.start-btn {
+  font-size: 5vw;
+  padding: 2.5vh 10vw;
+  background: rgba(0, 255, 255, 0.1);
+  color: #00ffff;
+  border: 2px solid rgba(0, 255, 255, 0.5);
+  border-radius: 2vh;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+  transition: all 0.25s;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+}
+
+.start-btn:hover,
+.start-btn:active {
+  background: rgba(0, 255, 255, 0.2);
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+  transform: scale(1.02);
+}
+
+.init-hint {
+  font-size: 2.8vw;
+  color: rgba(0, 255, 255, 0.35);
+  margin-top: 6vh;
+  letter-spacing: 0.1em;
+}
+
+/* 目的地输入 */
+.destination-input {
+  margin-top: 5vh;
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+  align-items: center;
+}
+
+.dest-input {
+  width: 80vw;
+  padding: 2vh 4vw;
+  font-size: 4vw;
+  background: rgba(0, 255, 255, 0.05);
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  border-radius: 1.5vh;
+  color: #00ffff;
+  text-align: center;
+  font-family: inherit;
+  outline: none;
+  caret-color: #00ffff;
+}
+
+.dest-input::placeholder {
+  color: rgba(0, 255, 255, 0.3);
+}
+
+.dest-input:focus {
+  border-color: #00ffff;
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+}
+
+.dest-btn {
+  font-size: 4vw;
+  padding: 1.8vh 8vw;
+  background: rgba(0, 255, 136, 0.1);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.5);
+  border-radius: 1.5vh;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.7);
+  transition: all 0.2s;
+}
+
+.dest-btn:hover,
+.dest-btn:active {
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ============================================================
+   横屏适配（AR眼镜使用时可能横屏）
+   ============================================================ */
+@media (orientation: landscape) {
+
+  .status-bar {
+    top: 3vh;
+    gap: 3vw;
+    padding: 1vh 3vw;
+  }
+
+  .status-label { font-size: 1.4vw; }
+  .status-value { font-size: 2vw; }
+  .compass-arrow { font-size: 3.5vw; }
+  .compass-text  { font-size: 1.8vw; }
+
+  .center-display {
+    top: 15vh;
+    width: 60vw;
+    height: 45vh;
+  }
+
+  .big-arrow { font-size: 15vw; }
+  .arrow-distance { font-size: 4.5vw; }
+  .arrow-hint { font-size: 3vw; }
+
+  .bottom-panel {
+    width: 80vw;
+    gap: 1vh;
+    bottom: 3vh;
+  }
+
+  .info-card { padding: 1.5vh 2vw; }
+  .info-row { gap: 1.5vw; }
+  .info-icon { font-size: 4vw; }
+  .info-label { font-size: 1.6vw; }
+  .info-value { font-size: 3vw; }
+  .info-item.small .info-icon { font-size: 3vw; }
+  .info-item.small .info-value { font-size: 2vw; }
+  .info-item.small .info-label { font-size: 1.4vw; }
+
+  .voice-hint {
+    top: 8vh;
+    font-size: 2.2vw;
+    padding: 1vh 3vw;
+  }
+
+  .init-title { font-size: 9vw; }
+  .init-subtitle { font-size: 2.2vw; margin-bottom: 5vh; }
+  .start-btn {
+    font-size: 3vw;
+    padding: 1.5vh 6vw;
+  }
+  .init-hint { font-size: 1.8vw; margin-top: 4vh; }
+
+  .dest-input {
+    width: 50vw;
+    padding: 1.2vh 2.5vw;
+    font-size: 2.5vw;
+  }
+  .dest-btn {
+    font-size: 2.5vw;
+    padding: 1.2vh 5vw;
+  }
+
+  .sensor-dot {
+    width: 1.2vw;
+    height: 1.2vw;
+  }
+}
+
+/* ============================================================
+   工具类
+   ============================================================ */
+.pointer-events-auto {
+  pointer-events: auto;
+}
+
+.pointer-events-none {
+  pointer-events: none;
+}
