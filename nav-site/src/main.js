@@ -15,6 +15,7 @@
 
 import { CONFIG } from './config.js'
 import { Scene3D } from './Scene3D.js'
+import { MiniMap } from './MiniMap.js'
 
 /* ============================================================
    DOM 元素引用
@@ -64,6 +65,7 @@ const dom = {
    ============================================================ */
 const state = {
   scene3D: null,
+  miniMap: null,
   watchId: null,
   headingWatchId: null,
 
@@ -221,6 +223,17 @@ function startGPS() {
         state.startTime = Date.now()
       }
 
+      // 同步到迷你3D地图
+      // 把经纬度差转换为本地 x/z 坐标（1 度 ≈ 111km）
+      const dLat = state.currentLat - state.startLat
+      const dLng = state.currentLng - state.startLng
+      const metersPerDeg = 111000
+      const localX = dLng * metersPerDeg * Math.cos(state.startLat * Math.PI / 180)
+      const localZ = -dLat * metersPerDeg   // 纬度向北为 +, 在地图里表示为 -Z（Three.js -Z 即北）
+      if (state.miniMap) {
+        state.miniMap.setPosition(localX, localZ)
+      }
+
       // 更新到目的地的距离与方向
       _updateDistanceAndBearing()
 
@@ -273,6 +286,11 @@ async function startCompass() {
     // 归一化到 0-360
     heading = (heading + 360) % 360
     state.heading = heading
+
+    // 同步到迷你3D地图
+    if (state.miniMap) {
+      state.miniMap.setHeading(heading)
+    }
 
     // 更新 UI 指南针
     _updateCompassUI(heading)
@@ -327,6 +345,16 @@ function _updateDistanceAndBearing() {
     state.currentLat, state.currentLng,
     state.destination.lat, state.destination.lng
   )
+
+  // 同步目的地到迷你地图（相对当前位置的本地偏移）
+  if (state.miniMap && state.currentLat != null) {
+    const dLat = state.destination.lat - state.currentLat
+    const dLng = state.destination.lng - state.currentLng
+    const metersPerDeg = 111000
+    const dx = dLng * metersPerDeg * Math.cos(state.currentLat * Math.PI / 180)
+    const dz = -dLat * metersPerDeg
+    state.miniMap.setTarget(dx, dz)
+  }
 
   _updateArrowWithHeading()
 
@@ -441,6 +469,9 @@ function init() {
   // 初始化 3D 场景
   const canvas = document.querySelector('canvas.webgl')
   state.scene3D = new Scene3D(canvas)
+
+  // 初始化迷你3D地图
+  state.miniMap = new MiniMap('mini-map')
 
   // 点击开始
   dom.startBtn.addEventListener('click', startNav)
