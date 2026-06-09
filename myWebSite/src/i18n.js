@@ -392,25 +392,95 @@ function generateCacheKey(text, targetLang) {
 
 // 实际翻译实现
 async function doTranslate(text, targetLang) {
-  // 方案1：使用免费的翻译API（如MyMemory）
+  // 方案1：使用免费的翻译API（如MyMemory），长文本分段处理
   try {
-    const response = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=zh-CN|${languageCodes[targetLang]}`
-    );
+    // 按段落或长度分段翻译，避免单次请求过长
+    const segments = splitTextForTranslation(text);
+    const translatedSegments = [];
     
-    const data = await response.json();
-    if (data.responseStatus === 200 && data.responseData) {
-      return data.responseData.translatedText;
+    for (const segment of segments) {
+      if (!segment.trim()) {
+        translatedSegments.push(segment);
+        continue;
+      }
+      
+      try {
+        const response = await fetch(
+          `https://api.mymemory.translated.net/get?q=${encodeURIComponent(segment)}&langpair=zh-CN|${languageCodes[targetLang]}`
+        );
+        
+        if (!response.ok) throw new Error('API response not ok');
+        
+        const data = await response.json();
+        if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+          translatedSegments.push(data.responseData.translatedText);
+        } else {
+          // API 响应异常，使用本地翻译
+          translatedSegments.push(simpleTranslate(segment, targetLang));
+        }
+        
+        // 避免请求过快被限流
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (apiError) {
+        // 单个段落翻译失败，使用本地翻译作为后备
+        translatedSegments.push(simpleTranslate(segment, targetLang));
+      }
+    }
+    
+    const result = translatedSegments.join('\n');
+    if (result && result.trim()) {
+      return result;
     }
   } catch (e) {
     console.log('API翻译失败，使用本地翻译', e);
   }
 
-  // 方案2：本地简单翻译（演示用）
+  // 方案2：本地翻译（演示用），增强对长文本的支持
   return simpleTranslate(text, targetLang);
 }
 
-// 本地简单翻译（演示用）
+// 将长文本分割为适合翻译的段落
+function splitTextForTranslation(text) {
+  if (text.length <= 500) {
+    return [text];
+  }
+  
+  // 尝试按段落分割（空行分隔）
+  let segments = text.split(/\n\s*\n/);
+  
+  // 如果段落太大，再按句子分割
+  const result = [];
+  const maxSegmentLength = 500;
+  
+  for (const segment of segments) {
+    if (segment.length <= maxSegmentLength) {
+      result.push(segment);
+    } else {
+      // 按句子或逗号进一步分割
+      const sentences = segment.match(/[^.!?。！？]+[.!?。！？]?\s*/g) || [segment];
+      let currentChunk = '';
+      
+      for (const sentence of sentences) {
+        if (currentChunk.length + sentence.length <= maxSegmentLength) {
+          currentChunk += sentence;
+        } else {
+          if (currentChunk.trim()) {
+            result.push(currentChunk.trim());
+          }
+          currentChunk = sentence;
+        }
+      }
+      
+      if (currentChunk.trim()) {
+        result.push(currentChunk.trim());
+      }
+    }
+  }
+  
+  return result.length > 0 ? result : [text];
+}
+
+// 本地简单翻译（演示用）- 增强版，支持更多通用词汇
 function simpleTranslate(text, targetLang) {
   if (targetLang === 'en') {
     return text
@@ -465,7 +535,42 @@ function simpleTranslate(text, targetLang) {
       .replace(/暂无留言/g, 'No messages')
       .replace(/成为第一个留言的人/g, 'Be the first to leave a message')
       .replace(/加载中/g, 'Loading')
-      .replace(/关闭/g, 'Close');
+      .replace(/关闭/g, 'Close')
+      // 通用词汇增强翻译
+      .replace(/入门教程/g, 'Getting Started Tutorial')
+      .replace(/基础入门/g, 'basic introduction')
+      .replace(/这是一篇关于/g, 'This is an article about')
+      .replace(/的基础/g, 'basics of')
+      .replace(/讲解如何/g, 'explaining how to')
+      .replace(/创建第一个/g, 'to create your first')
+      .replace(/场景/g, 'scene')
+      .replace(/准备工作/g, 'Preparation')
+      .replace(/首先/g, 'First')
+      .replace(/你需要/g, 'you need to')
+      .replace(/安装/g, 'install')
+      .replace(/接下来/g, 'Next')
+      .replace(/我们来/g, 'let us')
+      .replace(/探讨/g, 'explore')
+      .replace(/设计元素/g, 'design elements')
+      .replace(/包括/g, 'including')
+      .replace(/深色背景/g, 'dark backgrounds')
+      .replace(/网格纹理/g, 'grid textures')
+      .replace(/复古未来主义字体/g, 'retro-futuristic fonts')
+      .replace(/学习如何/g, 'Learn how to')
+      .replace(/使用/g, 'use')
+      .replace(/节点/g, 'nodes')
+      .replace(/生成/g, 'generate')
+      .replace(/逼真的/g, 'realistic')
+      .replace(/地形/g, 'terrain')
+      .replace(/分享/g, 'Share')
+      .replace(/开发经验/g, 'development experience')
+      .replace(/最佳实践/g, 'best practices')
+      .replace(/和/g, 'and')
+      .replace(/的/g, '\'s')
+      .replace(/是/g, 'is')
+      .replace(/在/g, 'in')
+      .replace(/我/g, 'I')
+      .replace(/你/g, 'you');
   }
   
   if (targetLang === 'ja') {
@@ -521,7 +626,36 @@ function simpleTranslate(text, targetLang) {
       .replace(/暂无留言/g, 'メッセージなし')
       .replace(/成为第一个留言的人/g, '最初のメッセージを残してください')
       .replace(/加载中/g, '読み込み中')
-      .replace(/关闭/g, '閉じる');
+      .replace(/关闭/g, '閉じる')
+      // 通用词汇增强翻译
+      .replace(/入门教程/g, '入門チュートリアル')
+      .replace(/基础入门/g, '基本入門')
+      .replace(/这是一篇关于/g, 'これは')
+      .replace(/的基础/g, 'の基礎')
+      .replace(/讲解如何/g, '方法を説明します')
+      .replace(/创建第一个/g, '最初の')
+      .replace(/场景/g, 'シーン')
+      .replace(/准备工作/g, '準備')
+      .replace(/首先/g, 'まず')
+      .replace(/你需要/g, '必要です')
+      .replace(/安装/g, 'インストール')
+      .replace(/接下来/g, '次に')
+      .replace(/我们来/g, 'みましょう')
+      .replace(/探讨/g, '検討します')
+      .replace(/设计元素/g, 'デザイン要素')
+      .replace(/包括/g, '含む')
+      .replace(/深色背景/g, '暗い背景')
+      .replace(/网格纹理/g, 'グリッドテクスチャ')
+      .replace(/复古未来主义字体/g, 'レトロフューチャーフォント')
+      .replace(/学习如何/g, '学びます')
+      .replace(/使用/g, '使用')
+      .replace(/节点/g, 'ノード')
+      .replace(/生成/g, '生成')
+      .replace(/逼真的/g, 'リアルな')
+      .replace(/地形/g, '地形')
+      .replace(/分享/g, '共有')
+      .replace(/开发经验/g, '開発経験')
+      .replace(/最佳实践/g, 'ベストプラクティス');
   }
   
   return text;

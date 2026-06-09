@@ -927,11 +927,11 @@ export default class UIManager {
     this.storageStatus.classList.remove('online', 'offline');
     if (online) {
       this.storageStatus.classList.add('online');
-      this.storageStatus.textContent = '☁️ Supabase 在线';
     } else {
       this.storageStatus.classList.add('offline');
-      this.storageStatus.textContent = '💾 本地模式';
     }
+    // 使用翻译函数更新文本
+    this.updateStorageStatusTexts();
   }
 
   // 显示/隐藏加载指示器
