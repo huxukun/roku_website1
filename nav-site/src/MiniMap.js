@@ -10,6 +10,9 @@ export class MiniMap {
     this.container = document.getElementById(containerId);
     if (!this.container) return;
 
+    // 信息文本元素（显示当前道路/地址）
+    this.infoElement = document.getElementById('mini-map-info');
+
     this.init();
     this.setupResize();
 
@@ -237,6 +240,15 @@ export class MiniMap {
 
       // 画一条虚线从用户到目标
       this.updateTrackLine();
+    }
+  }
+
+  /**
+   * 设置信息文本（显示道路名称 / 地址等）
+   */
+  setInfo(text) {
+    if (this.infoElement) {
+      this.infoElement.textContent = text || '';
     }
   }
 

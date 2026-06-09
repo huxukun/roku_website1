@@ -88,6 +88,13 @@ const state = {
 
   // 时间
   startTime: null,
+
+  // 高德 API
+  amapReady: false,      // AMap JS SDK 是否已加载
+  geocoder: null,        // 反地理编码器实例
+  lastGeocodeTime: 0,    // 上次反地理编码时间（毫秒）
+  roadName: '',          // 当前道路名称
+  address: '',           // 完整地址
 }
 
 /* ============================================================
@@ -199,6 +206,111 @@ function _showVoiceHint(text) {
 }
 
 /* ============================================================
+   高德地图：动态加载 JS SDK + 反地理编码
+   ============================================================ */
+let _amapLoadingPromise = null
+
+function _loadAMap() {
+  // 如果用户没填 Key，就不加载
+  if (!CONFIG.AMAP_KEY) {
+    console.log('[AR NAV] 未配置高德 Key，跳过道路名称显示')
+    return
+  }
+  if (state.amapReady) return
+  if (_amapLoadingPromise) return _amapLoadingPromise
+
+  // 配置安全密钥（v2.0 需要）
+  if (CONFIG.AMAP_SECURITY_CODE) {
+    window._AMapSecurityConfig = {
+      securityJsCode: CONFIG.AMAP_SECURITY_CODE
+    }
+  }
+
+  _amapLoadingPromise = new Promise((resolve, reject) => {
+    // 如果已加载
+    if (window.AMap) {
+      state.amapReady = true
+      resolve()
+      return
+    }
+
+    const script = document.createElement('script')
+    script.type = 'text/javascript'
+    script.async = true
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(CONFIG.AMAP_KEY)}&plugin=AMap.Geocoder`
+    script.onerror = () => {
+      console.warn('[AR NAV] 高德地图加载失败，请检查 Key 和白名单')
+      reject(new Error('amap load failed'))
+    }
+    script.onload = () => {
+      if (window.AMap) {
+        state.amapReady = true
+        // 创建反地理编码器
+        try {
+          state.geocoder = new window.AMap.Geocoder({
+            city: '全国',
+            radius: 500,
+            extensions: 'base'
+          })
+        } catch (e) {
+          console.warn('[AR NAV] 创建 Geocoder 失败:', e)
+        }
+        resolve()
+      } else {
+        reject(new Error('amap not loaded'))
+      }
+    }
+    document.head.appendChild(script)
+  })
+  return _amapLoadingPromise
+}
+
+function _reverseGeocode(lng, lat) {
+  if (!state.geocoder) return
+  // 限流：每 3 秒最多一次
+  const now = Date.now()
+  if (now - state.lastGeocodeTime < 3000) return
+  state.lastGeocodeTime = now
+
+  try {
+    state.geocoder.getAddress([lng, lat], (status, result) => {
+      if (status === 'complete' && result && result.regeocode) {
+        const regeo = result.regeocode
+        // 优先取 road（道路名）
+        let road = ''
+        if (regeo.roadnet && regeo.roadnet.length > 0) {
+          road = regeo.roadnet[0].name || ''
+        }
+        if (!road && regeo.addressComponent) {
+          road = regeo.addressComponent.township || regeo.addressComponent.district || ''
+        }
+        const formatted = regeo.formattedAddress || ''
+
+        state.roadName = road
+        state.address = formatted
+
+        // 更新 UI：把"红绿灯"那块区域改成显示当前道路
+        if (dom.trafficLight) {
+          const txt = road ? `${road}` : (formatted || '定位中...')
+          dom.trafficLight.textContent = txt
+        }
+        // 迷你地图信息
+        if (state.miniMap && state.miniMap.setInfo) {
+          state.miniMap.setInfo(road || formatted || '')
+        }
+      } else {
+        // 反地理编码失败，可能是 Key 问题或坐标异常
+        if (dom.trafficLight) {
+          dom.trafficLight.textContent = '地图未就绪'
+        }
+      }
+    })
+  } catch (e) {
+    console.warn('[AR NAV] 反地理编码调用失败:', e)
+  }
+}
+
+/* ============================================================
    GPS 定位
    ============================================================ */
 function startGPS() {
@@ -207,6 +319,9 @@ function startGPS() {
     speak('无法获取定位')
     return
   }
+
+  // 预加载高德地图 SDK（用于道路显示）
+  _loadAMap()
 
   state.watchId = navigator.geolocation.watchPosition(
     (pos) => {
@@ -249,6 +364,9 @@ function startGPS() {
         const kmh = (pos.coords.speed * 3.6).toFixed(1)
         dom.currentSpeed.textContent = `${kmh} km/h`
       }
+
+      // 反地理编码：获取当前道路名称（限流 ~ 3 秒一次）
+      _reverseGeocode(state.currentLng, state.currentLat)
     },
     (err) => {
       console.warn('定位失败:', err)
@@ -323,7 +441,10 @@ function _updateCompassUI(heading) {
   // 旋转指南针箭头（让箭头总是指向北方，相对屏幕旋转手机朝向角度）
   const rotation = -heading
   dom.compassArrow.style.transform = `rotate(${rotation}deg)`
-  dom.compassText.textContent = bearingToText(heading)
+  // 显示精确角度 + 方向文字（不再离散成 8 个方向）
+  const dirs = ['北', '东北', '东', '东南', '南', '西南', '西', '西北']
+  const idx = Math.round(heading / 45) % 8
+  dom.compassText.textContent = `${dirs[idx]} ${Math.round(heading)}°`
 }
 
 function _updateDistanceAndBearing() {
@@ -365,6 +486,8 @@ function _updateDistanceAndBearing() {
 function _updateArrowWithHeading() {
   if (!state.destination) {
     dom.bigArrow.textContent = '→'
+    dom.bigArrow.style.transform = 'rotate(0deg)'
+    dom.arrowDistance.style.display = 'block'
     dom.arrowHint.textContent = '未设置目的地'
     if (state.scene3D) state.scene3D.setTurnMode('straight')
     return
@@ -378,49 +501,31 @@ function _updateArrowWithHeading() {
   let relative = (state.bearing - state.heading + 360) % 360
   if (relative > 180) relative -= 360  // 归一化到 -180 ~ 180
 
-  // --- 文字大箭头（CSS方案）---
-  let arrowText = '↑'
-  let turnType = 'straight'
-  let hintText = '前方直行'
+  // --- 大箭头（真正的360°旋转，不再是8方向字符）---
+  // arrow 默认指向上方（北），我们把它旋转到 relative 角度
+  // relative=0 → 箭头朝上（前方），relative=90 → 箭头朝右
+  const arrowRotation = relative   // 直接用相对角度旋转
+  dom.bigArrow.textContent = '⬆'   // 始终用朝上的箭头字符
+  dom.bigArrow.style.transform = `rotate(${arrowRotation}deg)`
 
-  if (relative >= -22.5 && relative < 22.5) {
-    arrowText = '↑'
-    turnType = 'straight'
-    hintText = '前方直行'
-  } else if (relative >= 22.5 && relative < 67.5) {
-    arrowText = '↗'
-    turnType = 'right'
-    hintText = '右前方'
-  } else if (relative >= 67.5 && relative < 112.5) {
-    arrowText = '→'
-    turnType = 'right'
-    hintText = '右转'
-  } else if (relative >= 112.5 && relative < 157.5) {
-    arrowText = '↘'
-    turnType = 'right'
-    hintText = '右后方'
-  } else if (relative >= 157.5 || relative < -157.5) {
-    arrowText = '↓'
-    turnType = 'uturn'
-    hintText = '掉头'
-  } else if (relative >= -157.5 && relative < -112.5) {
-    arrowText = '↙'
-    turnType = 'left'
-    hintText = '左后方'
-  } else if (relative >= -112.5 && relative < -67.5) {
-    arrowText = '←'
-    turnType = 'left'
-    hintText = '左转'
-  } else if (relative >= -67.5 && relative < -22.5) {
-    arrowText = '↖'
-    turnType = 'left'
-    hintText = '左前方'
-  }
+  // --- 提示文字（用精确相对角度）---
+  let hintText = ''
+  const absRel = Math.abs(relative)
+  if (absRel < 15)            hintText = `前方直行 · ${Math.round(absRel)}°`
+  else if (absRel < 45)       hintText = `${relative > 0 ? '右' : '左'}前方 · ${Math.round(absRel)}°`
+  else if (absRel < 75)       hintText = `${relative > 0 ? '右' : '左'}转 · ${Math.round(absRel)}°`
+  else if (absRel < 105)      hintText = `${relative > 0 ? '右' : '左'}转 · ${Math.round(absRel)}°`
+  else if (absRel < 135)      hintText = `${relative > 0 ? '右' : '左'}后方 · ${Math.round(absRel)}°`
+  else if (absRel < 165)      hintText = `后方 · ${Math.round(180 - absRel)}°`
+  else                        hintText = `掉头 · ${Math.round(absRel)}°`
 
-  dom.bigArrow.textContent = arrowText
   dom.arrowHint.textContent = hintText
 
-  // --- 3D 箭头 ---
+  // --- 3D 场景 ---
+  let turnType = 'straight'
+  if (absRel < 20) turnType = 'straight'
+  else if (absRel < 120) turnType = relative > 0 ? 'right' : 'left'
+  else turnType = 'uturn'
   if (state.scene3D) {
     state.scene3D.setTurnMode(turnType)
   }
