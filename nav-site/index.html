@@ -144,12 +144,17 @@
           请在户外使用 · 需要定位权限 · 建议竖屏
         </p>
 
-        <!-- 目的地输入 -->
+        <!-- 目的地输入 + POI 搜索 -->
         <div class="destination-input hidden" id="destination-box">
-          <input type="text" id="destination-input"
-                 class="dest-input"
-                 placeholder="输入目的地（例如：天安门）" />
-          <button class="dest-btn" id="dest-confirm-btn">确定</button>
+          <div style="position:relative;width:90vw;max-width:500px;margin:0 auto;">
+            <input type="text" id="destination-input"
+                   class="dest-input"
+                   placeholder="输入目的地（例如：天安门）"
+                   autocomplete="off" />
+            <!-- POI 搜索结果下拉列表 -->
+            <div class="poi-suggestions" id="poi-suggestions"></div>
+            <button class="dest-btn" id="dest-confirm-btn">确定</button>
+          </div>
         </div>
 
       </div>

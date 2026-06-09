@@ -29,6 +29,7 @@ const dom = {
   destinationInput:$('destination-input'),
   destConfirmBtn:  $('dest-confirm-btn'),
   destination:     $('destination-display'),
+  poiSuggestions:  $('poi-suggestions'),
 
   // 指南针
   compassArrow:    $('compass-arrow'),
@@ -338,15 +339,9 @@ function startGPS() {
         state.startTime = Date.now()
       }
 
-      // 同步到迷你3D地图
-      // 把经纬度差转换为本地 x/z 坐标（1 度 ≈ 111km）
-      const dLat = state.currentLat - state.startLat
-      const dLng = state.currentLng - state.startLng
-      const metersPerDeg = 111000
-      const localX = dLng * metersPerDeg * Math.cos(state.startLat * Math.PI / 180)
-      const localZ = -dLat * metersPerDeg   // 纬度向北为 +, 在地图里表示为 -Z（Three.js -Z 即北）
+      // 同步到迷你地图（使用真实经纬度）
       if (state.miniMap) {
-        state.miniMap.setPosition(localX, localZ)
+        state.miniMap.setPosition(state.currentLng, state.currentLat)
       }
 
       // 更新到目的地的距离与方向
@@ -467,14 +462,9 @@ function _updateDistanceAndBearing() {
     state.destination.lat, state.destination.lng
   )
 
-  // 同步目的地到迷你地图（相对当前位置的本地偏移）
-  if (state.miniMap && state.currentLat != null) {
-    const dLat = state.destination.lat - state.currentLat
-    const dLng = state.destination.lng - state.currentLng
-    const metersPerDeg = 111000
-    const dx = dLng * metersPerDeg * Math.cos(state.currentLat * Math.PI / 180)
-    const dz = -dLat * metersPerDeg
-    state.miniMap.setTarget(dx, dz)
+  // 同步目的地到迷你地图（直接用经纬度）
+  if (state.miniMap) {
+    state.miniMap.setTarget(state.destination.lng, state.destination.lat)
   }
 
   _updateArrowWithHeading()
@@ -535,36 +525,201 @@ function _updateArrowWithHeading() {
    启动流程
    ============================================================ */
 function startNav() {
+  // 先加载高德地图（如果还没加载）
+  _loadAMap()
+
   // 显示目的地输入
   dom.destinationBox.classList.remove('hidden')
   dom.startBtn.classList.add('hidden')
 
+  // 等 AMap 准备好后启用 POI 搜索
+  _waitForAMap(() => {
+    // 高德 JS SDK 已加载 → 启用 AutoComplete
+    _setupPoiSearch()
+  })
+
+  // 确认按钮（兜底：用户直接输入文字后点击）
   dom.destConfirmBtn.addEventListener('click', () => {
-    const name = dom.destinationInput.value.trim()
-    if (!name) {
-      speak('请输入目的地')
+    // 如果已经选了某个 POI（由 POI 点击设置到 dataset.poi）
+    const cached = _currentPoi
+    if (cached) {
+      _applyDestination(cached.name, cached.lng, cached.lat)
       return
     }
-
-    // 第一阶段：仅做"模拟目的地"演示
-    // 真实高德 API 地理编码功能将在第二阶段加入
-    // 这里让用户输入一个名称，然后用"默认位置+偏移"模拟
-    state.destination = {
-      name: name,
-      lat: CONFIG.DEFAULT_LOCATION.lat + 0.01,
-      lng: CONFIG.DEFAULT_LOCATION.lng + 0.015,
+    // 没选 POI → 用输入内容做 geocode（地理编码）尝试
+    const name = dom.destinationInput.value.trim()
+    if (!name) {
+      speak('请输入或选择目的地')
+      return
     }
-    dom.destination.textContent = name
-
-    // 隐藏启动层
-    dom.initOverlay.classList.add('hidden')
-
-    // 开始获取定位和方向
-    startGPS()
-    startCompass()
-
-    speak(`目的地已设置：${name}。请面向骑行方向出发`)
+    if (window.AMap && state.geocoder) {
+      state.geocoder.getLocation(name, (status, result) => {
+        if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
+          const g = result.geocodes[0]
+          const lng = g.location.lng
+          const lat = g.location.lat
+          _applyDestination(g.formattedAddress || name, lng, lat)
+        } else {
+          // 地理编码失败，告知用户
+          speak('没有找到这个地方，请尝试输入更具体的地址')
+        }
+      })
+    } else {
+      // 地图 SDK 还没加载好
+      speak('地图服务还在加载中，请稍后再试')
+    }
   })
+}
+
+// 当前选中的 POI（供确认按钮使用）
+let _currentPoi = null
+
+// POI 搜索防抖
+let _poiSearchTimer = null
+
+function _setupPoiSearch() {
+  if (!window.AMap) return
+  // 创建 AutoComplete 实例
+  const autoComplete = new window.AMap.AutoComplete({
+    city: '全国',
+    pageSize: 10,
+    extensions: 'all'
+  })
+
+  // 输入变化时搜索
+  dom.destinationInput.addEventListener('input', (e) => {
+    const keyword = e.target.value.trim()
+    clearTimeout(_poiSearchTimer)
+    // 清空选择缓存
+    _currentPoi = null
+    if (!keyword) {
+      _renderPoiSuggestions([])
+      return
+    }
+    // 300ms 防抖，避免频繁请求
+    _poiSearchTimer = setTimeout(() => {
+      autoComplete.search(keyword, (status, result) => {
+        if (status === 'complete' && result && Array.isArray(result.tips)) {
+          // 过滤掉没有经纬度的结果
+          const tips = result.tips.filter(t => t.location && t.location.lng && t.location.lat)
+          _renderPoiSuggestions(tips)
+        } else {
+          _renderPoiSuggestions([])
+        }
+      })
+    }, 300)
+  })
+
+  // 聚焦时也显示一下当前关键词的结果
+  dom.destinationInput.addEventListener('focus', () => {
+    const keyword = dom.destinationInput.value.trim()
+    if (keyword) {
+      autoComplete.search(keyword, (status, result) => {
+        if (status === 'complete' && result && Array.isArray(result.tips)) {
+          const tips = result.tips.filter(t => t.location && t.location.lng && t.location.lat)
+          _renderPoiSuggestions(tips)
+        }
+      })
+    }
+  })
+
+  // 点击页面其他地方时关闭下拉
+  document.addEventListener('click', (e) => {
+    if (!dom.destinationBox.contains(e.target)) {
+      _hidePoiSuggestions()
+    }
+  })
+}
+
+function _renderPoiSuggestions(tips) {
+  if (!dom.poiSuggestions) return
+
+  if (!tips || tips.length === 0) {
+    dom.poiSuggestions.innerHTML = '<div class="poi-item" style="opacity:0.5;pointer-events:none;">没有匹配结果，请输入更具体的名称</div>'
+    dom.poiSuggestions.classList.add('show')
+    return
+  }
+
+  const html = tips.map((t, i) => {
+    const address = t.district && t.address ? `${t.district} ${t.address}` : (t.address || t.district || '')
+    return `
+      <div class="poi-item" data-index="${i}" data-name="${_escapeHtml(t.name)}" data-lng="${t.location.lng}" data-lat="${t.location.lat}" data-address="${_escapeHtml(address || '')}">
+        <div class="poi-item-name">${_escapeHtml(t.name)}</div>
+        ${address ? `<div class="poi-item-address">${_escapeHtml(address)}</div>` : ''}
+      </div>
+    `
+  }).join('')
+
+  dom.poiSuggestions.innerHTML = html
+  dom.poiSuggestions.classList.add('show')
+
+  // 绑定点击事件
+  dom.poiSuggestions.querySelectorAll('.poi-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const name = item.getAttribute('data-name') || ''
+      const lng = parseFloat(item.getAttribute('data-lng'))
+      const lat = parseFloat(item.getAttribute('data-lat'))
+      const address = item.getAttribute('data-address') || ''
+      // 填入输入框，并缓存选择结果
+      dom.destinationInput.value = address ? `${name} · ${address}` : name
+      _currentPoi = { name, lng, lat }
+      _hidePoiSuggestions()
+      // 直接选中目的地（不再需要点击确定按钮）
+      _applyDestination(name, lng, lat)
+    })
+  })
+}
+
+function _hidePoiSuggestions() {
+  if (dom.poiSuggestions) {
+    dom.poiSuggestions.classList.remove('show')
+  }
+}
+
+function _escapeHtml(s) {
+  if (!s) return ''
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// 等待 AMap 可用
+function _waitForAMap(cb) {
+  if (window.AMap) { cb(); return }
+  const t0 = Date.now()
+  const check = () => {
+    if (window.AMap) { cb(); return }
+    if (Date.now() - t0 > 10000) return  // 超时
+    setTimeout(check, 200)
+  }
+  check()
+}
+
+// 目的地设置完成 → 启动导航
+function _applyDestination(name, lng, lat) {
+  state.destination = {
+    name: name,
+    lng: lng,
+    lat: lat
+  }
+  dom.destination.textContent = name
+
+  // 隐藏启动层
+  dom.initOverlay.classList.add('hidden')
+
+  // 同步到 MiniMap
+  if (state.miniMap) {
+    state.miniMap.setTarget(lng, lat)
+  }
+
+  // 开始获取定位和方向
+  startGPS()
+  startCompass()
+
+  speak(`目的地已设置：${name}。请面向骑行方向出发`)
 }
 
 /* ============================================================

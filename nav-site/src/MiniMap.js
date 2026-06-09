@@ -1,9 +1,10 @@
 /**
- * MiniMap - 左上角3D俯视迷你地图
- * 纯 Three.js 实现，GPS 定位点 + 朝向指示
+ * MiniMap - 左上角迷你地图（改用真实高德地图）
+ * - 显示真实街道/道路
+ * - 显示当前定位点 + 朝向
+ * - 显示目的地标记
+ * - 显示起点→目的地的路径
  */
-
-import * as THREE from 'three';
 
 export class MiniMap {
   constructor(containerId) {
@@ -13,238 +14,279 @@ export class MiniMap {
     // 信息文本元素（显示当前道路/地址）
     this.infoElement = document.getElementById('mini-map-info');
 
-    this.init();
-    this.setupResize();
-
-    this.currentPosition = null;    // { x, z }  地图本地坐标
-    this.heading = 0;                // 朝向角度（度）
+    this.map = null;
+    this.userMarker = null;       // 当前定位标记
+    this.destMarker = null;       // 目的地标记
+    this.headingArrow = null;     // 朝向箭头（overlay）
+    this.watchId = null;
+    this.geocoder = null;
+    this.currentLngLat = null;    // [lng, lat]
+    this.currentHeading = 0;
     this.hasTarget = false;
-    this.targetOffset = null;        // 相对当前位置的目标偏移
+    this.targetLngLat = null;     // [lng, lat]
+    this.polyline = null;
+
+    // 等待 AMap JS SDK 加载完成再初始化地图
+    this._waitForAMapAndInit();
   }
 
-  init() {
-    // --- 场景 ---
-    this.scene = new THREE.Scene();
-    this.scene.background = null;   // 透明背景，依赖 CSS 背景色
-    this.scene.fog = new THREE.Fog(0x000010, 20, 120);
-
-    // --- 相机（俯视 45 度） ---
-    this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
-    this.camera.position.set(0, 35, 25);
-    this.camera.lookAt(0, 0, 0);
-
-    // --- 渲染器 ---
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true
-    });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor(0x000000, 0);  // 透明
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.container.appendChild(this.renderer.domElement);
-
-    this.resize();
-
-    // --- 灯光 ---
-    const ambient = new THREE.AmbientLight(0x88ccff, 0.5);
-    this.scene.add(ambient);
-
-    const dirLight = new THREE.DirectionalLight(0x00ffff, 0.7);
-    dirLight.position.set(10, 30, 10);
-    this.scene.add(dirLight);
-
-    // --- 网格地面（发光网格） ---
-    const gridSize = 200;
-    const gridDivisions = 40;
-
-    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions,
-      0x00ffff,    // 主线颜色
-      0x004466     // 次级颜色（更暗）
-    );
-    gridHelper.material.transparent = true;
-    gridHelper.material.opacity = 0.25;
-    this.scene.add(gridHelper);
-
-    // --- 粗网格外圈（十字导航线） ---
-    const crossLineMat = new THREE.LineBasicMaterial({
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.6
-    });
-    const crossGeo1 = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-80, 0.02, 0),
-      new THREE.Vector3(80, 0.02, 0)
-    ]);
-    const crossGeo2 = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0.02, -80),
-      new THREE.Vector3(0, 0.02, 80)
-    ]);
-    this.scene.add(new THREE.Line(crossGeo1, crossLineMat));
-    this.scene.add(new THREE.Line(crossGeo2, crossLineMat));
-
-    // --- 中心圆盘（装饰） ---
-    const ringGeo = new THREE.RingGeometry(1.5, 2.2, 32);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0.5,
-      side: THREE.DoubleSide
-    });
-    this.centerRing = new THREE.Mesh(ringGeo, ringMat);
-    this.centerRing.rotation.x = -Math.PI / 2;
-    this.centerRing.position.y = 0.05;
-    this.scene.add(this.centerRing);
-
-    // --- 当前位置点（发光圆点） ---
-    const userGeo = new THREE.CircleGeometry(0.8, 24);
-    const userMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide
-    });
-    this.userDot = new THREE.Mesh(userGeo, userMat);
-    this.userDot.rotation.x = -Math.PI / 2;
-    this.userDot.position.set(0, 0.1, 0);
-    this.scene.add(this.userDot);
-
-    // 用户光晕
-    const glowGeo = new THREE.RingGeometry(1.2, 2.0, 32);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.4,
-      side: THREE.DoubleSide
-    });
-    this.userGlow = new THREE.Mesh(glowGeo, glowMat);
-    this.userGlow.rotation.x = -Math.PI / 2;
-    this.userGlow.position.set(0, 0.08, 0);
-    this.scene.add(this.userGlow);
-
-    // --- 方向箭头（三角形，指向朝向） ---
-    // 指向 +Z 方向的三角形
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 3);
-    arrowShape.lineTo(-1.5, -1.5);
-    arrowShape.lineTo(0, -0.5);
-    arrowShape.lineTo(1.5, -1.5);
-    arrowShape.lineTo(0, 3);
-
-    const arrowGeo = new THREE.ShapeGeometry(arrowShape);
-    const arrowMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide
-    });
-    this.headingArrow = new THREE.Mesh(arrowGeo, arrowMat);
-    this.headingArrow.rotation.x = -Math.PI / 2;
-    this.headingArrow.position.set(0, 0.12, 0);
-    this.scene.add(this.headingArrow);
-
-    // --- 目标点（如果设置了目的地） ---
-    const targetGeo = new THREE.RingGeometry(0.6, 1.0, 20);
-    const targetMat = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide
-    });
-    this.targetDot = new THREE.Mesh(targetGeo, targetMat);
-    this.targetDot.rotation.x = -Math.PI / 2;
-    this.targetDot.position.y = 0.1;
-    this.targetDot.visible = false;
-    this.scene.add(this.targetDot);
-
-    // 目标内实心点
-    const targetInnerGeo = new THREE.CircleGeometry(0.5, 16);
-    const targetInnerMat = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
-      transparent: true,
-      opacity: 0.8,
-      side: THREE.DoubleSide
-    });
-    this.targetInner = new THREE.Mesh(targetInnerGeo, targetInnerMat);
-    this.targetInner.rotation.x = -Math.PI / 2;
-    this.targetInner.position.y = 0.15;
-    this.targetInner.visible = false;
-    this.scene.add(this.targetInner);
-
-    // --- 起点到目标的虚线轨迹 ---
-    this.trackLine = null;
-
-    // 启动动画循环
-    this.clock = new THREE.Clock();
-    this.animate();
+  _waitForAMapAndInit() {
+    // 每 300ms 检查 AMap 是否已加载，最多等待 30 秒
+    const startAt = Date.now();
+    const check = () => {
+      if (window.AMap) {
+        this._initAMap();
+        return;
+      }
+      if (Date.now() - startAt > 30000) return;
+      setTimeout(check, 300);
+    };
+    check();
   }
 
-  resize() {
-    if (!this.container || !this.renderer || !this.camera) return;
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
-    if (w <= 0 || h <= 0) return;
-    this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+  _initAMap() {
+    if (!this.container || this.map) return;
+
+    try {
+      // 默认先显示一个中心（等定位后再 setCenter 到真实位置）
+      const defaultCenter = [116.397428, 39.90923];
+      this.map = new window.AMap.Map(this.container, {
+        viewMode: '2D',       // 2D 俯视角，信息密度高，适合小地图
+        zoom: 16,
+        center: defaultCenter,
+        resizeEnable: true,
+        mapStyle: 'amap://styles/dark',   // 深色风格，贴合 AR UI
+        features: ['road', 'building', 'background'],  // 隐藏默认的 poi/satellite
+        showLabel: true,
+        showMarker: false
+      });
+
+      // 反地理编码器（复用）
+      this.geocoder = new window.AMap.Geocoder({
+        city: '全国',
+        radius: 500,
+        extensions: 'base'
+      });
+
+      // 立刻在中心放一个小蓝点占位，等定位后再更新
+      this._createUserMarker(defaultCenter);
+      this._createHeadingArrow(defaultCenter);
+
+      // 浏览器定位（独立于主页面的 GPS，确保小地图也能拿到位置）
+      this._startBrowserLocation();
+    } catch (e) {
+      console.warn('[MiniMap] 初始化失败:', e);
+      if (this.infoElement) {
+        this.infoElement.textContent = '地图不可用';
+      }
+    }
   }
 
-  setupResize() {
-    window.addEventListener('resize', () => this.resize());
-    // 延迟一点再 resize（等待 CSS 布局稳定）
-    setTimeout(() => this.resize(), 200);
-    setTimeout(() => this.resize(), 1000);
+  _createUserMarker(center) {
+    if (!window.AMap || !this.map) return;
+
+    // 使用 SVG 自定义标记：绿色圆点 + 光环
+    const icon = new window.AMap.Icon({
+      size: new window.AMap.Size(32, 32),
+      image: 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+           <circle cx="16" cy="16" r="14" fill="rgba(0,255,136,0.25)" stroke="#00ff88" stroke-width="1.5"/>
+           <circle cx="16" cy="16" r="6" fill="#00ff88"/>
+         </svg>`
+      ),
+      imageSize: new window.AMap.Size(32, 32)
+    });
+
+    this.userMarker = new window.AMap.Marker({
+      position: center,
+      icon: icon,
+      offset: new window.AMap.Pixel(-16, -16),
+      zIndex: 200,
+      map: this.map
+    });
   }
 
-  /**
-   * 设置当前用户位置（地图本地坐标）
-   * x, z 为相对起点的米坐标（东/北）
-   */
-  setPosition(x, z) {
-    if (!this.userDot) return;
-    this.currentPosition = { x, z };
-    this.userDot.position.set(x, 0.1, z);
-    this.userGlow.position.set(x, 0.08, z);
-    this.headingArrow.position.set(x, 0.12, z);
-    this.centerRing.position.set(x, 0.05, z);
+  _createHeadingArrow(center) {
+    if (!window.AMap || !this.map) return;
+
+    // 朝向箭头：三角形，绕着用户点旋转
+    const arrowIcon = new window.AMap.Icon({
+      size: new window.AMap.Size(40, 40),
+      image: 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+           <polygon points="20,4 32,32 20,26 8,32" fill="#00ffff" stroke="#00ffff" stroke-width="2"/>
+         </svg>`
+      ),
+      imageSize: new window.AMap.Size(40, 40)
+    });
+
+    this.headingArrow = new window.AMap.Marker({
+      position: center,
+      icon: arrowIcon,
+      offset: new window.AMap.Pixel(-20, -20),
+      rotation: 0,
+      zIndex: 210,
+      map: this.map,
+      angle: 0
+    });
   }
 
-  /**
-   * 设置朝向角度（度）0=北, 顺时针增加
-   */
-  setHeading(headingDeg) {
-    if (!this.headingArrow) return;
-    this.heading = headingDeg;
-    // Three.js 中 -Z 是北向；heading 顺时针
-    // arrow 默认指向 +Z（我们绘制时 +Y 是顶点，旋转到地面后顶点在 +Z）
-    const rad = THREE.MathUtils.degToRad(headingDeg);
-    // 让 arrow 的顶点朝向 heading 的方向（绕 Y 轴旋转）
-    this.headingArrow.rotation.z = -rad;
-  }
+  _startBrowserLocation() {
+    if (!('geolocation' in navigator)) return;
 
-  /**
-   * 设置目标点，相对于当前位置的偏移（米）
-   * dx: 东向偏移，dz: 北向偏移
-   */
-  setTarget(dx, dz) {
-    this.hasTarget = true;
-    this.targetOffset = { dx, dz };
-    if (this.currentPosition) {
-      const tx = this.currentPosition.x + dx;
-      const tz = this.currentPosition.z + dz;
-      this.targetDot.position.set(tx, 0.1, 0);
-      this.targetDot.position.z = tz;
-      this.targetDot.visible = true;
-      this.targetInner.position.set(tx, 0.15, 0);
-      this.targetInner.position.z = tz;
-      this.targetInner.visible = true;
-
-      // 画一条虚线从用户到目标
-      this.updateTrackLine();
+    try {
+      this.watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lng = pos.coords.longitude;
+          const lat = pos.coords.latitude;
+          this.setPosition(lng, lat);
+        },
+        (err) => {
+          console.warn('[MiniMap] 定位失败:', err);
+          if (this.infoElement) {
+            this.infoElement.textContent = '无定位';
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 2000
+        }
+      );
+    } catch (e) {
+      console.warn('[MiniMap] 无法启动定位:', e);
     }
   }
 
   /**
-   * 设置信息文本（显示道路名称 / 地址等）
+   * 设置当前用户位置（经纬度）
+   */
+  setPosition(lng, lat) {
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+    if (lng === 0 || lat === 0) return;
+
+    this.currentLngLat = [lng, lat];
+
+    if (this.map && this.userMarker) {
+      this.userMarker.setPosition(this.currentLngLat);
+      // 平滑地把地图中心移向用户
+      this.map.setCenter(this.currentLngLat);
+    }
+    if (this.headingArrow) {
+      this.headingArrow.setPosition(this.currentLngLat);
+    }
+
+    // 获取道路名（每 3 秒一次）
+    this._reverseGeocode(lng, lat);
+
+    // 更新目的地连线（如果设置了目的地）
+    this._updatePolyline();
+  }
+
+  /**
+   * 设置手机朝向角度（0-360，0=北，顺时针）
+   */
+  setHeading(deg) {
+    if (!Number.isFinite(deg)) return;
+    this.currentHeading = deg;
+    if (this.headingArrow) {
+      // AMap Marker rotation 是顺时针角度
+      this.headingArrow.setAngle(deg);
+    }
+  }
+
+  /**
+   * 设置目的地（经纬度）
+   */
+  setTarget(lng, lat) {
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+    this.hasTarget = true;
+    this.targetLngLat = [lng, lat];
+
+    if (window.AMap && this.map) {
+      if (!this.destMarker) {
+        const icon = new window.AMap.Icon({
+          size: new window.AMap.Size(40, 40),
+          image: 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+               <circle cx="20" cy="20" r="16" fill="none" stroke="#ffaa00" stroke-width="2" stroke-dasharray="4,3"/>
+               <circle cx="20" cy="20" r="7" fill="#ffaa00"/>
+             </svg>`
+          ),
+          imageSize: new window.AMap.Size(40, 40)
+        });
+        this.destMarker = new window.AMap.Marker({
+          position: this.targetLngLat,
+          icon: icon,
+          offset: new window.AMap.Pixel(-20, -20),
+          zIndex: 180,
+          map: this.map
+        });
+      } else {
+        this.destMarker.setPosition(this.targetLngLat);
+      }
+    }
+
+    this._updatePolyline();
+  }
+
+  _updatePolyline() {
+    if (!this.currentLngLat || !this.targetLngLat || !window.AMap || !this.map) return;
+
+    const path = [this.currentLngLat, this.targetLngLat];
+    if (!this.polyline) {
+      this.polyline = new window.AMap.Polyline({
+        path: path,
+        strokeColor: '#ffaa00',
+        strokeWeight: 4,
+        strokeOpacity: 0.85,
+        strokeStyle: 'dashed',
+        lineJoin: 'round',
+        map: this.map
+      });
+    } else {
+      this.polyline.setPath(path);
+    }
+  }
+
+  _reverseGeocode(lng, lat) {
+    if (!this.geocoder) return;
+    const now = Date.now();
+    if (now - (this._lastGeoAt || 0) < 3000) return;
+    this._lastGeoAt = now;
+
+    try {
+      this.geocoder.getAddress([lng, lat], (status, result) => {
+        if (status === 'complete' && result && result.regeocode) {
+          const regeo = result.regeocode;
+          let road = '';
+          if (regeo.roadnet && regeo.roadnet.length > 0) {
+            road = regeo.roadnet[0].name || '';
+          }
+          if (!road && regeo.addressComponent) {
+            road = regeo.addressComponent.township || regeo.addressComponent.district || '';
+          }
+          const formatted = regeo.formattedAddress || '';
+          this.roadName = road;
+          this.address = formatted;
+
+          if (this.infoElement) {
+            this.infoElement.textContent = road || formatted || '';
+          }
+
+          // 暴露给外部使用
+          if (typeof this.onRoadUpdate === 'function') {
+            this.onRoadUpdate(road, formatted);
+          }
+        }
+      });
+    } catch (e) {
+      // silent
+    }
+  }
+
+  /**
+   * 设置底部文本（外部会调用）
    */
   setInfo(text) {
     if (this.infoElement) {
@@ -252,68 +294,13 @@ export class MiniMap {
     }
   }
 
-  updateTrackLine() {
-    if (!this.currentPosition || !this.hasTarget) return;
-    if (this.trackLine) {
-      this.scene.remove(this.trackLine);
-      this.trackLine.geometry.dispose();
-      this.trackLine.material.dispose();
+  destroy() {
+    if (this.watchId && 'geolocation' in navigator) {
+      navigator.geolocation.clearWatch(this.watchId);
     }
-    const start = new THREE.Vector3(this.currentPosition.x, 0.05, this.currentPosition.z);
-    const end = new THREE.Vector3(
-      this.currentPosition.x + this.targetOffset.dx,
-      0.05,
-      this.currentPosition.z + this.targetOffset.dz
-    );
-    const dist = start.distanceTo(end);
-    // 根据距离生成中间虚线段（每 2 米一段）
-    const segCount = Math.max(2, Math.floor(dist / 2));
-    const points = [];
-    for (let i = 0; i <= segCount; i++) {
-      const t = i / segCount;
-      const p = start.clone().lerp(end, t);
-      points.push(p);
+    if (this.map) {
+      this.map.destroy();
+      this.map = null;
     }
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineDashedMaterial({
-      color: 0xffaa00,
-      dashSize: 1.0,
-      gapSize: 0.8,
-      transparent: true,
-      opacity: 0.8
-    });
-    this.trackLine = new THREE.Line(geo, mat);
-    this.trackLine.computeLineDistances();
-    this.scene.add(this.trackLine);
-  }
-
-  animate() {
-    requestAnimationFrame(() => this.animate());
-    if (!this.renderer || !this.scene || !this.camera) return;
-
-    const t = this.clock.getElapsedTime();
-
-    // 中心环缓慢旋转
-    if (this.centerRing) {
-      this.centerRing.rotation.z += 0.01;
-    }
-    // 光晕脉冲
-    if (this.userGlow) {
-      this.userGlow.scale.setScalar(1 + Math.sin(t * 3) * 0.1);
-    }
-    // 目标点闪烁
-    if (this.targetDot && this.targetDot.visible) {
-      this.targetDot.rotation.z += 0.03;
-      this.targetInner.scale.setScalar(1 + Math.sin(t * 4) * 0.15);
-    }
-
-    // 相机微微俯视角并跟随用户位置
-    if (this.currentPosition) {
-      this.camera.position.x = this.currentPosition.x;
-      this.camera.position.z = this.currentPosition.z + 25;
-      this.camera.lookAt(this.currentPosition.x, 0, this.currentPosition.z);
-    }
-
-    this.renderer.render(this.scene, this.camera);
   }
 }
