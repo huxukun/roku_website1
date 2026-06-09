@@ -20,8 +20,8 @@
 export const CONFIG = {
 
   // ---- 高德地图配置 ----
-  AMAP_KEY: '',            // ← 填入你的高德 Web 端 JS API Key
-  AMAP_SECURITY_CODE: '',  // ← 填入你的高德安全密钥 securityJsCode (v2.0需要)
+  AMAP_KEY: '50f71de5377d5b77290559c916a6f41f',            // 高德 Web 端 JS API Key
+  AMAP_SECURITY_CODE: 'e122e60f0f7f81ad1651710fa433022b',  // 高德安全密钥 securityJsCode (v2.0需要)
 
   // ---- 天气 API 配置（可选）----
   QWEATHER_KEY: '',         // ← 填入你的和风天气 API Key（可选）
