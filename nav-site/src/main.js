@@ -212,9 +212,14 @@ function _showVoiceHint(text) {
 let _amapLoadingPromise = null
 
 function _loadAMap() {
-  // 如果用户没填 Key，就不加载
+  // ⚠️ 如果用户没填 Key → 给明确 UI 提示，让用户知道"为什么点确定没反应"
   if (!CONFIG.AMAP_KEY) {
-    console.log('[AR NAV] 未配置高德 Key，跳过道路名称显示')
+    console.warn('[AR NAV] 未配置高德 Key（nav-site/src/config.js）')
+    state.amapReady = false
+    // 在目的地输入框里显示提示（给用户一个明确反馈，不是"点了没反应"）
+    if (dom.destinationInput && dom.destinationInput.placeholder) {
+      dom.destinationInput.setAttribute('data-notice', '未配置高德Key')
+    }
     return
   }
   if (state.amapReady) return
@@ -231,6 +236,7 @@ function _loadAMap() {
     // 如果已加载
     if (window.AMap) {
       state.amapReady = true
+      state.geocoder = new window.AMap.Geocoder({ city: '全国', radius: 500, extensions: 'base' })
       resolve()
       return
     }
@@ -238,15 +244,16 @@ function _loadAMap() {
     const script = document.createElement('script')
     script.type = 'text/javascript'
     script.async = true
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(CONFIG.AMAP_KEY)}&plugin=AMap.Geocoder`
+    // 同时加载 Geocoder（反地理编码）和 AutoComplete（POI搜索）插件
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(CONFIG.AMAP_KEY)}&plugin=AMap.Geocoder,AMap.AutoComplete`
     script.onerror = () => {
       console.warn('[AR NAV] 高德地图加载失败，请检查 Key 和白名单')
+      state.amapReady = false
       reject(new Error('amap load failed'))
     }
     script.onload = () => {
       if (window.AMap) {
         state.amapReady = true
-        // 创建反地理编码器
         try {
           state.geocoder = new window.AMap.Geocoder({
             city: '全国',
@@ -525,7 +532,7 @@ function _updateArrowWithHeading() {
    启动流程
    ============================================================ */
 function startNav() {
-  // 先加载高德地图（如果还没加载）
+  // 确保 AMap 在加载（init 已预加载，这里再确认一次）
   _loadAMap()
 
   // 显示目的地输入
@@ -534,40 +541,68 @@ function startNav() {
 
   // 等 AMap 准备好后启用 POI 搜索
   _waitForAMap(() => {
-    // 高德 JS SDK 已加载 → 启用 AutoComplete
     _setupPoiSearch()
+    // 给用户一个视觉提示：搜索功能就绪
+    if (dom.destConfirmBtn) {
+      dom.destConfirmBtn.textContent = '确定 · 已就绪'
+    }
   })
 
-  // 确认按钮（兜底：用户直接输入文字后点击）
+  // ---- 确定按钮逻辑（有清晰的 loading/成功/失败三态） ----
+  let _confirming = false
   dom.destConfirmBtn.addEventListener('click', () => {
-    // 如果已经选了某个 POI（由 POI 点击设置到 dataset.poi）
-    const cached = _currentPoi
-    if (cached) {
-      _applyDestination(cached.name, cached.lng, cached.lat)
+    if (_confirming) return   // 防重复点击
+    _confirming = true
+    const originalText = dom.destConfirmBtn.textContent || '确定'
+    dom.destConfirmBtn.textContent = '搜索中…'
+
+    // 情况 1：已经从下拉列表选了 POI → 直接用它的坐标
+    if (_currentPoi) {
+      _applyDestination(_currentPoi.name, _currentPoi.lng, _currentPoi.lat)
+      dom.destConfirmBtn.textContent = originalText
+      _confirming = false
       return
     }
-    // 没选 POI → 用输入内容做 geocode（地理编码）尝试
+
+    // 情况 2：没有选 POI，用户在输入框里敲了文字
     const name = dom.destinationInput.value.trim()
     if (!name) {
       speak('请输入或选择目的地')
+      dom.destConfirmBtn.textContent = originalText
+      _confirming = false
       return
     }
-    if (window.AMap && state.geocoder) {
-      state.geocoder.getLocation(name, (status, result) => {
-        if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
-          const g = result.geocodes[0]
-          const lng = g.location.lng
-          const lat = g.location.lat
-          _applyDestination(g.formattedAddress || name, lng, lat)
-        } else {
-          // 地理编码失败，告知用户
-          speak('没有找到这个地方，请尝试输入更具体的地址')
-        }
+
+    // 情况 2a：地图 SDK 还没加载好
+    if (!window.AMap || !state.geocoder) {
+      // 如果用户没填 Key（amapReady === false）→ 给明确提示
+      if (CONFIG.AMAP_KEY === 'YOUR_AMAP_KEY_HERE' || !CONFIG.AMAP_KEY) {
+        dom.destConfirmBtn.textContent = '⚠️ 请先配置高德Key'
+        speak('请先在配置文件中填入您的高德地图 Key')
+        setTimeout(() => { dom.destConfirmBtn.textContent = originalText; _confirming = false }, 2500)
+        return
+      }
+      // SDK 还在加载 → 等一会儿再试
+      dom.destConfirmBtn.textContent = '地图加载中，请稍候…'
+      _waitForAMap(() => {
+        dom.destConfirmBtn.textContent = originalText
+        _confirming = false
+        speak('地图已就绪，请再次点击确定')
       })
-    } else {
-      // 地图 SDK 还没加载好
-      speak('地图服务还在加载中，请稍后再试')
+      return
     }
+
+    // 情况 2b：SDK 就绪 → 用 geocoder 做地理编码
+    state.geocoder.getLocation(name, (status, result) => {
+      dom.destConfirmBtn.textContent = originalText
+      _confirming = false
+      if (status === 'complete' && result && result.geocodes && result.geocodes.length > 0) {
+        const g = result.geocodes[0]
+        _applyDestination(g.formattedAddress || name, g.location.lng, g.location.lat)
+      } else {
+        speak('没有找到这个地方，请尝试输入更具体的地址或从列表中选择')
+      }
+    })
   })
 }
 
@@ -579,46 +614,48 @@ let _poiSearchTimer = null
 
 function _setupPoiSearch() {
   if (!window.AMap) return
+  if (state._poiSearchReady) return   // 避免重复绑定事件
+  state._poiSearchReady = true
+
   // 创建 AutoComplete 实例
   const autoComplete = new window.AMap.AutoComplete({
     city: '全国',
     pageSize: 10,
-    extensions: 'all'
+    extensions: 'base'
   })
 
   // 输入变化时搜索
   dom.destinationInput.addEventListener('input', (e) => {
     const keyword = e.target.value.trim()
     clearTimeout(_poiSearchTimer)
-    // 清空选择缓存
     _currentPoi = null
     if (!keyword) {
       _renderPoiSuggestions([])
       return
     }
-    // 300ms 防抖，避免频繁请求
     _poiSearchTimer = setTimeout(() => {
-      autoComplete.search(keyword, (status, result) => {
-        if (status === 'complete' && result && Array.isArray(result.tips)) {
-          // 过滤掉没有经纬度的结果
-          const tips = result.tips.filter(t => t.location && t.location.lng && t.location.lat)
-          _renderPoiSuggestions(tips)
-        } else {
-          _renderPoiSuggestions([])
-        }
+      autoComplete.search(keyword, (r1, r2) => {
+        // 高德不同版本回调签名不一致：兼容 (status, result) 和 (result) 两种
+        let tips = []
+        if (r1 && Array.isArray(r1.tips)) tips = r1.tips
+        else if (r2 && Array.isArray(r2.tips)) tips = r2.tips
+        else if (r1 && typeof r1 === 'object' && r1.status === 'complete' && r1.tips) tips = r1.tips
+        const validTips = tips.filter(t => t && t.location && t.location.lng && t.location.lat)
+        _renderPoiSuggestions(validTips)
       })
     }, 300)
   })
 
-  // 聚焦时也显示一下当前关键词的结果
+  // 聚焦时也搜索一次
   dom.destinationInput.addEventListener('focus', () => {
     const keyword = dom.destinationInput.value.trim()
     if (keyword) {
-      autoComplete.search(keyword, (status, result) => {
-        if (status === 'complete' && result && Array.isArray(result.tips)) {
-          const tips = result.tips.filter(t => t.location && t.location.lng && t.location.lat)
-          _renderPoiSuggestions(tips)
-        }
+      autoComplete.search(keyword, (r1, r2) => {
+        let tips = []
+        if (r1 && Array.isArray(r1.tips)) tips = r1.tips
+        else if (r2 && Array.isArray(r2.tips)) tips = r2.tips
+        const validTips = tips.filter(t => t && t.location && t.location.lng && t.location.lat)
+        _renderPoiSuggestions(validTips)
       })
     }
   })
@@ -686,13 +723,16 @@ function _escapeHtml(s) {
     .replace(/'/g, '&#39;')
 }
 
-// 等待 AMap 可用
-function _waitForAMap(cb) {
-  if (window.AMap) { cb(); return }
+// 等待 AMap 可用（带超时 + 失败回调）
+function _waitForAMap(cb, failCb) {
+  if (window.AMap && state.geocoder) { cb(); return }
   const t0 = Date.now()
   const check = () => {
-    if (window.AMap) { cb(); return }
-    if (Date.now() - t0 > 10000) return  // 超时
+    if (window.AMap && state.geocoder) { cb(); return }
+    if (Date.now() - t0 > 8000) {   // 8 秒超时
+      if (failCb) failCb()
+      return
+    }
     setTimeout(check, 200)
   }
   check()
@@ -730,8 +770,11 @@ function init() {
   const canvas = document.querySelector('canvas.webgl')
   state.scene3D = new Scene3D(canvas)
 
-  // 初始化迷你3D地图
+  // 初始化迷你地图
   state.miniMap = new MiniMap('mini-map')
+
+  // ⚡ 预加载高德地图 SDK（不等用户点按钮，避免点击确定后才加载）
+  _loadAMap()
 
   // 点击开始
   dom.startBtn.addEventListener('click', startNav)
