@@ -6,6 +6,13 @@
  * - 显示起点→目的地的路径
  */
 
+import { CONFIG } from './config.js'
+
+// 复用 main.js 的 _amapStatus（通过 window 传递，保持模块间通信）
+function _getAMapStatus() {
+  return window.__amapStatus || { status: null }
+}
+
 export class MiniMap {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
@@ -34,11 +41,29 @@ export class MiniMap {
     // 每 300ms 检查 AMap 是否已加载，最多等待 30 秒
     const startAt = Date.now();
     const check = () => {
+      // 优先用 main.js 的状态（如果存在）
+      const st = _getAMapStatus()
+      if (st.status === 'ready' && window.AMap) {
+        this._initAMap();
+        return;
+      }
+      if (st.status === 'failed') {
+        if (this.infoElement) {
+          this.infoElement.textContent = st.error || '地图不可用';
+        }
+        return;
+      }
+      // 兜底：如果 window.AMap 已就绪（可能 main.js 没设置 __amapStatus）
       if (window.AMap) {
         this._initAMap();
         return;
       }
-      if (Date.now() - startAt > 30000) return;
+      if (Date.now() - startAt > 30000) {
+        if (this.infoElement) {
+          this.infoElement.textContent = '地图加载超时';
+        }
+        return;
+      }
       setTimeout(check, 300);
     };
     check();

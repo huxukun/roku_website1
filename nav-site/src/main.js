@@ -210,20 +210,47 @@ function _showVoiceHint(text) {
    高德地图：动态加载 JS SDK + 反地理编码
    ============================================================ */
 let _amapLoadingPromise = null
+// AMap 加载状态：null=未开始 / 'loading'=加载中 / 'ready'=已就绪 / 'failed'=失败
+let _amapStatus = null
+let _amapError = null   // 失败原因，用于 UI 展示
+
+// 同步状态到 window，让 MiniMap 等其他模块可以读到
+function _setAMapStatus(status, error) {
+  _amapStatus = status
+  _amapError = error || null
+  window.__amapStatus = { status: _amapStatus, error: _amapError }
+  if (status === 'ready') state.amapReady = true
+}
+
+function getAMapStatus() {
+  return { status: _amapStatus, error: _amapError, hasKey: !!CONFIG.AMAP_KEY }
+}
 
 function _loadAMap() {
-  // ⚠️ 如果用户没填 Key → 给明确 UI 提示，让用户知道"为什么点确定没反应"
+  // ⚠️ 情况 1：完全没有 Key
   if (!CONFIG.AMAP_KEY) {
-    console.warn('[AR NAV] 未配置高德 Key（nav-site/src/config.js）')
-    state.amapReady = false
-    // 在目的地输入框里显示提示（给用户一个明确反馈，不是"点了没反应"）
-    if (dom.destinationInput && dom.destinationInput.placeholder) {
-      dom.destinationInput.setAttribute('data-notice', '未配置高德Key')
-    }
+    const err = '未配置高德 Key（请在 nav-site/src/config.js 中填入）'
+    _setAMapStatus('failed', err)
+    console.warn('[AR NAV]', err)
     return
   }
-  if (state.amapReady) return
-  if (_amapLoadingPromise) return _amapLoadingPromise
+  // ⚠️ 情况 2：Key 是占位符
+  const trimmedKey = String(CONFIG.AMAP_KEY).trim()
+  const isPlaceholder = trimmedKey === ''
+    || trimmedKey.toLowerCase().includes('your_')
+    || trimmedKey.toLowerCase().includes('请填')
+    || trimmedKey.length < 10
+  if (isPlaceholder) {
+    const err = '高德 Key 看起来是占位符，请填入真实的 Web 端 JS API Key'
+    _setAMapStatus('failed', err)
+    console.warn('[AR NAV]', err)
+    return
+  }
+
+  if (_amapStatus === 'ready') return
+  if (_amapStatus === 'loading' && _amapLoadingPromise) return _amapLoadingPromise
+
+  _setAMapStatus('loading', null)
 
   // 配置安全密钥（v2.0 需要）
   if (CONFIG.AMAP_SECURITY_CODE) {
@@ -235,9 +262,7 @@ function _loadAMap() {
   _amapLoadingPromise = new Promise((resolve, reject) => {
     // 如果已加载
     if (window.AMap) {
-      state.amapReady = true
-      state.geocoder = new window.AMap.Geocoder({ city: '全国', radius: 500, extensions: 'base' })
-      resolve()
+      _initAMapServices(resolve, reject)
       return
     }
 
@@ -245,32 +270,61 @@ function _loadAMap() {
     script.type = 'text/javascript'
     script.async = true
     // 同时加载 Geocoder（反地理编码）和 AutoComplete（POI搜索）插件
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(CONFIG.AMAP_KEY)}&plugin=AMap.Geocoder,AMap.AutoComplete`
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete`
+
     script.onerror = () => {
-      console.warn('[AR NAV] 高德地图加载失败，请检查 Key 和白名单')
-      state.amapReady = false
-      reject(new Error('amap load failed'))
+      const err = '高德 SDK 网络加载失败（可能是网络问题或 Key 被封禁）'
+      _setAMapStatus('failed', err)
+      console.warn('[AR NAV]', err)
+      reject(new Error(err))
     }
+
+    // ⚠️ 关键：高德 v2.0 在 key 无效/白名单不匹配时，不会触发 onerror，
+    // 而是脚本正常"加载完成"但 window.AMap 可能不存在，或 Geocoder 初始化会抛异常
     script.onload = () => {
       if (window.AMap) {
-        state.amapReady = true
-        try {
-          state.geocoder = new window.AMap.Geocoder({
-            city: '全国',
-            radius: 500,
-            extensions: 'base'
-          })
-        } catch (e) {
-          console.warn('[AR NAV] 创建 Geocoder 失败:', e)
-        }
-        resolve()
+        _initAMapServices(resolve, reject)
       } else {
-        reject(new Error('amap not loaded'))
+        const err = '高德 SDK 已加载但 AMap 不可用（Key 可能无效或类型不匹配，请确认是"Web 端 JS API" Key）'
+        _setAMapStatus('failed', err)
+        console.warn('[AR NAV]', err)
+        reject(new Error(err))
       }
     }
     document.head.appendChild(script)
+
+    // 8 秒超时兜底
+    setTimeout(() => {
+      if (_amapStatus === 'loading') {
+        const err = '高德 SDK 加载超时（请检查网络或 Key 的域名白名单）'
+        _setAMapStatus('failed', err)
+        reject(new Error(err))
+      }
+    }, 8000)
   })
+
+  _amapLoadingPromise.catch((e) => {
+    console.warn('[AR NAV] AMap load rejected:', e && e.message)
+  })
+
   return _amapLoadingPromise
+}
+
+function _initAMapServices(resolve, reject) {
+  try {
+    state.geocoder = new window.AMap.Geocoder({
+      city: '全国',
+      radius: 500,
+      extensions: 'base'
+    })
+    _setAMapStatus('ready', null)
+    resolve()
+  } catch (e) {
+    const err = 'Geocoder 初始化失败（Key 可能无效或白名单不匹配）: ' + (e && e.message || e)
+    _setAMapStatus('failed', err)
+    console.warn('[AR NAV]', err)
+    reject(new Error(err))
+  }
 }
 
 function _reverseGeocode(lng, lat) {
@@ -548,61 +602,74 @@ function startNav() {
     }
   })
 
-  // ---- 确定按钮逻辑（有清晰的 loading/成功/失败三态） ----
+  // ---- 确定按钮逻辑（基于 _amapStatus 的明确状态机）----
   let _confirming = false
   dom.destConfirmBtn.addEventListener('click', () => {
-    if (_confirming) return   // 防重复点击
+    if (_confirming) return
     _confirming = true
     const originalText = dom.destConfirmBtn.textContent || '确定'
-    dom.destConfirmBtn.textContent = '搜索中…'
 
-    // 情况 1：已经从下拉列表选了 POI → 直接用它的坐标
+    // 情况 1：已从 POI 下拉列表选中了某个地点 → 直接用
     if (_currentPoi) {
       _applyDestination(_currentPoi.name, _currentPoi.lng, _currentPoi.lat)
-      dom.destConfirmBtn.textContent = originalText
       _confirming = false
       return
     }
 
-    // 情况 2：没有选 POI，用户在输入框里敲了文字
+    // 情况 2：用户直接在输入框里输入了文本
     const name = dom.destinationInput.value.trim()
     if (!name) {
       speak('请输入或选择目的地')
-      dom.destConfirmBtn.textContent = originalText
       _confirming = false
       return
     }
 
-    // 情况 2a：地图 SDK 还没加载好
-    if (!window.AMap || !state.geocoder) {
-      // 如果用户没填 Key（amapReady === false）→ 给明确提示
-      if (CONFIG.AMAP_KEY === 'YOUR_AMAP_KEY_HERE' || !CONFIG.AMAP_KEY) {
-        dom.destConfirmBtn.textContent = '⚠️ 请先配置高德Key'
-        speak('请先在配置文件中填入您的高德地图 Key')
-        setTimeout(() => { dom.destConfirmBtn.textContent = originalText; _confirming = false }, 2500)
-        return
-      }
-      // SDK 还在加载 → 等一会儿再试
-      dom.destConfirmBtn.textContent = '地图加载中，请稍候…'
-      _waitForAMap(() => {
+    // ⚠️ 根据 _amapStatus 分情况处理（最关键的部分，之前这里是模糊判断）
+    if (_amapStatus === 'ready' && window.AMap && state.geocoder) {
+      // 2a: 完全就绪 → 直接地理编码
+      dom.destConfirmBtn.textContent = '搜索中…'
+      state.geocoder.getLocation(name, (status, result) => {
         dom.destConfirmBtn.textContent = originalText
         _confirming = false
-        speak('地图已就绪，请再次点击确定')
+        if (status === 'complete' && result && result.geocodes && result.geocodes.length > 0) {
+          const g = result.geocodes[0]
+          _applyDestination(g.formattedAddress || name, g.location.lng, g.location.lat)
+        } else {
+          speak('没有找到这个地方，请尝试输入更具体的地址或从列表中选择')
+        }
       })
       return
     }
 
-    // 情况 2b：SDK 就绪 → 用 geocoder 做地理编码
-    state.geocoder.getLocation(name, (status, result) => {
-      dom.destConfirmBtn.textContent = originalText
-      _confirming = false
-      if (status === 'complete' && result && result.geocodes && result.geocodes.length > 0) {
-        const g = result.geocodes[0]
-        _applyDestination(g.formattedAddress || name, g.location.lng, g.location.lat)
-      } else {
-        speak('没有找到这个地方，请尝试输入更具体的地址或从列表中选择')
-      }
-    })
+    if (_amapStatus === 'loading' || _amapStatus === null) {
+      // 2b: 还在加载 → 等待并提示
+      dom.destConfirmBtn.textContent = '地图加载中…'
+      speak('地图服务正在加载，请稍候')
+      _loadAMap()   // 确保在加载
+      _waitForAMap(() => {
+        dom.destConfirmBtn.textContent = originalText
+        _confirming = false
+        speak('地图已就绪，请再次点击确定')
+      }, () => {
+        // 加载失败 → 显示具体错误原因
+        dom.destConfirmBtn.textContent = '⚠️ ' + (_amapError || '地图不可用')
+        speak(_amapError || '地图服务不可用')
+        setTimeout(() => { dom.destConfirmBtn.textContent = originalText; _confirming = false }, 4000)
+      })
+      return
+    }
+
+    if (_amapStatus === 'failed') {
+      // 2c: 加载失败 → 显示具体原因并让用户可操作
+      dom.destConfirmBtn.textContent = '⚠️ ' + (_amapError || '地图不可用')
+      speak(_amapError || '地图服务不可用')
+      setTimeout(() => { dom.destConfirmBtn.textContent = originalText; _confirming = false }, 5000)
+      return
+    }
+
+    // 兜底：未知状态
+    dom.destConfirmBtn.textContent = originalText
+    _confirming = false
   })
 }
 
@@ -723,16 +790,23 @@ function _escapeHtml(s) {
     .replace(/'/g, '&#39;')
 }
 
-// 等待 AMap 可用（带超时 + 失败回调）
+// 等待 AMap 就绪（使用 _amapStatus 状态机）
 function _waitForAMap(cb, failCb) {
-  if (window.AMap && state.geocoder) { cb(); return }
-  const t0 = Date.now()
+  // 立刻检查
+  if (_amapStatus === 'ready' && window.AMap && state.geocoder) { cb(); return }
+  if (_amapStatus === 'failed') { if (failCb) failCb(); return }
+
+  // 确保在加载
+  if (_amapStatus === null || !_amapLoadingPromise) {
+    _loadAMap()
+  }
+
+  // 轮询等待
+  const startAt = Date.now()
   const check = () => {
-    if (window.AMap && state.geocoder) { cb(); return }
-    if (Date.now() - t0 > 8000) {   // 8 秒超时
-      if (failCb) failCb()
-      return
-    }
+    if (_amapStatus === 'ready' && window.AMap && state.geocoder) { cb(); return }
+    if (_amapStatus === 'failed') { if (failCb) failCb(); return }
+    if (Date.now() - startAt > 10000) { if (failCb) failCb(); return }
     setTimeout(check, 200)
   }
   check()
