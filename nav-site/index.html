@@ -29,7 +29,13 @@
           <span class="status-value" id="destination-display">未设置</span>
         </div>
         <div class="status-item status-compass">
-          <span class="compass-arrow" id="compass-arrow">↑</span>
+          <span class="compass-arrow" id="compass-arrow">
+            <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+              <!-- 北箭头：上半部分红色（北），下半部分黑色 -->
+              <polygon points="50,3 92,55 50,42 8,55" fill="#ff4444"/>
+              <polygon points="50,137 92,85 50,98 8,85" fill="#ffffff" opacity="0.85"/>
+            </svg>
+          </span>
           <span class="compass-text" id="compass-text">N</span>
         </div>
       </div>
@@ -39,7 +45,20 @@
 
         <!-- 大箭头指示 -->
         <div class="big-arrow-container">
-          <div class="big-arrow" id="big-arrow">→</div>
+          <div class="big-arrow" id="big-arrow">
+            <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#66ffff" stop-opacity="1"/>
+                  <stop offset="100%" stop-color="#00ffff" stop-opacity="0.7"/>
+                </linearGradient>
+              </defs>
+              <!-- 箭头主体（指向上方） -->
+              <polygon points="50,3 95,55 62,55 62,130 38,130 38,55 5,55" fill="url(#arrowGrad)"/>
+              <!-- 中心高光线条 -->
+              <polygon points="50,15 80,60 50,52 20,60" fill="#ffffff" opacity="0.35"/>
+            </svg>
+          </div>
           <div class="arrow-distance" id="arrow-distance">0.0 km</div>
           <div class="arrow-hint" id="arrow-hint">直行</div>
         </div>

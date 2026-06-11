@@ -130,12 +130,26 @@ html, body {
 }
 
 .compass-arrow {
-  font-size: 4.5vw;
-  line-height: 1;
+  width: 6vw;
+  height: 8vw;
+  min-width: 40px;
+  min-height: 55px;
+  max-width: 80px;
+  max-height: 110px;
   color: #00ff88;
-  text-shadow: 0 0 8px #00ff88, 0 0 16px rgba(0, 255, 136, 0.4);
-  transform-origin: center;
-  transition: transform 0.15s ease-out;
+  display: inline-block;
+  filter:
+    drop-shadow(0 0 5px rgba(0, 255, 136, 0.8))
+    drop-shadow(0 0 12px rgba(0, 255, 136, 0.5));
+  transform-origin: center center;
+  transition: transform 0.2s cubic-bezier(0.3, 0, 0.2, 1);
+  vertical-align: middle;
+}
+
+.compass-arrow svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .compass-text {
@@ -170,21 +184,35 @@ html, body {
 }
 
 .big-arrow {
-  font-size: 18vw;
-  line-height: 1;
+  width: 28vw;
+  height: 35vh;
+  max-width: 360px;
+  max-height: 420px;
+  min-width: 160px;
+  min-height: 200px;
   color: #00ffff;
-  text-shadow:
-    0 0 12px rgba(0, 255, 255, 0.8),
-    0 0 24px rgba(0, 255, 255, 0.5),
-    0 0 45px rgba(0, 255, 255, 0.3);
+  filter:
+    drop-shadow(0 0 12px rgba(0, 255, 255, 0.85))
+    drop-shadow(0 0 24px rgba(0, 255, 255, 0.5))
+    drop-shadow(0 0 45px rgba(0, 255, 255, 0.25));
   animation: arrow-pulse 2s ease-in-out infinite;
-  transform-origin: center;
-  transition: transform 0.25s ease-out;
+  transform-origin: center center;
+  transition: transform 0.3s cubic-bezier(0.3, 0, 0.2, 1);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.big-arrow svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 @keyframes arrow-pulse {
-  0%, 100% { opacity: 0.9; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.06); }
+  0%, 100% { opacity: 0.9; filter: drop-shadow(0 0 12px rgba(0, 255, 255, 0.85)) drop-shadow(0 0 24px rgba(0, 255, 255, 0.5)) drop-shadow(0 0 45px rgba(0, 255, 255, 0.25)); }
+  50%      { opacity: 1;   filter: drop-shadow(0 0 18px rgba(0, 255, 255, 1))   drop-shadow(0 0 36px rgba(0, 255, 255, 0.7)) drop-shadow(0 0 60px rgba(0, 255, 255, 0.35)); }
 }
 
 .arrow-distance {
@@ -707,7 +735,7 @@ body.debug-mode .debug-toggle-label {
 
   .status-label { font-size: 1.2vw; }
   .status-value { font-size: 1.6vw; }
-  .compass-arrow { font-size: 2.5vw; }
+  .compass-arrow { width: 4.5vw; height: 6vw; min-width: 28px; min-height: 38px; max-width: 55px; max-height: 75px; }
   .compass-text  { font-size: 1.4vw; }
 
   .center-display {
@@ -716,7 +744,7 @@ body.debug-mode .debug-toggle-label {
     height: 40vh;
   }
 
-  .big-arrow { font-size: 12vw; }
+  .big-arrow { width: 22vw; height: 28vh; max-width: 260px; max-height: 320px; min-width: 120px; min-height: 150px; }
   .arrow-distance { font-size: 3.5vw; }
   .arrow-hint { font-size: 2.5vw; }
 

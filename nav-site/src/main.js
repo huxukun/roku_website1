@@ -132,6 +132,27 @@ function bearing(lat1, lng1, lat2, lng2) {
   return (toDeg(θ) + 360) % 360
 }
 
+// 给定起点、航向角、距离，计算目标经纬度（沿航向移动）
+function moveAlongBearing(lat1, lng1, bearingDeg, distanceMeters) {
+  const R = 6371000
+  const toRad = d => d * Math.PI / 180
+  const toDeg = r => r * 180 / Math.PI
+  const φ1 = toRad(lat1)
+  const λ1 = toRad(lng1)
+  const δ = distanceMeters / R
+  const θ = toRad(bearingDeg)
+
+  const φ2 = Math.asin(
+    Math.sin(φ1) * Math.cos(δ) +
+    Math.cos(φ1) * Math.sin(δ) * Math.cos(θ)
+  )
+  const λ2 = λ1 + Math.atan2(
+    Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+    Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+  )
+  return { lat: toDeg(φ2), lng: toDeg(λ2) }
+}
+
 // 把方位角转为文本方向
 function bearingToText(deg) {
   const dirs = ['北', '东北', '东', '东南', '南', '西南', '西', '西北']
@@ -587,7 +608,6 @@ function _updateDistanceAndBearing() {
 
 function _updateArrowWithHeading() {
   if (!state.destination) {
-    dom.bigArrow.textContent = '→'
     dom.bigArrow.style.transform = 'rotate(0deg)'
     dom.arrowDistance.style.display = 'block'
     dom.arrowHint.textContent = '未设置目的地'
@@ -603,11 +623,9 @@ function _updateArrowWithHeading() {
   let relative = (state.bearing - state.heading + 360) % 360
   if (relative > 180) relative -= 360  // 归一化到 -180 ~ 180
 
-  // --- 大箭头（真正的360°旋转，不再是8方向字符）---
-  // arrow 默认指向上方（北），我们把它旋转到 relative 角度
-  // relative=0 → 箭头朝上（前方），relative=90 → 箭头朝右
-  const arrowRotation = relative   // 直接用相对角度旋转
-  dom.bigArrow.textContent = '⬆'   // 始终用朝上的箭头字符
+  // --- 大箭头（360° 连续旋转，SVG 形状无渲染死角）---
+  // arrow 默认指向上方（前方），把它旋转到 relative 角度
+  const arrowRotation = relative
   dom.bigArrow.style.transform = `rotate(${arrowRotation}deg)`
 
   // --- 提示文字（用精确相对角度）---
@@ -1058,7 +1076,7 @@ function _initDebugMode() {
     _setDebugMode(true)
   }
 
-  // 2) 键盘 D 键切换 + 方向键移动位置
+  // 2) 键盘 D 键切换调试模式 + 方向键控制位置/朝向
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
 
@@ -1067,60 +1085,76 @@ function _initDebugMode() {
       return
     }
 
-    // 仅调试模式下响应方向键
+    // --- 仅调试模式下响应方向键 ---
     if (!state.debugMode) return
 
-    const step = e.shiftKey ? 100 : 20  // Shift = 大步 (100m)，普通 = 小步 (20m)
-    const toRad = d => d * Math.PI / 180
+    const moveStep = e.shiftKey ? 100 : 20  // 移动距离（米）
+    const rotStep  = e.shiftKey ? 30  : 15  // 角度偏转（度）
 
-    let moved = false
+    // 初始位置（北京天安门附近），方便没设置位置时也能调试
+    if (state.currentLat == null) {
+      state.currentLat = 39.907
+      state.currentLng = 116.397
+    }
+    if (state.heading == null) state.heading = 0   // 默认朝北
+
+    let action = null    // 'rotate' | 'move' | null
+    let newHeading = state.heading
     let newLat = state.currentLat
     let newLng = state.currentLng
 
-    // 初始位置（北京天安门附近），方便没设置位置时也能调试
-    if (newLat == null) {
-      newLat = 39.907
-      newLng = 116.397
-    }
-
     switch (e.key) {
-      case 'ArrowUp':    newLat += step / 111320; moved = true; break
-      case 'ArrowDown':  newLat -= step / 111320; moved = true; break
-      case 'ArrowLeft':  newLng -= step / (111320 * Math.cos(toRad(newLat))); moved = true; break
-      case 'ArrowRight': newLng += step / (111320 * Math.cos(toRad(newLat))); moved = true; break
-      // WASD 辅助支持
-      case 'w': case 'W': newLat += step / 111320; moved = true; break
-      case 's': case 'S': newLat -= step / 111320; moved = true; break
-      case 'a': case 'A': newLng -= step / (111320 * Math.cos(toRad(newLat))); moved = true; break
-      case 'q': case 'Q': newLng += step / (111320 * Math.cos(toRad(newLat))); moved = true; break
-      default: return
+      // --- 角度偏转（左右键 / A Q）---
+      case 'ArrowLeft':
+      case 'a': case 'A':
+        newHeading = (state.heading - rotStep + 360) % 360
+        action = 'rotate'
+        break
+      case 'ArrowRight':
+      case 'q': case 'Q':
+        newHeading = (state.heading + rotStep) % 360
+        action = 'rotate'
+        break
+      // --- 前进后退（上下键 / W S）---
+      case 'ArrowUp':
+      case 'w': case 'W': {
+        const p = moveAlongBearing(state.currentLat, state.currentLng, state.heading, moveStep)
+        newLat = p.lat
+        newLng = p.lng
+        action = 'forward'
+        break
+      }
+      case 'ArrowDown':
+      case 's': case 'S': {
+        const p = moveAlongBearing(state.currentLat, state.currentLng, (state.heading + 180) % 360, moveStep)
+        newLat = p.lat
+        newLng = p.lng
+        action = 'backward'
+        break
+      }
+      default:
+        return
     }
 
-    if (!moved) return
+    if (!action) return
     e.preventDefault()
 
-    // 计算朝向（基于移动方向）
-    let heading = 0
-    if (state.currentLat != null && state.currentLng != null) {
-      heading = bearing(state.currentLat, state.currentLng, newLat, newLng)
-    }
-
-    // 更新 state
+    // --- 更新 state ---
     state.currentLat = newLat
     state.currentLng = newLng
-    state.heading = heading
+    state.heading = newHeading
 
-    // 同步 MiniMap 标记（地图上也能看到移动）
+    // --- 同步 MiniMap 标记（地图上也能看到移动+转向）---
     if (state.miniMap) {
       state.miniMap.setPosition(newLng, newLat)
-      state.miniMap.setHeading(heading)
+      state.miniMap.setHeading(newHeading)
     }
 
-    // 更新 UI
+    // --- 更新 UI ---
     dom.gpsStatus.classList.add('active')
-    _updateCompassUI(heading)
+    _updateCompassUI(newHeading)
 
-    // 初始化起点
+    // 初始化起点（用于已行驶距离计算）
     if (state.startLat == null) {
       state.startLat = newLat
       state.startLng = newLng
@@ -1133,20 +1167,29 @@ function _initDebugMode() {
       _updateArrowWithHeading()
     }
 
-    // 更新已行驶
+    // 更新已行驶距离
     state.traveledDistance = haversine(state.startLat, state.startLng, newLat, newLng)
     dom.traveled.textContent = fmtDistance(state.traveledDistance)
 
-    // 显示实时位置信息
+    // 显示实时位置信息 + 操作提示
     const distDest = state.destination
       ? haversine(newLat, newLng, state.destination.lat, state.destination.lng)
       : null
     const destStr = distDest != null ? ' → ' + fmtDistance(distDest) : ''
-    const stepStr = e.shiftKey ? '🔶大步' : '🔹小步'
-    const hint = `${stepStr} → (${newLng.toFixed(5)}, ${newLat.toFixed(5)})${destStr}`
+    const actionStr = {
+      rotate:    e.shiftKey ? '🌀 偏转' : '🔄 偏转',
+      forward:   e.shiftKey ? '🔶 大步前进' : '🔹 前进',
+      backward:  e.shiftKey ? '🔶 大步后退' : '🔹 后退',
+    }[action] || ''
+    const hint = `${actionStr} ${rotOrMoveInfo(action, rotStep, moveStep, e.shiftKey)} → (${newLng.toFixed(5)}, ${newLat.toFixed(5)}) · 朝向 ${Math.round(newHeading)}°${destStr}`
     dom.arrowHint.textContent = hint
     dom.arrowDistance.textContent = distDest != null ? fmtDistance(distDest) : '0 m'
   })
+
+  function rotOrMoveInfo(action, rotStep, moveStep, shift) {
+    if (action === 'rotate') return shift ? `${rotStep}°` : `${rotStep}°`
+    return shift ? `${moveStep}m` : `${moveStep}m`
+  }
 
   // 3) checkbox 切换
   if (checkbox) {
