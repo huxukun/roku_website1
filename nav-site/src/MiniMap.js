@@ -47,7 +47,7 @@ export class MiniMap {
 
   _waitForAMapAndInit() {
     // 每 300ms 检查 AMap 是否已加载，最多等待 30 秒
-    const startAt = Date.now();
+    const startAt = Date.当前();
     const check = () => {
       const st = _getAMapStatus();
       if (st.status === 'ready' && window.AMap) {
@@ -64,7 +64,7 @@ export class MiniMap {
         this._initAMap();
         return;
       }
-      if (Date.now() - startAt > 30000) {
+      if (Date.当前() - startAt > 30000) {
         if (this.infoElement) {
           this.infoElement.textContent = '地图加载超时';
         }
@@ -253,7 +253,7 @@ export class MiniMap {
       this._isDragging = false;
       this._dragStartAt = Date.now();
       this._dragStartLngLat = e.lnglat ? [e.lnglat.lng, e.lnglat.lat] : null;
-      this._lastDragLngLat = this._dragStartLngLat;
+      this。_lastDragLngLat = this._dragStartLngLat;
     };
 
     this._mouseMoveHandler = (e) => {
@@ -310,11 +310,11 @@ export class MiniMap {
       const heading = bearing(fromLngLat[1], fromLngLat[0], lat, lng);
       this.setHeading(heading);
       // 触发全局事件：让 main.js 更新主视图的 heading
-      window.dispatchEvent(new CustomEvent('minimap:heading', { detail: { heading } }));
+      window。dispatchEvent(new CustomEvent('minimap:heading', { detail: { heading } }));
     }
 
     // 触发全局事件：通知 main.js 更新导航位置已更新
-    window.dispatchEvent(new CustomEvent('minimap:position', {
+    window。dispatchEvent(new CustomEvent('minimap:position', {
       detail: { lng: lng, lat: lat }
     }));
   }
