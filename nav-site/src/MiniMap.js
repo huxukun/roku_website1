@@ -31,7 +31,13 @@ export class MiniMap {
     this.hasTarget = false;
     this.targetLngLat = null;     // [lng, lat]
     this.polyline = null;
-    this.routePath = null;        // 骑行规划路线（[{lng, lat}, ...]或 [[lng, lat], ...]），null 时回退到简单直线
+    this.routePath = null;        // 骑行规划路线（[[lng, lat], ...]），null 时回退到简单直线
+    this.routeSteps = null;       // [{index, path, distance, action, turnPoint, cumDistance, ...}]
+    this._passedPolyline = null;  // 已走过：深色（或浅色淡化）
+    this._pendingPolyline = null; // 未走：主色高亮
+    this._nextTurnMarker = null;  // 下一个转弯点标记
+    this._currentProgressMeters = 0;
+    this._navData = null;
 
     this.debugMode = false;
     this._isDragging = false;      // 鼠标是否按下中
@@ -430,36 +436,97 @@ export class MiniMap {
   _updatePolyline() {
     if (!window.AMap || !this.map) return;
 
-    // 1) 优先使用规划好的骑行路线
-    // 2) 其次用：起点 → 目的地 简单直线
-    let path = null;
-    let useRoutePath = false;
+    // 1) 有规划路线 → 拆分"已走"和"未走"两条折线
+    // 2) 没规划 → 简单直线
+    let fullPath = null;
     if (this.routePath && this.routePath.length >= 2) {
-      path = this.routePath;
-      useRoutePath = true;
+      fullPath = this.routePath;
     } else if (this.currentLngLat && this.targetLngLat) {
-      path = [this.currentLngLat, this.targetLngLat];
+      fullPath = [this.currentLngLat, this.targetLngLat];
     }
-    if (!path) return;
+    if (!fullPath) return;
 
     // 规范化为 [[lng, lat], ...]
     const normalized = [];
-    for (let i = 0; i < path.length; i++) {
-      const p = path[i];
+    for (let i = 0; i < fullPath.length; i++) {
+      const p = fullPath[i];
       if (!p) continue;
-      if (Array.isArray(p) && p.length >= 2) {
-        normalized.push([p[0], p[1]]);
-      } else if (typeof p.getLng === 'function' && typeof p.getLat === 'function') {
-        normalized.push([p.getLng(), p.getLat()]);
-      } else if (typeof p.lng === 'number' && typeof p.lat === 'number') {
-        normalized.push([p.lng, p.lat]);
-      }
+      if (Array.isArray(p) && p.length >= 2) normalized.push([p[0], p[1]]);
+      else if (p && typeof p.getLng === 'function') normalized.push([p.getLng(), p.getLat()]);
+      else if (p && typeof p.lng === 'number') normalized.push([p.lng, p.lat]);
     }
     if (normalized.length < 2) return;
 
-    const color = useRoutePath ? '#00ffaa' : '#ffaa00';   // 骑行路线用青绿色
-    const dash  = useRoutePath ? 'solid' : 'dashed';
-    const weight = useRoutePath ? 5 : 4;
+    // ── 有导航进度 → 拆分已走 / 未走 ──
+    const progressMeters = this._navData ? this._navData.progressMeters : 0;
+    if (progressMeters > 0 && this.routePath) {
+      const split = this._splitPathAtProgress(normalized, progressMeters);
+
+      if (!this._passedPolyline) {
+        this._passedPolyline = new window.AMap.Polyline({
+          path: split.passed,
+          strokeColor: '#7a7a7a',
+          strokeWeight: 4,
+          strokeOpacity: 0.5,
+          strokeStyle: 'solid',
+          lineJoin: 'round',
+          zIndex: 50,
+          map: this.map
+        });
+      } else {
+        this._passedPolyline.setPath(split.passed);
+      }
+
+      if (!this._pendingPolyline) {
+        this._pendingPolyline = new window.AMap.Polyline({
+          path: split.pending,
+          strokeColor: '#00ffaa',
+          strokeWeight: 6,
+          strokeOpacity: 0.95,
+          strokeStyle: 'solid',
+          lineJoin: 'round',
+          zIndex: 60,
+          map: this.map
+        });
+      } else {
+        this._pendingPolyline.setPath(split.pending);
+      }
+
+      // ── 下一转弯点标记 ──
+      if (this.routeSteps && this._navData) {
+        const nextIdx = Math.min(this._navData.nextStepIdx, this.routeSteps.length - 1);
+        const next = this.routeSteps[nextIdx];
+        if (next && next.turnPoint) {
+          const icon = this._turnMarkerSVG(next.action);
+          if (!this._nextTurnMarker) {
+            this._nextTurnMarker = new window.AMap.Marker({
+              position: next.turnPoint,
+              content: icon,
+              offset: new window.AMap.Pixel(-18, -18),
+              zIndex: 200,
+              map: this.map
+            });
+          } else {
+            this._nextTurnMarker.setPosition(next.turnPoint);
+            this._nextTurnMarker.setContent(icon);
+          }
+        } else if (this._nextTurnMarker) {
+          this._nextTurnMarker.setMap(null);
+          this._nextTurnMarker = null;
+        }
+      }
+      return;
+    }
+
+    // ── 没有进度 → 简单渲染整条路线（青绿色实线）──
+    if (this._passedPolyline) { this._passedPolyline.setMap(null); this._passedPolyline = null; }
+    if (this._pendingPolyline) { this._pendingPolyline.setMap(null); this._pendingPolyline = null; }
+    if (this._nextTurnMarker) { this._nextTurnMarker.setMap(null); this._nextTurnMarker = null; }
+
+    const isRoute = (this.routePath && this.routePath.length >= 2);
+    const color = isRoute ? '#00ffaa' : '#ffaa00';
+    const dash = isRoute ? 'solid' : 'dashed';
+    const weight = isRoute ? 5 : 4;
 
     if (!this.polyline) {
       this.polyline = new window.AMap.Polyline({
@@ -469,16 +536,88 @@ export class MiniMap {
         strokeOpacity: 0.85,
         strokeStyle: dash,
         lineJoin: 'round',
+        zIndex: 55,
         map: this.map
       });
     } else {
-      this.polyline.setOptions({
-        strokeColor: color,
-        strokeWeight: weight,
-        strokeStyle: dash
-      });
+      this.polyline.setOptions({ strokeColor: color, strokeWeight: weight, strokeStyle: dash });
       this.polyline.setPath(normalized);
     }
+  }
+
+  // 把路径按进度切分成"已走"和"未走"两段
+  _splitPathAtProgress(path, progressMeters) {
+    let acc = 0;
+    const passed = [];
+    const pending = [];
+    let splitDone = false;
+
+    const R = 6371000;
+    function haversineMeters(a, b) {
+      const toRad = d => d * Math.PI / 180;
+      const dLat = toRad(b[1] - a[1]);
+      const dLng = toRad(b[0] - a[0]);
+      const lat1 = toRad(a[1]);
+      const lat2 = toRad(b[1]);
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+
+    for (let i = 0; i < path.length; i++) {
+      if (i === 0) {
+        passed.push(path[i]);
+        continue;
+      }
+      const segLen = haversineMeters(path[i - 1], path[i]);
+
+      if (!splitDone && acc + segLen >= progressMeters) {
+        // 插值：在线段 path[i-1] -> path[i] 上找到 progress 的位置
+        const remain = progressMeters - acc;
+        const t = segLen > 0.01 ? remain / segLen : 0;
+        const interp = [
+          path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t,
+          path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t
+        ];
+        passed.push(interp);
+        pending.push(interp);
+        pending.push(path[i]);
+        splitDone = true;
+      } else if (splitDone) {
+        pending.push(path[i]);
+      } else {
+        passed.push(path[i]);
+      }
+      acc += segLen;
+    }
+
+    // 如果走完了还没切分（progress > total），切分点=终点
+    if (!splitDone && path.length > 0) {
+      const last = path[path.length - 1];
+      if (passed.length === 0 || passed[passed.length - 1][0] !== last[0] || passed[passed.length - 1][1] !== last[1]) {
+        passed.push(last);
+      }
+      pending.push(last);
+    }
+
+    return { passed: passed.length >= 2 ? passed : [], pending: pending.length >= 2 ? pending : [path[path.length - 1], path[path.length - 1]] };
+  }
+
+  // 转弯点标记 SVG（不同动作不同图标）
+  _turnMarkerSVG(action) {
+    let color = '#00d48a';
+    let label = '●';
+    if (action === 'left') { color = '#4dd0e1'; label = '↰'; }
+    else if (action === 'right') { color = '#ffb74d'; label = '↱'; }
+    else if (action === 'uturn') { color = '#e57373'; label = '↺'; }
+    else if (action === 'arrive') { color = '#ffd54f'; label = '★'; }
+    else { color = '#00d48a'; label = '↑'; }
+
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+         <circle cx="18" cy="18" r="15" fill="` + color + `" stroke="white" stroke-width="2.5" opacity="0.95"/>
+         <text x="18" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white">` + label + `</text>
+       </svg>`;
+    return svg;
   }
 
   // 设置真实骑行路线（来自 AMap.Riding 的规划结果）
@@ -486,6 +625,21 @@ export class MiniMap {
   setRoutePath(pathArray) {
     if (!pathArray || pathArray.length < 2) return;
     this.routePath = pathArray;
+    this._updatePolyline();
+  }
+
+  // 设置步骤信息（用于转弯点标记）
+  setRouteSteps(steps) {
+    this.routeSteps = steps;
+    this._updatePolyline();
+  }
+
+  // 外部导航引擎传入当前进度（progressMeters / nextStepIdx 等）
+  // info: { progressMeters, totalDistance, currentStepIdx, nextStepIdx, position:[lng,lat] }
+  setNavProgress(info) {
+    this._navData = info
+      ? { progressMeters: info.progressMeters || 0, nextStepIdx: info.nextStepIdx }
+      : null;
     this._updatePolyline();
   }
 

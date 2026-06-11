@@ -130,7 +130,7 @@ html, body {
     drop-shadow(0 0 5px rgba(0, 255, 136, 0.8))
     drop-shadow(0 0 12px rgba(0, 255, 136, 0.5));
   transform-origin: center center;
-  transition: transform 0.2s cubic-bezier(0.3, 0, 0.2, 1);
+  /* 不使用 CSS transition：用 JS rAF 平滑，避免与高频设备事件冲突 */
   vertical-align: middle;
 }
 
@@ -185,7 +185,7 @@ html, body {
     drop-shadow(0 0 45px rgba(0, 255, 255, 0.25));
   animation: arrow-pulse 2s ease-in-out infinite;
   transform-origin: center center;
-  transition: transform 0.3s cubic-bezier(0.3, 0, 0.2, 1);
+  /* 注意：不使用 CSS transition 做旋转——用 JS rAF + lerp 平滑，避免与高频 heading 更新冲突 */
   line-height: 1;
   display: flex;
   align-items: center;

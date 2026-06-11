@@ -82,6 +82,24 @@ const state = {
   totalDistance: 0,      // 总距离（米）
   traveledDistance: 0,   // 已行驶（米）
 
+  // ═══════ 导航引擎 ═══════
+  // 路线步骤：[{index, path:[[lng,lat],...], distance, instruction, road, action, orientation, turnPoint:[lng,lat], cumDistance}]
+  // cumDistance = 从起点到本步骤起始点的累计距离（米）
+  navSteps: null,         // 规划的全部步骤
+  navFullPath: null,      // 整条路线的连续折线点 [[lng,lat], ...]
+  navFullPathDists: null, // 每个点在 navFullPath 上的累计距离（米）
+  navTotalDistance: 0,    // 路线总距离（米）
+  navProgressMeters: 0,   // 沿路线已行驶距离（米，基于点到折线投影）
+  navCurrentStepIdx: 0,   // 当前位于哪一步
+  navNextStepIdx: null,   // 下一转弯步骤（可能和 current 相同，意味着直行）
+  navNextTurnDistance: 0, // 到下一转弯点的剩余距离（米）
+  navNextTurnAction: 'straight', // straight/left/right/uturn/arrive
+  navNextTurnText: '',    // 下一个转弯的描述（例："前方 200m 左转进入长安街"）
+  navBearingToTurn: 0,    // 指向"下一转弯点"的方位（度，相对北顺时针）
+  navArrowAngle: 0,       // 显示给用户的箭头偏转角（相对手机 heading）
+  _routePlanned: false,   // 是否已成功规划路线
+  _navInitialized: false, // 导航引擎是否就绪
+
   // 目的地
   destination: null,     // { name, lat, lng }
 
@@ -174,6 +192,144 @@ function fmtEta(meters, speedKmh = 15) {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return `${h}h ${m}min`
+}
+
+/* ============================================================
+   ⭐ 导航几何工具函数
+   ============================================================ */
+
+// 点(p)到线段(a-b)的最近点 + 距离 + 在该线段上的投影距离（沿线段前进的距离）
+// 返回 {lng, lat, distAlongSeg, distFromSeg}
+function _projectPointToSegment(pLat, pLng, aLat, aLng, bLat, bLng) {
+  // 把经度/纬度近似成米制（局部平面近似，足够用于插值）
+  // d(lat) ≈ 111320 m/deg, d(lng) ≈ 111320 * cos(lat) m/deg
+  const avgLat = (pLat + aLat + bLat) / 3
+  const metersPerDegLat = 111320
+  const metersPerDegLng = 111320 * Math.cos(avgLat * Math.PI / 180)
+
+  const ax = (aLng - pLng) * metersPerDegLng
+  const ay = (aLat - pLat) * metersPerDegLat
+  const bx = (bLng - pLng) * metersPerDegLng
+  const by = (bLat - pLat) * metersPerDegLat
+
+  const abx = bx - ax
+  const aby = by - ay
+  const abLen2 = abx * abx + aby * aby
+  if (abLen2 < 1e-9) {
+    return { lat: aLat, lng: aLng, distAlongSeg: 0, distFromSeg: Math.sqrt(ax*ax + ay*ay) }
+  }
+
+  // t = -(a · ab) / |ab|^2， 范围 [0,1]
+  let t = -(ax * abx + ay * aby) / abLen2
+  if (t < 0) t = 0
+  if (t > 1) t = 1
+
+  const projX = ax + t * abx
+  const projY = ay + t * aby
+  const projLat = pLat + projY / metersPerDegLat
+  const projLng = pLng + projX / metersPerDegLng
+
+  const segLen = Math.sqrt(abLen2)
+  const distAlongSeg = t * segLen
+  const distFromSeg = Math.sqrt(projX*projX + projY*projY)
+
+  return { lat: projLat, lng: projLng, distAlongSeg: distAlongSeg, distFromSeg: distFromSeg, t: t }
+}
+
+// 点到整条折线的投影：遍历所有线段，找到最近的那条
+// 返回 {lat, lng, cumDistanceMeters, segIdx, segT}
+// cumDistanceMeters = 从路线起点到投影点的累计距离（米）
+function _projectPointToPath(pLat, pLng, path) {
+  if (!path || path.length < 2) return null
+
+  let best = null
+  let cumDist = 0  // 当前段起点的累计距离
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1]
+    const proj = _projectPointToSegment(pLat, pLng, a[1], a[0], b[1], b[0])
+
+    // 该段长度
+    const segLen = haversine(a[1], a[0], b[1], b[0])
+
+    if (best === null || proj.distFromSeg < best.distFromSeg) {
+      best = {
+        lat: proj.lat,
+        lng: proj.lng,
+        distFromSeg: proj.distFromSeg,
+        segIdx: i,
+        segT: proj.t,
+        cumDistanceMeters: cumDist + proj.distAlongSeg
+      }
+    }
+    cumDist += segLen
+  }
+  return best
+}
+
+// 根据累计距离，在路径上找到对应的坐标（插值）
+// 用于：沿路线模拟前进
+function _pointAtDistance(path, distanceMeters) {
+  if (!path || path.length < 2) return null
+  let cum = 0
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1]
+    const segLen = haversine(a[1], a[0], b[1], b[0])
+    if (cum + segLen >= distanceMeters) {
+      const t = segLen > 0 ? (distanceMeters - cum) / segLen : 0
+      return {
+        lat: a[1] + (b[1] - a[1]) * t,
+        lng: a[0] + (b[0] - a[0]) * t,
+        segIdx: i
+      }
+    }
+    cum += segLen
+  }
+  // 到达终点
+  const last = path[path.length - 1]
+  return { lat: last[1], lng: last[0], segIdx: path.length - 2 }
+}
+
+// 把 AMap.Riding 返回的 orientation 文本转成标准动作
+function _orientationToAction(orientationText) {
+  if (!orientationText) return 'straight'
+  const t = String(orientationText)
+  if (/左转|左拐|向左/i.test(t)) return 'left'
+  if (/右转|右拐|向右/i.test(t)) return 'right'
+  if (/掉头|回转|反向|u-turn|U形|U型|U 形/i.test(t)) return 'uturn'
+  if (/左前方|向左前|左前斜/i.test(t)) return 'left-slight'
+  if (/右前方|向右前|右前斜/i.test(t)) return 'right-slight'
+  if (/左后方|向右后|右后方|向右后/i.test(t)) return 'back'
+  return 'straight'
+}
+
+// 根据动作生成箭头符号与旋转角度（相对于手机朝向）
+// 动作 → 文本
+function _actionToText(action) {
+  return ({
+    'straight': '直行',
+    'left': '左转',
+    'left-slight': '左前方',
+    'right': '右转',
+    'right-slight': '右前方',
+    'uturn': '掉头',
+    'arrive': '到达目的地'
+  })[action] || '直行'
+}
+
+// 根据动作选择 SVG 箭头样式：返回 arrowRotationDeg（箭头默认朝上，正角度=顺时针旋转）
+// 在没有指南针时用默认箭头方向；实际显示角度由主逻辑根据手机 heading 决定
+function _actionToDefaultArrow(action) {
+  // 0 为朝上（前方），90 右，-90 左，180 掉头
+  return ({
+    'straight': 0,
+    'left': -60,
+    'left-slight': -30,
+    'right': 60,
+    'right-slight': 30,
+    'uturn': 180,
+    'arrive': 0
+  })[action] ?? 0
 }
 
 /* ============================================================
@@ -491,15 +647,26 @@ function startGPS() {
                    state.destination.lng, state.destination.lat)
       }
 
-      // 更新到目的地的距离与方向
-      _updateDistanceAndBearing()
+      // 有路线 → 沿路线计算导航进度（下一转弯、箭头）
+      if (state._navInitialized) {
+        _updateNavProgress(state.currentLat, state.currentLng)
+      } else {
+        // 没路线 → 回退到"距离目的地 + 朝向"
+        _updateDistanceAndBearing()
+      }
 
       // 已行驶距离
-      state.traveledDistance = haversine(
-        state.startLat, state.startLng,
-        state.currentLat, state.currentLng
-      )
-      dom.traveled.textContent = fmtDistance(state.traveledDistance)
+      if (state._navInitialized) {
+        // 沿路线行驶距离（更准确）
+        const p = _projectPointToPath(state.currentLat, state.currentLng, state.navFullPath)
+        if (p) dom.traveled.textContent = fmtDistance(p.cumDistanceMeters)
+      } else {
+        state.traveledDistance = haversine(
+          state.startLat, state.startLng,
+          state.currentLat, state.currentLng
+        )
+        dom.traveled.textContent = fmtDistance(state.traveledDistance)
+      }
 
       // 当前速度
       if (pos.coords.speed != null && pos.coords.speed > 0) {
@@ -579,14 +746,74 @@ async function startCompass() {
    UI 更新
    ============================================================ */
 
+// 🔄 大箭头 + 指南针箭头 平滑旋转循环（rAF + lerp）
+// 使用 JS rAF + 线性插值，替代 CSS transition，避免高频 heading 更新导致的抖动
+// 同时正确处理 179° ↔ -179° 环绕问题
+function _startArrowSmoothLoop() {
+  state._arrowCurrentAngle   = state._arrowCurrentAngle   || 0
+  state._arrowTargetAngle    = state._arrowTargetAngle    || 0
+  state._compassCurrentAngle = state._compassCurrentAngle || 0
+  state._compassTargetAngle  = state._compassTargetAngle  || 0
+
+  const LERP_FAST = 0.25   // 大箭头稍快：响应更灵敏
+  const LERP_SLOW = 0.18   // 指南针稍慢：更稳
+  const SNAP_THRESHOLD = 0.2
+
+  let lastTs = 0
+
+  function tick(ts) {
+    if (!lastTs) lastTs = ts
+    const dt = Math.min((ts - lastTs) / 1000, 0.1)
+    lastTs = ts
+    const dtScale = Math.max(dt * 60, 1)  // 以 60fps 为基准，做帧率无关缩放
+
+    // -------- 大箭头 --------
+    {
+      let diff = state._arrowTargetAngle - state._arrowCurrentAngle
+      while (diff >  180) diff -= 360
+      while (diff < -180) diff += 360
+      if (Math.abs(diff) > SNAP_THRESHOLD) {
+        const factor = 1 - Math.pow(1 - LERP_FAST, dtScale)
+        state._arrowCurrentAngle += diff * factor
+        if (dom.bigArrow) dom.bigArrow.style.transform = `rotate(${state._arrowCurrentAngle}deg)`
+      } else if (Math.abs(diff) > 0.001) {
+        state._arrowCurrentAngle = state._arrowTargetAngle
+        if (dom.bigArrow) dom.bigArrow.style.transform = `rotate(${state._arrowTargetAngle}deg)`
+      }
+    }
+
+    // -------- 指南针箭头 --------
+    {
+      let diff = state._compassTargetAngle - state._compassCurrentAngle
+      while (diff >  180) diff -= 360
+      while (diff < -180) diff += 360
+      if (Math.abs(diff) > SNAP_THRESHOLD) {
+        const factor = 1 - Math.pow(1 - LERP_SLOW, dtScale)
+        state._compassCurrentAngle += diff * factor
+        if (dom.compassArrow) dom.compassArrow.style.transform = `rotate(${state._compassCurrentAngle}deg)`
+      } else if (Math.abs(diff) > 0.001) {
+        state._compassCurrentAngle = state._compassTargetAngle
+        if (dom.compassArrow) dom.compassArrow.style.transform = `rotate(${state._compassTargetAngle}deg)`
+      }
+    }
+
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+
 function _updateCompassUI(heading) {
-  // 旋转指南针箭头（让箭头总是指向北方，相对屏幕旋转手机朝向角度）
-  const rotation = -heading
-  dom.compassArrow.style.transform = `rotate(${rotation}deg)`
-  // 显示精确角度 + 方向文字（不再离散成 8 个方向）
+  // 指南针：目标角度 = -heading（箭头朝北，屏幕相对手机朝向旋转）
+  if (state._compassCurrentAngle == null) state._compassCurrentAngle = -heading
+  let target = -heading
+  // 环绕归一化，确保走最短路径
+  while (target - state._compassCurrentAngle >  180) target -= 360
+  while (target - state._compassCurrentAngle < -180) target += 360
+  state._compassTargetAngle = target
+  // 实际 transform 由 rAF 平滑循环设置，这里只更新文本提示
   const dirs = ['北', '东北', '东', '东南', '南', '西南', '西', '西北']
-  const idx = Math.round(heading / 45) % 8
-  dom.compassText.textContent = `${dirs[idx]} ${Math.round(heading)}°`
+  const idx = Math.round(((heading % 360) + 360) % 360 / 45) % 8
+  if (dom.compassText) dom.compassText.textContent = `${dirs[idx]} ${Math.round(((heading % 360) + 360) % 360)}°`
 }
 
 function _updateDistanceAndBearing() {
@@ -622,6 +849,9 @@ function _updateDistanceAndBearing() {
 
 function _updateArrowWithHeading() {
   if (!state.destination) {
+    // 无目的地：直接停在 0°，不再抖动
+    state._arrowTargetAngle = 0
+    state._arrowCurrentAngle = 0
     dom.bigArrow.style.transform = 'rotate(0deg)'
     dom.arrowDistance.style.display = 'block'
     dom.arrowHint.textContent = '未设置目的地'
@@ -632,14 +862,21 @@ function _updateArrowWithHeading() {
   // bearing: 从当前位置指北顺时针到目的地的角度
   // heading: 手机朝向（度，0=北）
   // 相对角度 = (bearing - heading + 360) % 360
-  // 0 = 前方，-90=左，90=右，180=后方
   let relative = (state.bearing - state.heading + 360) % 360
   if (relative > 180) relative -= 360  // 归一化到 -180 ~ 180
 
-  // --- 大箭头（360° 连续旋转，SVG 形状无渲染死角）---
-  // arrow 默认指向上方（前方），把它旋转到 relative 角度
-  const arrowRotation = relative
-  dom.bigArrow.style.transform = `rotate(${arrowRotation}deg)`
+  // --- 关键点：避免 180° 翻转导致 CSS 绕远路 ---
+  // 把 relative 换算成"与当前显示角度最接近的等价角度"——
+  // 即如果当前显示 179°，新 relative 是 -177°，我们把目标设为 183°（而不是 -177°）
+  // 这样 rAF lerp 只会转 4°，不会绕一整圈
+  if (state._arrowCurrentAngle == null) state._arrowCurrentAngle = 0
+  let target = relative
+  const TWO_PI = 360
+  while (target - state._arrowCurrentAngle >  180) target -= TWO_PI
+  while (target - state._arrowCurrentAngle < -180) target += TWO_PI
+  state._arrowTargetAngle = target
+
+  // 实际的 transform 由 rAF 平滑循环设置，这里只更新目标值
 
   // --- 提示文字（用精确相对角度）---
   let hintText = ''
@@ -1044,7 +1281,11 @@ function _applyDestination(name, lng, lat) {
   speak(`目的地已设置：${name}。请面向骑行方向出发`)
 }
 
-// 根据起点→终点规划骑行路线（AMap.Riding）
+// ============================================================
+// 🗺️ 完整骑行路线规划与导航引擎（AMap.Riding + 逐路口引导）
+// ============================================================
+
+// 根据起点→终点规划骑行路线（AMap.Riding），并生成结构化步骤
 function _planRoute(fromLng, fromLat, toLng, toLat) {
   if (!state.riding) return
   try {
@@ -1052,43 +1293,307 @@ function _planRoute(fromLng, fromLat, toLng, toLat) {
       [fromLng, fromLat],
       [toLng, toLat],
       (status, result) => {
-        if (status === 'complete' && result && result.routes && result.routes.length > 0) {
-          const route = result.routes[0]
-          // 路线点集合：route.steps[].path 是每段拐点的经纬度
-          const path = []
-          if (route.steps && route.steps.length > 0) {
-            route.steps.forEach((step) => {
-              if (step.path && step.path.length > 0) {
-                step.path.forEach((lnglat) => {
-                  // AMap 返回的 path 元素可能是 LngLat 对象或数组
-                  if (Array.isArray(lnglat)) {
-                    path.push([lnglat[0], lnglat[1]])
-                  } else if (lnglat && typeof lnglat.getLng === 'function') {
-                    path.push([lnglat.getLng(), lnglat.getLat()])
-                  }
-                })
-              }
-            })
-          }
-          // 确保起点和终点在路径上
-          if (path.length > 0) {
-            path.unshift([fromLng, fromLat])
-            path.push([toLng, toLat])
-            if (state.miniMap) state.miniMap.setRoutePath(path)
-          }
-          // 报告总距离（米）
-          if (route.distance) {
-            state.totalDistance = route.distance
-            console.log('[AR NAV] 骑行路线规划成功，总距离：' + fmtDistance(route.distance))
-          }
-        } else {
+        if (status !== 'complete' || !result || !result.routes || result.routes.length === 0) {
           console.warn('[AR NAV] 骑行路线规划失败：', status, result)
+          // 失败时：回退到简单直线（不影响显示）
+          _initFallbackRoute(fromLng, fromLat, toLng, toLat)
+          return
         }
+        const route = result.routes[0]
+
+        // ── 解析步骤 ──
+        const steps = []        // {index, path, distance, instruction, road, action, orientation, turnPoint, cumDistance}
+        const fullPath = [[fromLng, fromLat]]  // 完整折线（起始点已插入）
+        let cumDistance = 0
+
+        if (route.steps && route.steps.length > 0) {
+          route.steps.forEach((rawStep, idx) => {
+            // step.path 是 AMap.LngLat 对象或 [lng,lat] 数组的拐点序列
+            const stepPath = []
+            if (rawStep.path && rawStep.path.length > 0) {
+              rawStep.path.forEach((pt) => {
+                if (Array.isArray(pt)) stepPath.push([pt[0], pt[1]])
+                else if (pt && typeof pt.getLng === 'function') stepPath.push([pt.getLng(), pt.getLat()])
+              })
+            }
+
+            const distance = Number(rawStep.distance) || 0
+            const road = rawStep.road || rawStep.assistantName || ''
+            const instruction = rawStep.instruction || ''
+            const orientation = rawStep.orientation || rawStep.orient || ''
+            const action = _orientationToAction(instruction || orientation)
+
+            // 该步骤的起点 = 上一步骤的终点 = fullPath 的最后一个点
+            const turnPoint = stepPath.length > 0 ? stepPath[0] : (fullPath.length > 0 ? fullPath[fullPath.length - 1] : [fromLng, fromLat])
+
+            steps.push({
+              index: idx,
+              path: stepPath,
+              distance: distance,
+              instruction: instruction,
+              road: road,
+              orientation: orientation,
+              action: action,
+              turnPoint: turnPoint,
+              cumDistance: cumDistance
+            })
+
+            // 累积距离 + 连续折线（去重：与上一段的结尾点相同，避免重复）
+            for (let i = 0; i < stepPath.length; i++) {
+              const last = fullPath[fullPath.length - 1]
+              const p = stepPath[i]
+              if (!last || Math.abs(last[0] - p[0]) > 1e-8 || Math.abs(last[1] - p[1]) > 1e-8) {
+                fullPath.push(p)
+              }
+            }
+            cumDistance += distance
+          })
+        }
+
+        // 最后一段 → 终点
+        fullPath.push([toLng, toLat])
+
+        // 步骤不够（路线短，riding 没生成步骤）→ 也补齐一个"到达"步骤
+        if (steps.length === 0) {
+          steps.push({
+            index: 0,
+            path: [[fromLng, fromLat], [toLng, toLat]],
+            distance: haversine(fromLat, fromLng, toLat, toLng),
+            instruction: '沿当前道路骑行至目的地',
+            road: '',
+            orientation: '',
+            action: 'straight',
+            turnPoint: [fromLng, fromLat],
+            cumDistance: 0
+          })
+        }
+
+        // 添加"到达"步骤
+        const totalDist = cumDistance > 0 ? cumDistance : haversine(fromLat, fromLng, toLat, toLng)
+        steps.push({
+          index: steps.length,
+          path: [[toLng, toLat]],
+          distance: 0,
+          instruction: '到达目的地',
+          road: '',
+          orientation: '',
+          action: 'arrive',
+          turnPoint: [toLng, toLat],
+          cumDistance: totalDist
+        })
+
+        // ── 写入导航状态 ──
+        state.navSteps = steps
+        state.navFullPath = fullPath
+        state.navTotalDistance = totalDist
+        state.navCurrentStepIdx = 0
+        state.navProgressMeters = 0
+        state._routePlanned = true
+        state._navInitialized = true
+
+        // 同步到 MiniMap（显示完整路线）
+        if (state.miniMap) {
+          state.miniMap.setRoutePath(fullPath)
+          state.miniMap.setRouteSteps(steps)
+        }
+
+        // 更新总距离显示
+        state.totalDistance = totalDist
+        dom.totalDistance.textContent = fmtDistance(totalDist)
+        dom.remainTime.textContent = fmtEta(totalDist)
+
+        // 立即计算一次导航状态（用于"设置目的地后立即显示第一个转弯提示"）
+        const startPt = fullPath[0]
+        _updateNavProgress(startPt[1], startPt[0])
+
+        console.log(`[AR NAV] 路线规划成功：${steps.length - 1} 个转弯，总距离 ${fmtDistance(totalDist)}`)
       }
     )
   } catch (e) {
     console.warn('[AR NAV] riding.search 异常：', e && e.message || e)
+    _initFallbackRoute(fromLng, fromLat, toLng, toLat)
   }
+}
+
+// 规划失败时的兜底：一条从起点到终点的直线（伪 step）
+function _initFallbackRoute(fromLng, fromLat, toLng, toLat) {
+  const dist = haversine(fromLat, fromLng, toLat, toLng)
+  const steps = [
+    {
+      index: 0,
+      path: [[fromLng, fromLat], [toLng, toLat]],
+      distance: dist,
+      instruction: '直行至目的地',
+      road: '',
+      orientation: '',
+      action: 'straight',
+      turnPoint: [fromLng, fromLat],
+      cumDistance: 0
+    },
+    {
+      index: 1, path: [[toLng, toLat]], distance: 0,
+      instruction: '到达目的地', road: '', orientation: '', action: 'arrive',
+      turnPoint: [toLng, toLat], cumDistance: dist
+    }
+  ]
+  state.navSteps = steps
+  state.navFullPath = [[fromLng, fromLat], [toLng, toLat]]
+  state.navTotalDistance = dist
+  state.navProgressMeters = 0
+  state.navCurrentStepIdx = 0
+  state._routePlanned = true
+  state._navInitialized = true
+  if (state.miniMap) {
+    state.miniMap.setRoutePath([[fromLng, fromLat], [toLng, toLat]])
+    state.miniMap.setRouteSteps(steps)
+  }
+  state.totalDistance = dist
+  dom.totalDistance.textContent = fmtDistance(dist)
+  dom.remainTime.textContent = fmtEta(dist)
+
+  // 立即显示第一个"转弯"提示（其实就是直行到达）
+  _updateNavProgress(fromLat, fromLng)
+}
+
+// 主导航更新：基于当前坐标或路线累计距离，计算下一步转弯提示
+// 可传入 (lat, lng) 直接计算；若不传入则使用 state.currentLat/state.currentLng
+function _updateNavProgress(lat, lng) {
+  if (!state._navInitialized || !state.navSteps) return
+
+  const usePos = (lat != null && lng != null)
+  const curLat = usePos ? lat : state.currentLat
+  const curLng = usePos ? lng : state.currentLng
+
+  if (curLat == null) return
+
+  // 1) 找到当前位置在路线上的投影
+  const proj = _projectPointToPath(curLat, curLng, state.navFullPath)
+  if (!proj) return
+
+  state.navProgressMeters = proj.cumDistanceMeters
+
+  // 2) 找到当前位于哪一步（基于 cumDistance）
+  const steps = state.navSteps
+  let curStepIdx = 0
+  for (let i = 0; i < steps.length; i++) {
+    if (proj.cumDistanceMeters >= steps[i].cumDistance) curStepIdx = i
+    else break
+  }
+  state.navCurrentStepIdx = curStepIdx
+
+  // 3) 下一"转弯"步骤：跳过当前步骤起点，寻找下一个动作非 straight 的步骤
+  //    ——也可以简单地取 steps[curStepIdx + 1]（即下一段路的起点）作为转弯点
+  let nextIdx = curStepIdx + 1
+  if (nextIdx >= steps.length) nextIdx = steps.length - 1
+  state.navNextStepIdx = nextIdx
+
+  const nextStep = steps[nextIdx]
+  const distanceToTurn = Math.max(0, nextStep.cumDistance - proj.cumDistanceMeters)
+  state.navNextTurnDistance = distanceToTurn
+
+  // 4) 生成指示文本
+  const action = nextStep.action || 'straight'
+  state.navNextTurnAction = action
+
+  let text = ''
+  if (action === 'arrive') {
+    if (distanceToTurn < 50) text = `即将到达 · ${state.destination ? state.destination.name : '目的地'}`
+    else text = `前方 ${fmtDistance(distanceToTurn)} · 到达 ${state.destination ? state.destination.name : '目的地'}`
+  } else {
+    const road = nextStep.road ? `进入${nextStep.road}` : ''
+    text = `前方 ${fmtDistance(distanceToTurn)} ${_actionToText(action)} ${road}`.trim()
+  }
+  state.navNextTurnText = text
+
+  // 5) 计算指向"下一个转弯点"的方位（用于箭头角度）
+  //    —— 接近转弯时（<80m）用动作本身的方向（已相对朝向，不用再减 heading）；
+  //       否则用"朝向转弯点的地理方位"（需减去 heading 得到屏幕相对角度）
+  let relative = 0  // 最终给大箭头的屏幕相对旋转角（-180 ~ 180）
+  if (distanceToTurn < 80 || action === 'arrive') {
+    // 接近路口：用动作本身的方向（如 -60 = 左转，已经是相对角度，不要再减 heading）
+    relative = _actionToDefaultArrow(action)
+  } else {
+    // 指向转弯点：用地理方位角（0=北），减去当前朝向得到屏幕相对角度
+    const brg = bearing(curLat, curLng, nextStep.turnPoint[1], nextStep.turnPoint[0])
+    relative = ((brg - (state.heading || 0) + 540) % 360) - 180
+  }
+  state.navArrowAngle = relative
+  state._arrowTargetAngle = relative
+
+  // 记录朝向转弯点的绝对方位（供调试）
+  if (distanceToTurn >= 80 && action !== 'arrive') {
+    state.navBearingToTurn = bearing(curLat, curLng, nextStep.turnPoint[1], nextStep.turnPoint[0])
+  } else {
+    state.navBearingToTurn = (state.heading || 0) + relative
+  }
+
+  // 文本提示（中央）
+  dom.arrowHint.textContent = text
+  dom.arrowDistance.textContent = action === 'arrive'
+    ? fmtDistance(Math.max(0, state.navTotalDistance - proj.cumDistanceMeters))
+    : fmtDistance(distanceToTurn)
+
+  // 底部信息栏
+  const remaining = Math.max(0, state.navTotalDistance - proj.cumDistanceMeters)
+  dom.totalDistance.textContent = fmtDistance(state.navTotalDistance)
+  dom.remainTime.textContent = fmtEta(remaining)
+  dom.nextTurn.textContent = action === 'arrive' ? '到达目的地' : _actionToText(action)
+  dom.traveled.textContent = fmtDistance(proj.cumDistanceMeters)
+
+  // 同步 MiniMap：高亮当前步骤与下一步
+  if (state.miniMap) {
+    state.miniMap.setNavProgress({
+      progressMeters: proj.cumDistanceMeters,
+      totalDistance: state.navTotalDistance,
+      currentStepIdx: curStepIdx,
+      nextStepIdx: nextIdx,
+      position: [proj.lng, proj.lat]
+    })
+  }
+
+  // 7) 语音播报（仅在关键节点）
+  _maybeAnnounceTurn(distanceToTurn, action, nextStep, remaining)
+}
+
+// 转弯语音播报：接近路口时触发
+let _lastAnnouncedStepIdx = -1
+let _lastAnnouncedDistance = -1
+function _maybeAnnounceTurn(distanceToTurn, action, nextStep, remaining) {
+  if (!state.destination) return
+
+  const announceKey = `${nextStep.index}-${Math.floor(distanceToTurn / 50)}`
+  if (announceKey === _lastAnnouncedStepIdx + '-' + _lastAnnouncedDistance) return
+
+  let shouldSpeak = false
+  let text = ''
+
+  if (action === 'arrive') {
+    if (distanceToTurn < 80 && _lastAnnouncedStepIdx !== nextStep.index) {
+      shouldSpeak = true
+      text = `前方即将到达 ${state.destination.name}`
+    }
+  } else {
+    // 在三个距离点播报
+    const dist = Math.round(distanceToTurn)
+    const marks = [500, 300, 100, 50]
+    for (const m of marks) {
+      if (dist <= m && _lastAnnouncedDistance > m && _lastAnnouncedStepIdx === nextStep.index) {
+        shouldSpeak = true
+        text = `前方 ${fmtDistance(distanceToTurn)} ${_actionToText(action)}`
+        break
+      }
+    }
+    if (!shouldSpeak && _lastAnnouncedStepIdx !== nextStep.index) {
+      // 第一次遇到该步骤（例如跨段了）
+      shouldSpeak = true
+      text = `${_actionToText(action)}，继续骑行 ${fmtDistance(distanceToTurn)}`
+    }
+  }
+
+  _lastAnnouncedStepIdx = nextStep.index
+  _lastAnnouncedDistance = Math.floor(distanceToTurn / 50)
+
+  if (shouldSpeak && text) speak(text, false)
 }
 
 /* ============================================================
@@ -1097,6 +1602,9 @@ function _planRoute(fromLng, fromLat, toLng, toLat) {
 function init() {
   // 初始化迷你地图
   state.miniMap = new MiniMap('mini-map')
+
+  // 🔄 启动大箭头平滑旋转循环（rAF + lerp，替代 CSS transition）
+  _startArrowSmoothLoop()
 
   // ⚡ 预加载高德地图 SDK（不等用户点按钮，避免点击确定后才加载）
   _loadAMap()
@@ -1200,37 +1708,75 @@ function _initDebugMode() {
       return
     }
 
-    // --- 智能设置初始起点：避免"第一次按键突然闪到北京" --
+    // ================= 关键：设置初始起点 =================
+    // 优先级（从"最自然"到"最后兜底"）：
+    //   1) 已有 state.currentLat / Lng（之前 GPS 定位成功）
+    //   2) 规划路线 navFullPath 的起点（如果已有路线）
+    //   3) miniMap.currentLngLat（用户可能点过地图）
+    //   4) 地图中心点（如果地图已初始化）
+    //   5) 最后兜底：天安门（用户从没进入过路线设置时）
     if (state.currentLat == null) {
-      if (state.destination && state.destination.lat != null) {
-        // 有目的地但还没定起点：把目的地作为"起点位置"
-        // 这样箭头会先指向目的地方向，用户在目的地附近开始移动
-        state.currentLat = state.destination.lat
-        state.currentLng = state.destination.lng
+      if (state._navInitialized && state.navFullPath && state.navFullPath.length > 0) {
+        // ★ 优先：使用路线起点（这是调试导航最自然的起点）
+        state.currentLng = state.navFullPath[0][0]
+        state.currentLat = state.navFullPath[0][1]
+        if (state.navFullPath.length >= 2) {
+          state.heading = bearing(state.navFullPath[0][1], state.navFullPath[0][0],
+                                  state.navFullPath[1][1], state.navFullPath[1][0])
+        } else {
+          state.heading = 0
+        }
       } else if (state.miniMap && state.miniMap.currentLngLat) {
-        // 迷你地图上已有位置（用户可能用鼠标点过）
         state.currentLat = state.miniMap.currentLngLat[1]
         state.currentLng = state.miniMap.currentLngLat[0]
+      } else if (state.miniMap && state.miniMap.map && typeof state.miniMap.map.getCenter === 'function') {
+        const center = state.miniMap.map.getCenter()
+        if (center) {
+          const lng = typeof center.getLng === 'function' ? center.getLng() : center.lng
+          const lat = typeof center.getLat === 'function' ? center.getLat() : center.lat
+          if (typeof lng === 'number' && typeof lat === 'number') {
+            state.currentLng = lng; state.currentLat = lat
+          }
+        }
       } else {
-        // 真没任何信息：用天安门作为默认
-        state.currentLat = 39.907
-        state.currentLng = 116.397
+        state.currentLat = 39.907; state.currentLng = 116.397
       }
     }
     if (state.heading == null) state.heading = 0
 
-    // 先转向（让"前进时同时转弯"自然发生——位置和朝向同一帧都变）
-    if (turnDelta !== 0) {
-      state.heading = (state.heading + turnDelta + 360) % 360
+    // ================= 沿路线移动 vs 自由移动 =================
+    const dist = moveSpeed * dt * moveDir
+    let movedAlongRoute = false
+
+    if (state._navInitialized && state.navFullPath && moveDir !== 0) {
+      // ── 有路线 → 沿路线前进 ──
+      state.navProgressMeters = Math.max(0, (state.navProgressMeters || 0) + dist)
+      const total = state.navTotalDistance || 0
+      if (total > 0 && state.navProgressMeters >= total) state.navProgressMeters = total
+
+      const pt = _pointAtDistance(state.navFullPath, state.navProgressMeters)
+      if (pt && typeof pt.lat === 'number') {
+        const prevLat = state.currentLat, prevLng = state.currentLng
+        state.currentLat = pt.lat
+        state.currentLng = pt.lng
+        if (moveDir !== 0 && (Math.abs(prevLat - pt.lat) > 1e-8 || Math.abs(prevLng - pt.lng) > 1e-8)) {
+          const routeHeading = bearing(prevLat, prevLng, pt.lat, pt.lng)
+          state.heading = moveDir > 0 ? routeHeading : (routeHeading + 180) % 360
+        }
+        movedAlongRoute = true
+      }
     }
 
-    // 再沿当前朝向推进位置
-    if (moveDir !== 0) {
-      const dist = moveSpeed * dt * moveDir
-      const bearing = (state.heading + 360) % 360
-      const p = moveAlongBearing(state.currentLat, state.currentLng, bearing, dist)
+    if (!movedAlongRoute && moveDir !== 0) {
+      // ── 没路线 → 自由按朝向移动 ──
+      const p = moveAlongBearing(state.currentLat, state.currentLng, state.heading, dist)
       state.currentLat = p.lat
       state.currentLng = p.lng
+    }
+
+    // 再叠加"手动转向"（允许用户在路线上也叠加一点角度微调）
+    if (turnDelta !== 0) {
+      state.heading = (state.heading + turnDelta + 360) % 360
     }
 
     // -------- 同步 MiniMap --------
@@ -1239,9 +1785,9 @@ function _initDebugMode() {
       state.miniMap.setHeading(state.heading)
     }
 
-    // -------- UI 更新（每 60ms 刷新一次，避免 DOM 写抖动）--------
+    // -------- UI 更新（每 80ms 刷新一次，避免 DOM 写抖动）--------
     uiUpdateAcc += dt
-    if (uiUpdateAcc >= 0.06) {
+    if (uiUpdateAcc >= 0.08) {
       uiUpdateAcc = 0
 
       dom.gpsStatus.classList.add('active')
@@ -1253,29 +1799,36 @@ function _initDebugMode() {
         state.startTime = Date.now()
       }
 
-      if (state.destination) {
+      // 优先：有导航引擎 → 更新导航进度（这也会更新大箭头和 arrowHint/距离）
+      if (state._navInitialized && state.destination) {
+        _updateNavProgress(state.currentLat, state.currentLng)
+      } else if (state.destination) {
         _updateDistanceAndBearing()
         _updateArrowWithHeading()
       }
 
-      state.traveledDistance = haversine(state.startLat, state.startLng,
-                                         state.currentLat, state.currentLng)
-      dom.traveled.textContent = fmtDistance(state.traveledDistance)
+      // 已行驶距离
+      if (state._navInitialized) {
+        dom.traveled.textContent = fmtDistance(state.navProgressMeters || 0)
+      } else {
+        state.traveledDistance = haversine(state.startLat, state.startLng, state.currentLat, state.currentLng)
+        dom.traveled.textContent = fmtDistance(state.traveledDistance)
+      }
 
-      // 显示实时位置信息 + 当前速度（调试感）
       const distDest = state.destination
-        ? haversine(state.currentLat, state.currentLng,
-                    state.destination.lat, state.destination.lng)
+        ? haversine(state.currentLat, state.currentLng, state.destination.lat, state.destination.lng)
         : null
-      const destStr = distDest != null ? ' → ' + fmtDistance(distDest) : ''
       const speedKmh = Math.round(moveSpeed * 3.6 * Math.abs(moveDir))
-      const moveTag = moveDir > 0 ? '🚴 前进'
-                    : moveDir < 0 ? '🚴↩ 后退' : ''
-      const turnTag = turnDelta < 0 ? ' ⬅ 左转'
-                    : turnDelta > 0 ? ' ➡ 右转' : ''
-      const hint = `[DEBUG] ${moveTag}${turnTag}  ${speedKmh} km/h · (${state.currentLng.toFixed(5)}, ${state.currentLat.toFixed(5)}) · 朝向 ${Math.round(state.heading)}°${destStr}`
-      dom.arrowHint.textContent = hint
-      if (distDest != null) dom.arrowDistance.textContent = fmtDistance(distDest)
+      const moveTag = moveDir > 0 ? '🚴 前进' : moveDir < 0 ? '🚴↩ 后退' : ''
+      const turnTag = turnDelta < 0 ? ' ⬅ 左偏' : turnDelta > 0 ? ' ➡ 右偏' : ''
+      const destStr = distDest != null ? ' → 目的地 ' + fmtDistance(distDest) : ''
+
+      // 调试信息不要覆盖导航提示（导航提示更重要）
+      if (!state._navInitialized) {
+        const hint = `[DEBUG] ${moveTag}${turnTag} ${speedKmh} km/h · (${state.currentLng.toFixed(5)}, ${state.currentLat.toFixed(5)}) · 朝向 ${Math.round(state.heading)}°${destStr}`
+        dom.arrowHint.textContent = hint
+        if (distDest != null) dom.arrowDistance.textContent = fmtDistance(distDest)
+      }
     }
 
     debugRafId = requestAnimationFrame(_debugTick)
