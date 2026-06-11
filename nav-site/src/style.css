@@ -24,18 +24,6 @@ html, body {
   position: relative;
 }
 
-/* ---------- 3D Canvas（主场景） ---------- */
-.webgl {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 1;
-  pointer-events: none;
-  display: block;
-}
-
 /* ---------- 左上角迷你3D地图 ---------- */
 .mini-map {
   position: absolute;

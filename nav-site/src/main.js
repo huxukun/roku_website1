@@ -14,7 +14,6 @@
  */
 
 import { CONFIG } from './config.js'
-import { Scene3D } from './Scene3D.js'
 import { MiniMap } from './MiniMap.js'
 
 /* ============================================================
@@ -65,7 +64,6 @@ const dom = {
    全局状态
    ============================================================ */
 const state = {
-  scene3D: null,
   miniMap: null,
   watchId: null,
   headingWatchId: null,
@@ -611,7 +609,6 @@ function _updateArrowWithHeading() {
     dom.bigArrow.style.transform = 'rotate(0deg)'
     dom.arrowDistance.style.display = 'block'
     dom.arrowHint.textContent = '未设置目的地'
-    if (state.scene3D) state.scene3D.setTurnMode('straight')
     return
   }
 
@@ -640,15 +637,6 @@ function _updateArrowWithHeading() {
   else                        hintText = `掉头 · ${Math.round(absRel)}°`
 
   dom.arrowHint.textContent = hintText
-
-  // --- 3D 场景 ---
-  let turnType = 'straight'
-  if (absRel < 20) turnType = 'straight'
-  else if (absRel < 120) turnType = relative > 0 ? 'right' : 'left'
-  else turnType = 'uturn'
-  if (state.scene3D) {
-    state.scene3D.setTurnMode(turnType)
-  }
 }
 
 /* ============================================================
@@ -1039,10 +1027,6 @@ function _applyDestination(name, lng, lat) {
    入口
    ============================================================ */
 function init() {
-  // 初始化 3D 场景
-  const canvas = document.querySelector('canvas.webgl')
-  state.scene3D = new Scene3D(canvas)
-
   // 初始化迷你地图
   state.miniMap = new MiniMap('mini-map')
 
@@ -1076,127 +1060,169 @@ function _initDebugMode() {
     _setDebugMode(true)
   }
 
-  // 2) 键盘 D 键切换调试模式 + 方向键控制位置/朝向
+  // 2) 键盘 D 键切换调试模式 + 方向键连续控制（支持同时前进+转弯）
+  //    使用按键状态集合 + requestAnimationFrame 循环，取代"按一次瞬移一段"
+  const debugKeys = new Set()                // 当前按下的方向键
+  let debugRafId = null                      // rAF 循环句柄
+  let debugLastTs = 0                        // 上一帧时间戳，用于按 dt 平滑推进
+  let uiUpdateAcc = 0                        // UI 节流计时器（避免 DOM 写过于频繁）
+
+  // -------- 键盘监听 --------
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
 
+    // D 键切换调试模式
     if (e.key === 'd' || e.key === 'D') {
       _setDebugMode(!state.debugMode)
+      if (state.debugMode) _startDebugLoopIfNeeded()
       return
     }
 
-    // --- 仅调试模式下响应方向键 ---
+    // 调试模式下，方向键进入状态集合（去重后由 rAF 循环推进）
     if (!state.debugMode) return
+    const tracked = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+                     'w', 'W', 'a', 'A', 's', 'S', 'q', 'Q',
+                     'Shift']
+    if (tracked.includes(e.key)) {
+      debugKeys.add(e.key)
+      e.preventDefault()
+    }
+  })
 
-    const moveStep = e.shiftKey ? 100 : 20  // 移动距离（米）
-    const rotStep  = e.shiftKey ? 30  : 15  // 角度偏转（度）
+  document.addEventListener('keyup', (e) => {
+    debugKeys.delete(e.key)
+  })
 
-    // 初始位置（北京天安门附近），方便没设置位置时也能调试
+  // -------- 调试循环：每帧按 dt 小步推进 --------
+  function _debugTick(ts) {
+    if (!state.debugMode) {
+      // 调试模式已关闭，停止循环
+      debugRafId = null
+      return
+    }
+
+    if (!debugLastTs) debugLastTs = ts
+    const dt = Math.min((ts - debugLastTs) / 1000, 0.1)  // 钳制最大 0.1s，防跳帧
+    debugLastTs = ts
+
+    // -------- 参数：速度 & 角速度（支持 Shift 加速）--------
+    const isShift = debugKeys.has('Shift')  // 注意：Shift 是修饰键，单独追踪
+    // 正常速度 15 m/s（54 km/h，骑行感）；Shift 加速 60 m/s（调试用）
+    const moveSpeed = (isShift ? 60 : 15)      // 米/秒
+    // 正常 90°/s；Shift 270°/s
+    const turnSpeed = (isShift ? 270 : 90)     // 度/秒
+
+    // -------- 转向（左右）--------
+    let turnDelta = 0
+    if (debugKeys.has('ArrowLeft') || debugKeys.has('a') || debugKeys.has('A')) {
+      turnDelta -= turnSpeed * dt
+    }
+    if (debugKeys.has('ArrowRight') || debugKeys.has('q') || debugKeys.has('Q')) {
+      turnDelta += turnSpeed * dt
+    }
+
+    // -------- 前进 / 后退（沿当前朝向）--------
+    let moveDir = 0  // +1 前进 / -1 后退 / 0 不动
+    if (debugKeys.has('ArrowUp') || debugKeys.has('w') || debugKeys.has('W')) moveDir += 1
+    if (debugKeys.has('ArrowDown') || debugKeys.has('s') || debugKeys.has('S')) moveDir -= 1
+
+    // 无操作则跳过，什么也不变
+    if (turnDelta === 0 && moveDir === 0) {
+      debugRafId = requestAnimationFrame(_debugTick)
+      return
+    }
+
+    // 确保有初始位置（北京天安门附近），方便没设置位置时也能调试
     if (state.currentLat == null) {
       state.currentLat = 39.907
       state.currentLng = 116.397
     }
-    if (state.heading == null) state.heading = 0   // 默认朝北
+    if (state.heading == null) state.heading = 0
 
-    let action = null    // 'rotate' | 'move' | null
-    let newHeading = state.heading
-    let newLat = state.currentLat
-    let newLng = state.currentLng
-
-    switch (e.key) {
-      // --- 角度偏转（左右键 / A Q）---
-      case 'ArrowLeft':
-      case 'a': case 'A':
-        newHeading = (state.heading - rotStep + 360) % 360
-        action = 'rotate'
-        break
-      case 'ArrowRight':
-      case 'q': case 'Q':
-        newHeading = (state.heading + rotStep) % 360
-        action = 'rotate'
-        break
-      // --- 前进后退（上下键 / W S）---
-      case 'ArrowUp':
-      case 'w': case 'W': {
-        const p = moveAlongBearing(state.currentLat, state.currentLng, state.heading, moveStep)
-        newLat = p.lat
-        newLng = p.lng
-        action = 'forward'
-        break
-      }
-      case 'ArrowDown':
-      case 's': case 'S': {
-        const p = moveAlongBearing(state.currentLat, state.currentLng, (state.heading + 180) % 360, moveStep)
-        newLat = p.lat
-        newLng = p.lng
-        action = 'backward'
-        break
-      }
-      default:
-        return
+    // 先转向（让"前进时同时转弯"自然发生——位置和朝向同一帧都变）
+    if (turnDelta !== 0) {
+      state.heading = (state.heading + turnDelta + 360) % 360
     }
 
-    if (!action) return
-    e.preventDefault()
+    // 再沿当前朝向推进位置
+    if (moveDir !== 0) {
+      const dist = moveSpeed * dt * moveDir
+      const bearing = (state.heading + 360) % 360
+      const p = moveAlongBearing(state.currentLat, state.currentLng, bearing, dist)
+      state.currentLat = p.lat
+      state.currentLng = p.lng
+    }
 
-    // --- 更新 state ---
-    state.currentLat = newLat
-    state.currentLng = newLng
-    state.heading = newHeading
-
-    // --- 同步 MiniMap 标记（地图上也能看到移动+转向）---
+    // -------- 同步 MiniMap --------
     if (state.miniMap) {
-      state.miniMap.setPosition(newLng, newLat)
-      state.miniMap.setHeading(newHeading)
+      state.miniMap.setPosition(state.currentLng, state.currentLat)
+      state.miniMap.setHeading(state.heading)
     }
 
-    // --- 更新 UI ---
-    dom.gpsStatus.classList.add('active')
-    _updateCompassUI(newHeading)
+    // -------- UI 更新（每 60ms 刷新一次，避免 DOM 写抖动）--------
+    uiUpdateAcc += dt
+    if (uiUpdateAcc >= 0.06) {
+      uiUpdateAcc = 0
 
-    // 初始化起点（用于已行驶距离计算）
-    if (state.startLat == null) {
-      state.startLat = newLat
-      state.startLng = newLng
-      state.startTime = Date.now()
+      dom.gpsStatus.classList.add('active')
+      _updateCompassUI(state.heading)
+
+      if (state.startLat == null) {
+        state.startLat = state.currentLat
+        state.startLng = state.currentLng
+        state.startTime = Date.now()
+      }
+
+      if (state.destination) {
+        _updateDistanceAndBearing()
+        _updateArrowWithHeading()
+      }
+
+      state.traveledDistance = haversine(state.startLat, state.startLng,
+                                         state.currentLat, state.currentLng)
+      dom.traveled.textContent = fmtDistance(state.traveledDistance)
+
+      // 显示实时位置信息 + 当前速度（调试感）
+      const distDest = state.destination
+        ? haversine(state.currentLat, state.currentLng,
+                    state.destination.lat, state.destination.lng)
+        : null
+      const destStr = distDest != null ? ' → ' + fmtDistance(distDest) : ''
+      const speedKmh = Math.round(moveSpeed * 3.6 * Math.abs(moveDir))
+      const moveTag = moveDir > 0 ? '🚴 前进'
+                    : moveDir < 0 ? '🚴↩ 后退' : ''
+      const turnTag = turnDelta < 0 ? ' ⬅ 左转'
+                    : turnDelta > 0 ? ' ➡ 右转' : ''
+      const hint = `[DEBUG] ${moveTag}${turnTag}  ${speedKmh} km/h · (${state.currentLng.toFixed(5)}, ${state.currentLat.toFixed(5)}) · 朝向 ${Math.round(state.heading)}°${destStr}`
+      dom.arrowHint.textContent = hint
+      if (distDest != null) dom.arrowDistance.textContent = fmtDistance(distDest)
     }
 
-    // 更新距离和箭头
-    if (state.destination) {
-      _updateDistanceAndBearing()
-      _updateArrowWithHeading()
-    }
+    debugRafId = requestAnimationFrame(_debugTick)
+  }
 
-    // 更新已行驶距离
-    state.traveledDistance = haversine(state.startLat, state.startLng, newLat, newLng)
-    dom.traveled.textContent = fmtDistance(state.traveledDistance)
+  // -------- 启动 / 停止循环（显式调用，避免覆盖函数声明问题）--------
+  function _startDebugLoopIfNeeded() {
+    if (debugRafId) return
+    debugLastTs = 0
+    uiUpdateAcc = 0
+    debugRafId = requestAnimationFrame(_debugTick)
+  }
 
-    // 显示实时位置信息 + 操作提示
-    const distDest = state.destination
-      ? haversine(newLat, newLng, state.destination.lat, state.destination.lng)
-      : null
-    const destStr = distDest != null ? ' → ' + fmtDistance(distDest) : ''
-    const actionStr = {
-      rotate:    e.shiftKey ? '🌀 偏转' : '🔄 偏转',
-      forward:   e.shiftKey ? '🔶 大步前进' : '🔹 前进',
-      backward:  e.shiftKey ? '🔶 大步后退' : '🔹 后退',
-    }[action] || ''
-    const hint = `${actionStr} ${rotOrMoveInfo(action, rotStep, moveStep, e.shiftKey)} → (${newLng.toFixed(5)}, ${newLat.toFixed(5)}) · 朝向 ${Math.round(newHeading)}°${destStr}`
-    dom.arrowHint.textContent = hint
-    dom.arrowDistance.textContent = distDest != null ? fmtDistance(distDest) : '0 m'
-  })
-
-  function rotOrMoveInfo(action, rotStep, moveStep, shift) {
-    if (action === 'rotate') return shift ? `${rotStep}°` : `${rotStep}°`
-    return shift ? `${moveStep}m` : `${moveStep}m`
+  // URL 参数路径：如果 URL 里 debug=1，立即启动循环
+  if (params.get('debug') === '1') {
+    _startDebugLoopIfNeeded()
   }
 
   // 3) checkbox 切换
   if (checkbox) {
     checkbox.addEventListener('change', () => {
       _setDebugMode(checkbox.checked)
+      if (checkbox.checked) _startDebugLoopIfNeeded()
     })
   }
+
+  // D 键路径：在 keydown 处理中启动（在上面的 keydown 里已写好）
 
   // 4) 接收来自 MiniMap 的位置事件（调试模式下鼠标点击/拖动触发）
   window.addEventListener('minimap:position', (e) => {
