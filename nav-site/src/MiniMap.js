@@ -310,7 +310,7 @@ export class MiniMap {
       const heading = bearing(fromLngLat[1], fromLngLat[0], lat, lng);
       this.setHeading(heading);
       // 触发全局事件：让 main.js 更新主视图的 heading
-      window.dispatchEvent(new CustomEvent('minimap:heading', { detail: { heading }));
+      window.dispatchEvent(new CustomEvent('minimap:heading', { detail: { heading } }));
     }
 
     // 触发全局事件：通知 main.js 更新导航位置已更新
