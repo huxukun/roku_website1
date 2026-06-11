@@ -270,7 +270,7 @@ function _loadAMap() {
     script.type = 'text/javascript'
     script.async = true
     // 同时加载 Geocoder（反地理编码）和 AutoComplete（POI搜索）插件
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete`
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch`
 
     script.onerror = () => {
       const err = '高德 SDK 网络加载失败（可能是网络问题或 Key 被封禁）'
@@ -593,6 +593,9 @@ function startNav() {
   dom.destinationBox.classList.remove('hidden')
   dom.startBtn.classList.add('hidden')
 
+  // 获取一次轻量定位（用于 POI 搜索按距离排序）
+  _getUserLocationForSearch()
+
   // 等 AMap 准备好后启用 POI 搜索
   _waitForAMap(() => {
     _setupPoiSearch()
@@ -679,52 +682,175 @@ let _currentPoi = null
 // POI 搜索防抖
 let _poiSearchTimer = null
 
+// 请求序号（避免旧请求覆盖新结果）
+let _poiSearchSeq = 0
+
+// 用户当前位置（用于按距离排序）：{lng, lat} 或 null
+let _userLocation = null
+
+/* ---------- 轻量定位（用于 POI 搜索按距离排序）---------- */
+function _getUserLocationForSearch() {
+  if (!('geolocation' in navigator)) return
+  try {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        _userLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude }
+      },
+      (err) => {
+        // 定位失败静默处理，依然可用全国搜索
+        _userLocation = null
+      },
+      {
+        enableHighAccuracy: false, // 不要求高精度，快速获取即可
+        timeout: 5000,
+        maximumAge: 3 * 60 * 1000  // 3 分钟内的缓存也接受
+      }
+    )
+  } catch (e) {
+    // ignore
+  }
+}
+
+/* ---------- 距离格式化 ---------- */
+function _formatDistance(meters) {
+  if (meters == null || isNaN(meters)) return ''
+  if (meters < 1000) return Math.round(meters) + ' m'
+  return (meters / 1000).toFixed(1) + ' km'
+}
+
+/* ---------- Haversine 球面距离（米）---------- */
+function _haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000
+  const toRad = (x) => x * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
 function _setupPoiSearch() {
   if (!window.AMap) return
   if (state._poiSearchReady) return   // 避免重复绑定事件
   state._poiSearchReady = true
 
-  // 创建 AutoComplete 实例
-  const autoComplete = new window.AMap.AutoComplete({
-    city: '全国',
-    pageSize: 10,
-    extensions: 'base'
-  })
+  // 同时准备两种搜索能力
+  // 1) PlaceSearch.searchNearBy：拿到用户位置时用它，结果自带 distance，天然按距离排序
+  // 2) AutoComplete.search：没有用户位置时回退到全国搜索
+  let placeSearch = null
+  let autoComplete = null
+  try {
+    placeSearch = new window.AMap.PlaceSearch({
+      pageSize: 15,
+      pageIndex: 1,
+      extensions: 'base'
+    })
+  } catch (e) { /* ignore */ }
+  try {
+    autoComplete = new window.AMap.AutoComplete({
+      city: '全国',
+      pageSize: 10,
+      extensions: 'base'
+    })
+  } catch (e) { /* ignore */ }
 
-  // 输入变化时搜索
+  // 统一的搜索 + 渲染
+  function _doSearch(keyword) {
+    clearTimeout(_poiSearchTimer)
+    _currentPoi = null
+    if (!keyword) { _renderPoiSuggestions([]); return }
+
+    const mySeq = ++_poiSearchSeq
+    const acceptOnlyIfLatest = (items) => {
+      if (mySeq !== _poiSearchSeq) return   // 过期请求，丢弃
+      _renderPoiSuggestions(items)
+    }
+
+    // 有定位：先用 PlaceSearch.searchNearBy（附近搜索，天然按距离排序，返回 distance）
+    if (_userLocation && placeSearch) {
+      const center = [_userLocation.lng, _userLocation.lat]
+      placeSearch.searchNearBy(keyword, center, 50000, (status, result) => {
+        if (mySeq !== _poiSearchSeq) return
+        let pois = []
+        if (status === 'complete' && result && result.poiList && Array.isArray(result.poiList.pois)) {
+          pois = result.poiList.pois
+            .filter((p) => p && p.location && p.location.lng && p.location.lat)
+            .map((p) => ({
+              name: p.name,
+              district: p.pname ? `${p.pname}${p.cityname || ''}${p.adname || ''}` : (p.adname || ''),
+              address: p.address || '',
+              lng: p.location.lng,
+              lat: p.location.lat,
+              distance: typeof p.distance === 'number' ? p.distance : null
+            }))
+        }
+        if (pois.length > 0) {
+          // 按距离升序（高德本身也这么排，但双保险）
+          pois.sort((a, b) => {
+            const da = a.distance == null ? Infinity : a.distance
+            const db = b.distance == null ? Infinity : b.distance
+            return da - db
+          })
+          acceptOnlyIfLatest(pois)
+        } else if (autoComplete) {
+          // 附近搜不到 → 回退到全国联想
+          autoComplete.search(keyword, (r1, r2) => _onAutoCompleteResult(r1, r2, mySeq, acceptOnlyIfLatest))
+        } else {
+          acceptOnlyIfLatest([])
+        }
+      })
+      return
+    }
+
+    // 没有定位：走全国联想
+    if (autoComplete) {
+      autoComplete.search(keyword, (r1, r2) => _onAutoCompleteResult(r1, r2, mySeq, acceptOnlyIfLatest))
+    }
+  }
+
+  function _onAutoCompleteResult(r1, r2, mySeq, acceptOnlyIfLatest) {
+    if (mySeq !== _poiSearchSeq) return
+    let tips = []
+    if (r1 && Array.isArray(r1.tips)) tips = r1.tips
+    else if (r2 && Array.isArray(r2.tips)) tips = r2.tips
+    else if (r1 && typeof r1 === 'object' && r1.status === 'complete' && r1.tips) tips = r1.tips
+
+    let pois = tips
+      .filter((t) => t && t.location && t.location.lng && t.location.lat)
+      .map((t) => ({
+        name: t.name,
+        district: t.district || '',
+        address: t.address || '',
+        lng: t.location.lng,
+        lat: t.location.lat,
+        distance: null
+      }))
+
+    // 若此时拿到了用户位置，则计算距离并排序
+    if (_userLocation) {
+      for (const p of pois) {
+        p.distance = _haversineMeters(_userLocation.lat, _userLocation.lng, p.lat, p.lng)
+      }
+      pois.sort((a, b) => {
+        const da = a.distance == null ? Infinity : a.distance
+        const db = b.distance == null ? Infinity : b.distance
+        return da - db
+      })
+    }
+    acceptOnlyIfLatest(pois)
+  }
+
+  // 输入变化时搜索（300ms 防抖）
   dom.destinationInput.addEventListener('input', (e) => {
     const keyword = e.target.value.trim()
     clearTimeout(_poiSearchTimer)
-    _currentPoi = null
-    if (!keyword) {
-      _renderPoiSuggestions([])
-      return
-    }
-    _poiSearchTimer = setTimeout(() => {
-      autoComplete.search(keyword, (r1, r2) => {
-        // 高德不同版本回调签名不一致：兼容 (status, result) 和 (result) 两种
-        let tips = []
-        if (r1 && Array.isArray(r1.tips)) tips = r1.tips
-        else if (r2 && Array.isArray(r2.tips)) tips = r2.tips
-        else if (r1 && typeof r1 === 'object' && r1.status === 'complete' && r1.tips) tips = r1.tips
-        const validTips = tips.filter(t => t && t.location && t.location.lng && t.location.lat)
-        _renderPoiSuggestions(validTips)
-      })
-    }, 300)
+    _poiSearchTimer = setTimeout(() => _doSearch(keyword), 300)
   })
 
   // 聚焦时也搜索一次
   dom.destinationInput.addEventListener('focus', () => {
     const keyword = dom.destinationInput.value.trim()
-    if (keyword) {
-      autoComplete.search(keyword, (r1, r2) => {
-        let tips = []
-        if (r1 && Array.isArray(r1.tips)) tips = r1.tips
-        else if (r2 && Array.isArray(r2.tips)) tips = r2.tips
-        const validTips = tips.filter(t => t && t.location && t.location.lng && t.location.lat)
-        _renderPoiSuggestions(validTips)
-      })
-    }
+    if (keyword) _doSearch(keyword)
   })
 
   // 点击页面其他地方时关闭下拉
@@ -735,21 +861,25 @@ function _setupPoiSearch() {
   })
 }
 
-function _renderPoiSuggestions(tips) {
+function _renderPoiSuggestions(pois) {
   if (!dom.poiSuggestions) return
 
-  if (!tips || tips.length === 0) {
+  if (!pois || pois.length === 0) {
     dom.poiSuggestions.innerHTML = '<div class="poi-item" style="opacity:0.5;pointer-events:none;">没有匹配结果，请输入更具体的名称</div>'
     dom.poiSuggestions.classList.add('show')
     return
   }
 
-  const html = tips.map((t, i) => {
-    const address = t.district && t.address ? `${t.district} ${t.address}` : (t.address || t.district || '')
+  const html = pois.map((p, i) => {
+    const address = p.district && p.address ? `${p.district} ${p.address}` : (p.address || p.district || '')
+    const distanceStr = _formatDistance(p.distance)
     return `
-      <div class="poi-item" data-index="${i}" data-name="${_escapeHtml(t.name)}" data-lng="${t.location.lng}" data-lat="${t.location.lat}" data-address="${_escapeHtml(address || '')}">
-        <div class="poi-item-name">${_escapeHtml(t.name)}</div>
-        ${address ? `<div class="poi-item-address">${_escapeHtml(address)}</div>` : ''}
+      <div class="poi-item" data-index="${i}" data-name="${_escapeHtml(p.name)}" data-lng="${p.lng}" data-lat="${p.lat}" data-address="${_escapeHtml(address || '')}">
+        <div class="poi-item-main">
+          <div class="poi-item-name">${_escapeHtml(p.name)}</div>
+          ${address ? `<div class="poi-item-address">${_escapeHtml(address)}</div>` : ''}
+        </div>
+        ${distanceStr ? `<div class="poi-item-distance">${distanceStr}</div>` : ''}
       </div>
     `
   }).join('')
