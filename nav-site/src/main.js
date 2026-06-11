@@ -420,6 +420,13 @@ function _reverseGeocode(lng, lat) {
    GPS 定位
    ============================================================ */
 function startGPS() {
+  // 调试模式下：不启动真实 GPS，由鼠标点击 / 拖动控制位置
+  if (state.debugMode) {
+    console.log('[AR NAV] 调试模式：跳过真实 GPS，使用鼠标控制位置')
+    _loadAMap()
+    return
+  }
+
   if (!('geolocation' in navigator)) {
     console.warn('浏览器不支持定位')
     speak('无法获取定位')
@@ -1051,12 +1058,94 @@ function _initDebugMode() {
     _setDebugMode(true)
   }
 
-  // 2) 键盘 D 键切换
+  // 2) 键盘 D 键切换 + 方向键移动位置
   document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
     if (e.key === 'd' || e.key === 'D') {
-      if (e.target.tagName === 'INPUT') return   // 避免在输入框里误触发
       _setDebugMode(!state.debugMode)
+      return
     }
+
+    // 仅调试模式下响应方向键
+    if (!state.debugMode) return
+
+    const step = e.shiftKey ? 100 : 20  // Shift = 大步 (100m)，普通 = 小步 (20m)
+    const toRad = d => d * Math.PI / 180
+
+    let moved = false
+    let newLat = state.currentLat
+    let newLng = state.currentLng
+
+    // 初始位置（北京天安门附近），方便没设置位置时也能调试
+    if (newLat == null) {
+      newLat = 39.907
+      newLng = 116.397
+    }
+
+    switch (e.key) {
+      case 'ArrowUp':    newLat += step / 111320; moved = true; break
+      case 'ArrowDown':  newLat -= step / 111320; moved = true; break
+      case 'ArrowLeft':  newLng -= step / (111320 * Math.cos(toRad(newLat))); moved = true; break
+      case 'ArrowRight': newLng += step / (111320 * Math.cos(toRad(newLat))); moved = true; break
+      // WASD 辅助支持
+      case 'w': case 'W': newLat += step / 111320; moved = true; break
+      case 's': case 'S': newLat -= step / 111320; moved = true; break
+      case 'a': case 'A': newLng -= step / (111320 * Math.cos(toRad(newLat))); moved = true; break
+      case 'q': case 'Q': newLng += step / (111320 * Math.cos(toRad(newLat))); moved = true; break
+      default: return
+    }
+
+    if (!moved) return
+    e.preventDefault()
+
+    // 计算朝向（基于移动方向）
+    let heading = 0
+    if (state.currentLat != null && state.currentLng != null) {
+      heading = bearing(state.currentLat, state.currentLng, newLat, newLng)
+    }
+
+    // 更新 state
+    state.currentLat = newLat
+    state.currentLng = newLng
+    state.heading = heading
+
+    // 同步 MiniMap 标记（地图上也能看到移动）
+    if (state.miniMap) {
+      state.miniMap.setPosition(newLng, newLat)
+      state.miniMap.setHeading(heading)
+    }
+
+    // 更新 UI
+    dom.gpsStatus.classList.add('active')
+    _updateCompassUI(heading)
+
+    // 初始化起点
+    if (state.startLat == null) {
+      state.startLat = newLat
+      state.startLng = newLng
+      state.startTime = Date.now()
+    }
+
+    // 更新距离和箭头
+    if (state.destination) {
+      _updateDistanceAndBearing()
+      _updateArrowWithHeading()
+    }
+
+    // 更新已行驶
+    state.traveledDistance = haversine(state.startLat, state.startLng, newLat, newLng)
+    dom.traveled.textContent = fmtDistance(state.traveledDistance)
+
+    // 显示实时位置信息
+    const distDest = state.destination
+      ? haversine(newLat, newLng, state.destination.lat, state.destination.lng)
+      : null
+    const destStr = distDest != null ? ' → ' + fmtDistance(distDest) : ''
+    const stepStr = e.shiftKey ? '🔶大步' : '🔹小步'
+    const hint = `${stepStr} → (${newLng.toFixed(5)}, ${newLat.toFixed(5)})${destStr}`
+    dom.arrowHint.textContent = hint
+    dom.arrowDistance.textContent = distDest != null ? fmtDistance(distDest) : '0 m'
   })
 
   // 3) checkbox 切换
@@ -1125,6 +1214,22 @@ function _setDebugMode(enabled) {
     state.miniMap.setDebugMode(on)
   }
 
+  // —— 调试模式：控制 main.js 自身的 GPS 监听 ——
+  if (on) {
+    // 进入调试模式：停掉真实 GPS，避免覆盖鼠标点击设置的位置
+    if (state.watchId != null && navigator.geolocation) {
+      try { navigator.geolocation.clearWatch(state.watchId) } catch (e) {}
+      state.watchId = null
+    }
+    // GPS 状态灯保持亮起（位置由调试模式提供）
+    dom.gpsStatus.classList.add('active')
+  } else {
+    // 退出调试模式：如果已经设置了目的地，重启真实 GPS
+    if (state.destination) {
+      startGPS()
+    }
+  }
+
   console.log('[AR NAV] 调试模式:', on ? '开启' : '关闭')
   speak(on ? '调试模式已开启' : '调试模式已关闭')
 }
@@ -1154,4 +1259,9 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
 } else {
   init()
+}
+
+// 调试辅助：把内部 state 暴露到 window（仅在开发环境方便测试）
+if (typeof window !== 'undefined') {
+  window.__navState = function() { return state; }
 }

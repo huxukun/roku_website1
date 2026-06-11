@@ -47,7 +47,7 @@ export class MiniMap {
 
   _waitForAMapAndInit() {
     // 每 300ms 检查 AMap 是否已加载，最多等待 30 秒
-    const startAt = Date.当前();
+    const startAt = Date.now();
     const check = () => {
       const st = _getAMapStatus();
       if (st.status === 'ready' && window.AMap) {
@@ -64,7 +64,7 @@ export class MiniMap {
         this._initAMap();
         return;
       }
-      if (Date.当前() - startAt > 30000) {
+      if (Date.now() - startAt > 30000) {
         if (this.infoElement) {
           this.infoElement.textContent = '地图加载超时';
         }
@@ -101,8 +101,13 @@ export class MiniMap {
       this._createUserMarker(defaultCenter);
       this._createHeadingArrow(defaultCenter);
 
-      // 调试模式下不启动浏览器 GPS（由鼠标控制位置）
-      if (!this.debugMode) {
+      // 若在 AMap 初始化之前已被切换到调试模式，此时再绑定事件、加样式、放大 zoom
+      if (this.debugMode) {
+        this._bindDebugEvents();
+        this.container.classList.add('debug');
+        this._showDebugOverlay();
+        try { this.map.setZoom(17); } catch (e) {}
+      } else {
         this._startBrowserLocation();
       }
     } catch (e) {
@@ -211,12 +216,19 @@ export class MiniMap {
       this._bindDebugEvents();
       this.container.classList.add('debug');
       this._showDebugOverlay();
+      // 放大地图（更高 zoom）方便调试观察标记变化
+      if (this.map) {
+        try { this.map.setZoom(17); } catch (e) {}
+      }
     } else {
-      // 退出调试模式：恢复 GPS
+      // 退出调试模式：恢复 GPS + 恢复正常 zoom
       this._unbindDebugEvents();
       this.container.classList.remove('debug');
       this._hideDebugOverlay();
       this._startBrowserLocation();
+      if (this.map) {
+        try { this.map.setZoom(16); } catch (e) {}
+      }
     }
   }
 
@@ -240,33 +252,55 @@ export class MiniMap {
   _bindDebugEvents() {
     if (!this.map) return;
 
+    // 从高德事件中安全提取 [lng, lat]
+    // 兼容 LngLat 对象(lng.lng / lnglat.lat) 和方法调用(lnglat.getLng() / getLat())
+    const _extractLngLat = (lnglat) => {
+      if (!lnglat) return null;
+      let lng = null, lat = null;
+      // 优先尝试方法调用（高德 v2 标准）
+      if (typeof lnglat.getLng === 'function' && typeof lnglat.getLat === 'function') {
+        lng = lnglat.getLng();
+        lat = lnglat.getLat();
+      }
+      // 再尝试直接访问属性（旧版或部分事件格式）
+      if (!Number.isFinite(lng) && 'lng' in lnglat) lng = lnglat.lng;
+      if (!Number.isFinite(lat) && 'lat' in lnglat) lat = lnglat.lat;
+      // 兼容 [lng, lat] 数组
+      if (!Number.isFinite(lng) && Array.isArray(lnglat) && lnglat.length >= 2) {
+        lng = lnglat[0]; lat = lnglat[1];
+      }
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+      return [lng, lat];
+    };
+
     // click 事件：单击设置位置
     this._clickHandler = (e) => {
-      if (this._isDragging) return;  // drag 结束后由 mouseup 处理
-      const lnglat = e.lnglat;
-      if (!lnglat) return;
-      this._setDebugPosition(lnglat.lng, lnglat.lat);
+      if (this._isDragging) return;
+      const coords = _extractLngLat(e.lnglat);
+      if (!coords) return;
+      this._setDebugPosition(coords[0], coords[1]);
     };
 
     // mousedown / mousemove / mouseup：拖动设置位置 + 计算朝向
     this._mouseDownHandler = (e) => {
       this._isDragging = false;
       this._dragStartAt = Date.now();
-      this._dragStartLngLat = e.lnglat ? [e.lnglat.lng, e.lnglat.lat] : null;
-      this。_lastDragLngLat = this._dragStartLngLat;
+      const coords = _extractLngLat(e.lnglat);
+      this._dragStartLngLat = coords;
+      this._lastDragLngLat = coords;
     };
 
     this._mouseMoveHandler = (e) => {
-      if (!this._dragStartLngLat || !e.lnglat) return;
-      // 拖动时不标记为 dragging（需要一点点移动距离 > 3 米才判定为拖动
-      const lnglat = [e.lnglat.lng, e.lnglat.lat];
+      if (!this._dragStartLngLat) return;
+      const coords = _extractLngLat(e.lnglat);
+      if (!coords) return;
       if (!this._lastDragLngLat) return;
-      const dx = lnglat[0] - this._lastDragLngLat[0];
-      const dy = lnglat[1] - this._lastDragLngLat[1];
+      const dx = coords[0] - this._lastDragLngLat[0];
+      const dy = coords[1] - this._lastDragLngLat[1];
       if (Math.abs(dx) < 0.00005 && Math.abs(dy) < 0.00005) return;
       this._isDragging = true;
-      this._setDebugPosition(lnglat[0], lnglat[1], this._lastDragLngLat);
-      this._lastDragLngLat = lnglat;
+      this._setDebugPosition(coords[0], coords[1], this._lastDragLngLat);
+      this._lastDragLngLat = coords;
     };
 
     this._mouseUpHandler = (e) => {
@@ -280,11 +314,6 @@ export class MiniMap {
     this.map.on('mousemove', this._mouseMoveHandler);
     this.map.on('mouseup', this._mouseUpHandler);
     this.map.on('mouseout', this._mouseUpHandler);
-
-    // 防止浏览器拖拽地图在高德本身的拖拽行为保留（允许拖动地图查看），但按住拖动时同时更新位置
-    // 但我们的点击/拖动已通过高德的 click/mousedown 事件工作
-    // 问题：高德地图默认可拖动地图视图 — 对调试模式下我们希望点击位置但也能同时移动视图
-    // 所以保留默认行为：点击更新位置，拖动地图的同时也更新位置
   }
 
   _unbindDebugEvents() {
@@ -305,16 +334,25 @@ export class MiniMap {
 
     this.setPosition(lng, lat);
 
+    // 调试模式下：显示精确坐标（反地理编码可能因 key 问题失败）
+    if (this.infoElement && this.debugMode) {
+      const distMeters = this.hasTarget && this.targetLngLat
+        ? Math.round(haversine(lat, lng, this.targetLngLat[1], this.targetLngLat[0]))
+        : null;
+      const distText = distMeters != null ? ' · 距目的地 ' + (distMeters < 1000 ? distMeters + ' m' : (distMeters / 1000).toFixed(2) + ' km') : '';
+      this.infoElement.textContent = '(' + lng.toFixed(4) + ', ' + lat.toFixed(4) + ')' + distText;
+    }
+
     // 如果有"来源点 → 计算朝向
     if (fromLngLat && fromLngLat.length === 2) {
       const heading = bearing(fromLngLat[1], fromLngLat[0], lat, lng);
       this.setHeading(heading);
       // 触发全局事件：让 main.js 更新主视图的 heading
-      window。dispatchEvent(new CustomEvent('minimap:heading', { detail: { heading } }));
+      window.dispatchEvent(new CustomEvent('minimap:heading', { detail: { heading } }));
     }
 
     // 触发全局事件：通知 main.js 更新导航位置已更新
-    window。dispatchEvent(new CustomEvent('minimap:position', {
+    window.dispatchEvent(new CustomEvent('minimap:position', {
       detail: { lng: lng, lat: lat }
     }));
   }
@@ -330,10 +368,9 @@ export class MiniMap {
 
     if (this.map && this.userMarker) {
       this.userMarker.setPosition(this.currentLngLat);
-      if (!this.debugMode) {
-        this.map.setCenter(this.currentLngLat);
-      }
-      // 调试模式下不强制中心跟随用户，但允许用户拖动地图查看其他区域
+      // 调试模式：点击后也居中地图，让用户清晰看到标记位置变化
+      // 非调试模式：保持原有跟随行为
+      this.map.setCenter(this.currentLngLat);
     }
     if (this.headingArrow) {
       this.headingArrow.setPosition(this.currentLngLat);
@@ -432,6 +469,21 @@ export class MiniMap {
       this.infoElement.textContent = text || '';
     }
   }
+}
+
+/* ============================================================
+   工具函数：计算两点之间的球面距离（米）
+   ============================================================ */
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 /* ============================================================
