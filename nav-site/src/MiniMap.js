@@ -31,6 +31,7 @@ export class MiniMap {
     this.hasTarget = false;
     this.targetLngLat = null;     // [lng, lat]
     this.polyline = null;
+    this.routePath = null;        // 骑行规划路线（[{lng, lat}, ...]或 [[lng, lat], ...]），null 时回退到简单直线
 
     this.debugMode = false;
     this._isDragging = false;      // 鼠标是否按下中
@@ -427,22 +428,65 @@ export class MiniMap {
   }
 
   _updatePolyline() {
-    if (!this.currentLngLat || !this.targetLngLat || !window.AMap || !this.map) return;
+    if (!window.AMap || !this.map) return;
 
-    const path = [this.currentLngLat, this.targetLngLat];
+    // 1) 优先使用规划好的骑行路线
+    // 2) 其次用：起点 → 目的地 简单直线
+    let path = null;
+    let useRoutePath = false;
+    if (this.routePath && this.routePath.length >= 2) {
+      path = this.routePath;
+      useRoutePath = true;
+    } else if (this.currentLngLat && this.targetLngLat) {
+      path = [this.currentLngLat, this.targetLngLat];
+    }
+    if (!path) return;
+
+    // 规范化为 [[lng, lat], ...]
+    const normalized = [];
+    for (let i = 0; i < path.length; i++) {
+      const p = path[i];
+      if (!p) continue;
+      if (Array.isArray(p) && p.length >= 2) {
+        normalized.push([p[0], p[1]]);
+      } else if (typeof p.getLng === 'function' && typeof p.getLat === 'function') {
+        normalized.push([p.getLng(), p.getLat()]);
+      } else if (typeof p.lng === 'number' && typeof p.lat === 'number') {
+        normalized.push([p.lng, p.lat]);
+      }
+    }
+    if (normalized.length < 2) return;
+
+    const color = useRoutePath ? '#00ffaa' : '#ffaa00';   // 骑行路线用青绿色
+    const dash  = useRoutePath ? 'solid' : 'dashed';
+    const weight = useRoutePath ? 5 : 4;
+
     if (!this.polyline) {
       this.polyline = new window.AMap.Polyline({
-        path: path,
-        strokeColor: '#ffaa00',
-        strokeWeight: 4,
+        path: normalized,
+        strokeColor: color,
+        strokeWeight: weight,
         strokeOpacity: 0.85,
-        strokeStyle: 'dashed',
+        strokeStyle: dash,
         lineJoin: 'round',
         map: this.map
       });
     } else {
-      this.polyline.setPath(path);
+      this.polyline.setOptions({
+        strokeColor: color,
+        strokeWeight: weight,
+        strokeStyle: dash
+      });
+      this.polyline.setPath(normalized);
     }
+  }
+
+  // 设置真实骑行路线（来自 AMap.Riding 的规划结果）
+  // pathArray: [[lng, lat], ...]
+  setRoutePath(pathArray) {
+    if (!pathArray || pathArray.length < 2) return;
+    this.routePath = pathArray;
+    this._updatePolyline();
   }
 
   _reverseGeocode(lng, lat) {

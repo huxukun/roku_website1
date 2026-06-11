@@ -91,6 +91,7 @@ const state = {
   // 高德 API
   amapReady: false,      // AMap JS SDK 是否已加载
   geocoder: null,        // 反地理编码器实例
+  riding: null,          // 骑行路线规划（AMap.Riding）
   lastGeocodeTime: 0,    // 上次反地理编码时间（毫秒）
   roadName: '',          // 当前道路名称
   address: '',           // 完整地址
@@ -332,8 +333,8 @@ function _loadAMap() {
     const script = document.createElement('script')
     script.type = 'text/javascript'
     script.async = true
-    // 同时加载 Geocoder（反地理编码）和 AutoComplete（POI搜索）插件
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch`
+    // 同时加载 Geocoder（反地理编码）、AutoComplete（POI搜索）、PlaceSearch（周边搜索）和 Riding（骑行路线规划）插件
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch,AMap.Riding`
 
     script.onerror = () => {
       const err = '高德 SDK 网络加载失败（可能是网络问题或 Key 被封禁）'
@@ -380,6 +381,14 @@ function _initAMapServices(resolve, reject) {
       radius: 500,
       extensions: 'base'
     })
+    // 骑行路线规划服务
+    if (typeof window.AMap.Riding === 'function') {
+      state.riding = new window.AMap.Riding({
+        policy: 0   // 0=最快捷（推荐），1=最少换乘，2=避免步行
+      })
+    } else {
+      console.warn('[AR NAV] AMap.Riding 不可用（可能是 Key 权限或插件加载顺序）')
+    }
     _setAMapStatus('ready', null)
     resolve()
   } catch (e) {
@@ -473,6 +482,13 @@ function startGPS() {
       // 同步到迷你地图（使用真实经纬度）
       if (state.miniMap) {
         state.miniMap.setPosition(state.currentLng, state.currentLat)
+      }
+
+      // 如果有目的地且还没规划过路线，立即规划（首次定位成功后）
+      if (state.destination && state.riding && !state._routePlanned) {
+        state._routePlanned = true
+        _planRoute(state.currentLng, state.currentLat,
+                   state.destination.lng, state.destination.lat)
       }
 
       // 更新到目的地的距离与方向
@@ -1020,7 +1036,59 @@ function _applyDestination(name, lng, lat) {
   startGPS()
   startCompass()
 
+  // 如果已经有起点了，立即规划骑行路线
+  if (state.currentLat != null && state.riding) {
+    _planRoute(state.currentLng, state.currentLat, lng, lat)
+  }
+
   speak(`目的地已设置：${name}。请面向骑行方向出发`)
+}
+
+// 根据起点→终点规划骑行路线（AMap.Riding）
+function _planRoute(fromLng, fromLat, toLng, toLat) {
+  if (!state.riding) return
+  try {
+    state.riding.search(
+      [fromLng, fromLat],
+      [toLng, toLat],
+      (status, result) => {
+        if (status === 'complete' && result && result.routes && result.routes.length > 0) {
+          const route = result.routes[0]
+          // 路线点集合：route.steps[].path 是每段拐点的经纬度
+          const path = []
+          if (route.steps && route.steps.length > 0) {
+            route.steps.forEach((step) => {
+              if (step.path && step.path.length > 0) {
+                step.path.forEach((lnglat) => {
+                  // AMap 返回的 path 元素可能是 LngLat 对象或数组
+                  if (Array.isArray(lnglat)) {
+                    path.push([lnglat[0], lnglat[1]])
+                  } else if (lnglat && typeof lnglat.getLng === 'function') {
+                    path.push([lnglat.getLng(), lnglat.getLat()])
+                  }
+                })
+              }
+            })
+          }
+          // 确保起点和终点在路径上
+          if (path.length > 0) {
+            path.unshift([fromLng, fromLat])
+            path.push([toLng, toLat])
+            if (state.miniMap) state.miniMap.setRoutePath(path)
+          }
+          // 报告总距离（米）
+          if (route.distance) {
+            state.totalDistance = route.distance
+            console.log('[AR NAV] 骑行路线规划成功，总距离：' + fmtDistance(route.distance))
+          }
+        } else {
+          console.warn('[AR NAV] 骑行路线规划失败：', status, result)
+        }
+      }
+    )
+  } catch (e) {
+    console.warn('[AR NAV] riding.search 异常：', e && e.message || e)
+  }
 }
 
 /* ============================================================
@@ -1106,11 +1174,11 @@ function _initDebugMode() {
     debugLastTs = ts
 
     // -------- 参数：速度 & 角速度（支持 Shift 加速）--------
-    const isShift = debugKeys.has('Shift')  // 注意：Shift 是修饰键，单独追踪
-    // 正常速度 15 m/s（54 km/h，骑行感）；Shift 加速 60 m/s（调试用）
-    const moveSpeed = (isShift ? 60 : 15)      // 米/秒
-    // 正常 90°/s；Shift 270°/s
-    const turnSpeed = (isShift ? 270 : 90)     // 度/秒
+    const isShift = debugKeys.has('Shift')
+    // 正常 50 m/s（180 km/h）；Shift 加速 200 m/s（长距离调试移动用）
+    const moveSpeed = (isShift ? 200 : 50)    // 米/秒
+    // 正常 180°/s；Shift 540°/s
+    const turnSpeed = (isShift ? 540 : 180)   // 度/秒
 
     // -------- 转向（左右）--------
     let turnDelta = 0
@@ -1132,10 +1200,22 @@ function _initDebugMode() {
       return
     }
 
-    // 确保有初始位置（北京天安门附近），方便没设置位置时也能调试
+    // --- 智能设置初始起点：避免"第一次按键突然闪到北京" --
     if (state.currentLat == null) {
-      state.currentLat = 39.907
-      state.currentLng = 116.397
+      if (state.destination && state.destination.lat != null) {
+        // 有目的地但还没定起点：把目的地作为"起点位置"
+        // 这样箭头会先指向目的地方向，用户在目的地附近开始移动
+        state.currentLat = state.destination.lat
+        state.currentLng = state.destination.lng
+      } else if (state.miniMap && state.miniMap.currentLngLat) {
+        // 迷你地图上已有位置（用户可能用鼠标点过）
+        state.currentLat = state.miniMap.currentLngLat[1]
+        state.currentLng = state.miniMap.currentLngLat[0]
+      } else {
+        // 真没任何信息：用天安门作为默认
+        state.currentLat = 39.907
+        state.currentLng = 116.397
+      }
     }
     if (state.heading == null) state.heading = 0
 
