@@ -294,29 +294,33 @@ html, body {
 }
 
 /* ============================================================
-   语音提示浮动
+   语音提示浮动（更柔和、自然的动效）
    ============================================================ */
 .voice-hint {
   position: absolute;
-  top: 15vh;
+  top: 13vh;
   left: 50%;
   transform: translateX(-50%);
-  padding: 1vh 3vw;
-  background: rgba(0, 255, 255, 0.12);
-  border: 1px solid rgba(0, 255, 255, 0.4);
-  border-radius: 3vh;
+  padding: 1.2vh 5vw;
+  background: rgba(0, 15, 25, 0.78);
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  border-radius: 50px;
   color: #00ffff;
-  font-size: 2.8vw;
-  text-shadow: 0 0 6px rgba(0, 255, 255, 0.7);
-  letter-spacing: 0.1em;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  font-size: 3vw;
+  letter-spacing: 0.12em;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 24px rgba(0, 255, 255, 0.12), 0 0 40px rgba(0, 255, 255, 0.06);
   opacity: 0;
-  transition: opacity 0.4s ease;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  white-space: nowrap;
 }
 
 .voice-hint.show {
   opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* ============================================================
@@ -598,34 +602,88 @@ html, body {
   pointer-events: none;
 }
 
+/* ---- iOS 风格调试模式开关 ---- */
 .debug-toggle {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #00ffff;
-  border: 1px solid rgba(0, 255, 255, 0.4);
-  border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 12px;
-  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
   z-index: 200;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
   font-family: inherit;
-  transition: all 0.2s;
 }
 
-.debug-toggle:hover {
-  background: rgba(0, 255, 255, 0.15);
-  border-color: rgba(0, 255, 255, 0.8);
+.debug-toggle-label {
+  font-size: 11px;
+  color: rgba(0, 255, 255, 0.6);
+  letter-spacing: 0.06em;
+  transition: color 0.3s;
 }
 
-body.debug-mode .debug-toggle {
-  background: rgba(255, 204, 0, 0.2);
+.debug-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.debug-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.debug-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+}
+
+.debug-switch-track::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55), box-shadow 0.3s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+.debug-switch input:checked + .debug-switch-track {
+  background: rgba(255, 204, 0, 0.75);
+  border-color: rgba(255, 204, 0, 0.9);
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.4);
+}
+
+.debug-switch input:checked + .debug-switch-track::after {
+  transform: translateX(18px);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+
+body.debug-mode .debug-toggle-label {
   color: #ffcc00;
-  border-color: rgba(255, 204, 0, 0.6);
 }
 
+/* 横屏模式下按钮样式微调 */
+@media (orientation: landscape) {
+  .debug-toggle-label { font-size: 10px; }
+  .debug-switch { width: 40px; height: 24px; }
+  .debug-switch-track { border-radius: 12px; }
+  .debug-switch-track::after { width: 18px; height: 18px; }
+  .debug-switch input:checked + .debug-switch-track::after { transform: translateX(16px); }
+}
 /* ============================================================
    横屏适配（AR眼镜 / 大屏）
    ============================================================ */

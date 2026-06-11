@@ -126,8 +126,14 @@
         <div class="sensor-dot" id="gyro-status" title="陀螺仪"></div>
       </div>
 
-      <!-- 调试模式开关按钮 -->
-      <button class="debug-toggle" id="debug-toggle" title="按键盘 D 也可切换">⚪ 调试模式（按 D 开启）</button>
+      <!-- 调试模式开关（iOS 风格） -->
+      <label class="debug-toggle" for="debug-checkbox" title="按 D 键也可切换">
+        <span class="debug-toggle-label">调试</span>
+        <div class="debug-switch">
+          <input type="checkbox" id="debug-checkbox" />
+          <div class="debug-switch-track"></div>
+        </div>
+      </label>
 
     </div>
 

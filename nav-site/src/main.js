@@ -158,9 +158,46 @@ function fmtEta(meters, speedKmh = 15) {
 
 /* ============================================================
    语音播报 (Web Speech Synthesis API)
+   优先选择自然的中文音色
    ============================================================ */
 let voiceBusy = false
 const voiceQueue = []
+
+// 语音合成：自动选择最优中文音色
+let _bestVoice = null
+
+function _initVoice() {
+  if (!('speechSynthesis' in window)) return
+  try {
+    // 等待音色列表加载（部分浏览器需要短暂延迟）
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices()
+      if (voices.length === 0) {
+        setTimeout(loadVoices, 100)
+        return
+      }
+      // 优先选含"云"的中文音色（Windows 小娜/Zhixia 系列音色较自然）
+      // 其次选含"晓"/"Xiao"的，再选标准 zh-CN
+      const preferred = [
+        v => /云|晓|xiao|xiaoxiao|zhi|hui|hui/i.test(v.name),
+        v => /zh-CN.*female/i.test(v.lang) || /zh-CN/i.test(v.lang),
+        v => v.lang.startsWith('zh-CN')
+      ]
+      for (const filter of preferred) {
+        const found = voices.filter(filter)
+        if (found.length > 0) {
+          _bestVoice = found[0]
+          break
+        }
+      }
+      if (!_bestVoice) {
+        _bestVoice = voices.find(v => v.lang.startsWith('zh-CN')) || voices[0]
+      }
+    }
+    loadVoices()
+    window.speechSynthesis.onvoiceschanged = loadVoices
+  } catch (e) {}
+}
 
 function speak(text, priority = false) {
   if (priority) voiceQueue.unshift(text)
@@ -175,11 +212,18 @@ function _processVoiceQueue() {
   const text = voiceQueue.shift()
   if (!text) return
 
+  // 如果音色还没选好，初始化一次
+  if (!_bestVoice) _initVoice()
+
   const utter = new SpeechSynthesisUtterance(text)
   utter.lang = 'zh-CN'
-  utter.rate = 1.05
-  utter.pitch = 1
+  utter.rate = 1.0      // 正常语速，听起来更自然
+  utter.pitch = 1.05     // 略高音，听感更清晰
   utter.volume = 1
+
+  if (_bestVoice) {
+    utter.voice = _bestVoice
+  }
 
   utter.onend = () => {
     voiceBusy = false
@@ -198,7 +242,7 @@ function _processVoiceQueue() {
 }
 
 function _showVoiceHint(text) {
-  dom.voiceText.textContent = `🔊 ${text}`
+  dom.voiceText.textContent = text
   dom.voiceHint.classList.add('show')
   clearTimeout(_showVoiceHint._t)
   _showVoiceHint._t = setTimeout(() => {
@@ -980,6 +1024,9 @@ function init() {
   // ⚡ 预加载高德地图 SDK（不等用户点按钮，避免点击确定后才加载）
   _loadAMap()
 
+  // 🔊 提前初始化语音（选择最佳中文音色）
+  _initVoice()
+
   // 点击开始
   dom.startBtn.addEventListener('click', startNav)
 
@@ -993,26 +1040,30 @@ function init() {
 }
 
 /* ============================================================
-   调试模式：URL 参数 + 键盘 D + 接收 MiniMap 位置/朝向事件
+   调试模式：URL 参数 + 键盘 D + checkbox 联动
    ============================================================ */
 function _initDebugMode() {
+  const checkbox = document.getElementById('debug-checkbox')
+
   // 1) URL 参数
   const params = new URLSearchParams(window.location.search)
   if (params.get('debug') === '1') {
-    _toggleDebugMode(true)
+    _setDebugMode(true)
   }
 
   // 2) 键盘 D 键切换
   document.addEventListener('keydown', (e) => {
     if (e.key === 'd' || e.key === 'D') {
-      _toggleDebugMode()
+      if (e.target.tagName === 'INPUT') return   // 避免在输入框里误触发
+      _setDebugMode(!state.debugMode)
     }
   })
 
-  // 3) 按钮切换（如果页面上有 #debug-toggle）
-  const debugBtn = document.getElementById('debug-toggle')
-  if (debugBtn) {
-    debugBtn.addEventListener('click', () => _toggleDebugMode())
+  // 3) checkbox 切换
+  if (checkbox) {
+    checkbox.addEventListener('change', () => {
+      _setDebugMode(checkbox.checked)
+    })
   }
 
   // 4) 接收来自 MiniMap 的位置事件（调试模式下鼠标点击/拖动触发）
@@ -1053,24 +1104,29 @@ function _initDebugMode() {
   })
 }
 
-function _toggleDebugMode(forceValue) {
-  const next = typeof forceValue === 'boolean' ? forceValue : !state.debugMode
-  state.debugMode = next
-  if (state.miniMap && state.miniMap.setDebugMode) {
-    state.miniMap.setDebugMode(next)
-  }
-  // 切换 document.body 的 class，供 CSS 用
-  if (next) {
+function _setDebugMode(enabled) {
+  const on = !!enabled
+  if (state.debugMode === on) return
+  state.debugMode = on
+
+  // 同步 checkbox 状态
+  const checkbox = document.getElementById('debug-checkbox')
+  if (checkbox && checkbox.checked !== on) checkbox.checked = on
+
+  // 同步 body class
+  if (on) {
     document.body.classList.add('debug-mode')
   } else {
     document.body.classList.remove('debug-mode')
   }
-  // 同步按钮文案
-  const btn = document.getElementById('debug-toggle')
-  if (btn) {
-    btn.textContent = next ? '🟡 调试模式（按 D 关闭）' : '⚪ 调试模式（按 D 开启）'
+
+  // 同步 MiniMap
+  if (state.miniMap && state.miniMap.setDebugMode) {
+    state.miniMap.setDebugMode(on)
   }
-  console.log('[AR NAV] 调试模式:', next ? 'ON' : 'OFF')
+
+  console.log('[AR NAV] 调试模式:', on ? '开启' : '关闭')
+  speak(on ? '调试模式已开启' : '调试模式已关闭')
 }
 
 // --- 演示数据：没 GPS 时跑一个简单循环 ---
