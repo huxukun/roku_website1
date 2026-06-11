@@ -983,10 +983,94 @@ function init() {
   // 点击开始
   dom.startBtn.addEventListener('click', startNav)
 
+  // 调试模式：URL 参数 ?debug=1 或键盘 D 键切换
+  _initDebugMode()
+
   // 演示：如果是演示模式
   if (CONFIG.USE_MOCK_DATA) {
     _startDemo()
   }
+}
+
+/* ============================================================
+   调试模式：URL 参数 + 键盘 D + 接收 MiniMap 位置/朝向事件
+   ============================================================ */
+function _initDebugMode() {
+  // 1) URL 参数
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('debug') === '1') {
+    _toggleDebugMode(true)
+  }
+
+  // 2) 键盘 D 键切换
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'd' || e.key === 'D') {
+      _toggleDebugMode()
+    }
+  })
+
+  // 3) 按钮切换（如果页面上有 #debug-toggle）
+  const debugBtn = document.getElementById('debug-toggle')
+  if (debugBtn) {
+    debugBtn.addEventListener('click', () => _toggleDebugMode())
+  }
+
+  // 4) 接收来自 MiniMap 的位置事件（调试模式下鼠标点击/拖动触发）
+  window.addEventListener('minimap:position', (e) => {
+    if (!state.debugMode) return
+    const { lng, lat } = e.detail
+    state.currentLng = lng
+    state.currentLat = lat
+    dom.gpsStatus.classList.add('active')
+
+    if (state.startLat == null) {
+      state.startLat = state.currentLat
+      state.startLng = state.currentLng
+      state.startTime = Date.now()
+    }
+
+    if (state.destination) {
+      _updateDistanceAndBearing()
+      _updateArrowWithHeading()
+    }
+
+    state.traveledDistance = haversine(
+      state.startLat, state.startLng,
+      state.currentLat, state.currentLng
+    )
+    dom.traveled.textContent = fmtDistance(state.traveledDistance)
+  })
+
+  // 5) 接收来自 MiniMap 的朝向事件（调试模式下拖动方向触发）
+  window.addEventListener('minimap:heading', (e) => {
+    if (!state.debugMode) return
+    const { heading } = e.detail
+    state.heading = heading
+    _updateCompassUI(heading)
+    if (state.destination) {
+      _updateArrowWithHeading()
+    }
+  })
+}
+
+function _toggleDebugMode(forceValue) {
+  const next = typeof forceValue === 'boolean' ? forceValue : !state.debugMode
+  state.debugMode = next
+  if (state.miniMap && state.miniMap.setDebugMode) {
+    state.miniMap.setDebugMode(next)
+  }
+  // 切换 document.body 的 class，供 CSS 用
+  if (next) {
+    document.body.classList.add('debug-mode')
+  } else {
+    document.body.classList.remove('debug-mode')
+  }
+  // 同步按钮文案
+  const btn = document.getElementById('debug-toggle')
+  if (btn) {
+    btn.textContent = next ? '🟡 调试模式（按 D 关闭）' : '⚪ 调试模式（按 D 开启）'
+  }
+  console.log('[AR NAV] 调试模式:', next ? 'ON' : 'OFF')
 }
 
 // --- 演示数据：没 GPS 时跑一个简单循环 ---

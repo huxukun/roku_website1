@@ -566,6 +566,66 @@ html, body {
   display: none !important;
 }
 
+/* ---- 调试模式：迷你地图放大 + 鼠标交互 ---- */
+.mini-map.debug {
+  width: 40vw !important;
+  height: 40vw !important;
+  min-width: 300px !important;
+  min-height: 300px !important;
+  max-width: 600px !important;
+  max-height: 600px !important;
+  border: 2px solid #ffcc00 !important;
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.4), 0 0 80px rgba(255, 204, 0, 0.15) !important;
+  transition: width 0.35s, height 0.35s, box-shadow 0.3s !important;
+  cursor: crosshair !important;
+  z-index: 100 !important;
+}
+
+.mini-map-debug-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  background: rgba(255, 204, 0, 0.92);
+  color: #000;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.05em;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.debug-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #00ffff;
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  z-index: 200;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.debug-toggle:hover {
+  background: rgba(0, 255, 255, 0.15);
+  border-color: rgba(0, 255, 255, 0.8);
+}
+
+body.debug-mode .debug-toggle {
+  background: rgba(255, 204, 0, 0.2);
+  color: #ffcc00;
+  border-color: rgba(255, 204, 0, 0.6);
+}
+
 /* ============================================================
    横屏适配（AR眼镜 / 大屏）
    ============================================================ */
@@ -581,7 +641,6 @@ html, body {
   }
 
   .mini-map-info { font-size: 1.2vw; }
-
   .status-bar {
     top: 2vh;
     gap: 1.8vw;
