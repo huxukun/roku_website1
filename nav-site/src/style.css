@@ -169,6 +169,9 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 1.2vh;
+  /* 3D 透视：摄像机看到前方悬浮的箭头 */
+  perspective: 900px;
+  perspective-origin: 50% 65%;
 }
 
 .big-arrow {
@@ -184,7 +187,9 @@ html, body {
     drop-shadow(0 0 24px rgba(0, 255, 255, 0.5))
     drop-shadow(0 0 45px rgba(0, 255, 255, 0.25));
   animation: arrow-pulse 2s ease-in-out infinite;
-  transform-origin: center center;
+  /* 以箭头底部（贴近道路）为旋转中心，箭头尖向前上方伸出 */
+  transform-origin: 50% 85%;
+  transform-style: preserve-3d;
   /* 注意：不使用 CSS transition 做旋转——用 JS rAF + lerp 平滑，避免与高频 heading 更新冲突 */
   line-height: 1;
   display: flex;

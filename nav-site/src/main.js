@@ -768,6 +768,8 @@ function _startArrowSmoothLoop() {
     const dtScale = Math.max(dt * 60, 1)  // 以 60fps 为基准，做帧率无关缩放
 
     // -------- 大箭头 --------
+    // 3D 平视视角：先把箭头"立起来"绕竖直轴（Y 轴）旋转——像前方悬浮的路标
+    // rotateX(65deg)：从屏幕平面向后倾斜，模拟平视视角；rotateY(angle)：绕水平面法线旋转
     {
       let diff = state._arrowTargetAngle - state._arrowCurrentAngle
       while (diff >  180) diff -= 360
@@ -775,10 +777,10 @@ function _startArrowSmoothLoop() {
       if (Math.abs(diff) > SNAP_THRESHOLD) {
         const factor = 1 - Math.pow(1 - LERP_FAST, dtScale)
         state._arrowCurrentAngle += diff * factor
-        if (dom.bigArrow) dom.bigArrow.style.transform = `rotate(${state._arrowCurrentAngle}deg)`
+        if (dom.bigArrow) dom.bigArrow.style.transform = `rotateX(65deg) rotateY(${state._arrowCurrentAngle}deg)`
       } else if (Math.abs(diff) > 0.001) {
         state._arrowCurrentAngle = state._arrowTargetAngle
-        if (dom.bigArrow) dom.bigArrow.style.transform = `rotate(${state._arrowTargetAngle}deg)`
+        if (dom.bigArrow) dom.bigArrow.style.transform = `rotateX(65deg) rotateY(${state._arrowTargetAngle}deg)`
       }
     }
 
