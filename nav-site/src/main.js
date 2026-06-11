@@ -854,7 +854,7 @@ function _updateArrowWithHeading() {
     // 无目的地：直接停在 0°，不再抖动
     state._arrowTargetAngle = 0
     state._arrowCurrentAngle = 0
-    dom.bigArrow.style.transform = 'rotate(0deg)'
+    dom.bigArrow.style.transform = 'rotateX(65deg) rotateY(0deg)'
     dom.arrowDistance.style.display = 'block'
     dom.arrowHint.textContent = '未设置目的地'
     return
