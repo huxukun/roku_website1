@@ -1818,6 +1818,15 @@ html, body {
   display: flex !important;
 }
 
+/* 管理员密码模态框：确保在最顶层，不被其他弹窗/Three.js canvas 遮挡 */
+#admin-modal {
+  z-index: 9999 !important;
+}
+#admin-modal .admin-modal-content {
+  position: relative;
+  z-index: 10000;
+}
+
 .admin-modal-content {
   width: 90%;
   max-width: 400px;

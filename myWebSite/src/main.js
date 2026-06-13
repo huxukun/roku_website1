@@ -785,9 +785,11 @@ const tick = (time) => {
   prevTime = time
   const elapsedTime = clock.getElapsedTime()
 
-  // 平滑缩放多面体（拉长时间）
+  // 平滑缩放多面体
+  // 进入展示模式时缩小更快（0.08），退出时恢复正常（0.02）
   if (wireframeIcosahedron) {
-    const scaleSpeed = 0.015
+    const isShrinkingToGallery = isGalleryMode && targetScale < currentScale
+    const scaleSpeed = isShrinkingToGallery ? 0.08 : 0.02
     currentScale += (targetScale - currentScale) * scaleSpeed
     wireframeIcosahedron.scale.set(currentScale, currentScale, currentScale)
   }
@@ -824,11 +826,10 @@ const tick = (time) => {
   
   if (loadedModel) {
     if (isGalleryMode) {
-      // 展示模式下缓动减速直到停止，保留当前旋转角度
-      gallerySpeedFactor = Math.max(0, gallerySpeedFactor - 0.001) // 从0.005改为0.001，拉长5倍时间
-      galleryRotationY += 0.0003 * gallerySpeedFactor
+      // 展示模式下保持持续转动（比正常模式慢一点，更优雅）
+      galleryRotationY += 0.004 // 每帧恒定角速度
       loadedModel.rotation.y = galleryRotationY
-      loadedModel.rotation.x = galleryRotationX // 保持x轴角度不变
+      loadedModel.rotation.x = galleryRotationX + Math.sin(elapsedTime * 0.3) * 0.08 // 保持x轴轻微波动，更有生命感
     } else {
       // 正常模式下的旋转
       normalRotationY = elapsedTime * 0.3
@@ -846,14 +847,15 @@ const tick = (time) => {
     wireframeIcosahedron.material.opacity = pulse
   }
 
-  // 更新画廊遮罩平面（拉长时间）
+  // 更新画廊遮罩平面
   if (galleryOverlayPlane) {
     // 让遮罩平面始终面向相机
     galleryOverlayPlane.lookAt(camera.instance.position)
     
-    // 平滑过渡透明度（更慢）
+    // 平滑过渡透明度 - 进入展示模式时更快（0.08）
     const targetOpacity = isGalleryMode ? 0.85 : 0
-    galleryOverlayPlane.material.opacity += (targetOpacity - galleryOverlayPlane.material.opacity) * 0.015
+    const opacitySpeed = isGalleryMode ? 0.08 : 0.03
+    galleryOverlayPlane.material.opacity += (targetOpacity - galleryOverlayPlane.material.opacity) * opacitySpeed
   }
 
   // 更新展示框
