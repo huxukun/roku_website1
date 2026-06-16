@@ -187,8 +187,8 @@ html, body {
     drop-shadow(0 0 24px rgba(0, 255, 255, 0.5))
     drop-shadow(0 0 45px rgba(0, 255, 255, 0.25));
   animation: arrow-pulse 2s ease-in-out infinite;
-  /* 以箭头底部（贴近道路）为旋转中心，箭头尖向前上方伸出 */
-  transform-origin: 50% 85%;
+  /* 旋转中心在箭头几何中心：绕垂直箭头平面的线为旋转轴 */
+  transform-origin: 50% 50%;
   transform-style: preserve-3d;
   /* 注意：不使用 CSS transition 做旋转——用 JS rAF + lerp 平滑，避免与高频 heading 更新冲突 */
   line-height: 1;
@@ -221,6 +221,135 @@ html, body {
   color: #00ff88;
   text-shadow: 0 0 8px rgba(0, 255, 136, 0.7);
   letter-spacing: 0.2em;
+}
+
+/* ============================================================
+   转弯指示器（新增）
+   ============================================================ */
+.turn-indicator {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  background: rgba(0, 20, 30, 0.7);
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.turn-icon {
+  font-size: 32px;
+  line-height: 1;
+  transition: color 0.3s ease;
+}
+
+.turn-text {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  transition: color 0.3s ease;
+}
+
+.turn-indicator.pulse {
+  animation: indicator-pulse 0.3s ease-out;
+}
+
+@keyframes indicator-pulse {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* ============================================================
+   路线进度条（新增）
+   ============================================================ */
+.route-progress-bar {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 6px;
+  background: rgba(0, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.route-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ffff, #00ff88);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+}
+
+/* ============================================================
+   路线概览卡片（新增）
+   ============================================================ */
+.route-summary {
+  position: absolute;
+  bottom: 25vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 85vw;
+  max-width: 400px;
+  background: rgba(0, 20, 30, 0.85);
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.15);
+  z-index: 30;
+}
+
+.route-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+}
+
+.route-summary-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #00ffff;
+  letter-spacing: 0.1em;
+}
+
+.route-summary-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(0, 255, 255, 0.1);
+  color: #00ffff;
+  font-size: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.route-summary-close:hover {
+  background: rgba(0, 255, 255, 0.3);
+}
+
+.route-summary-content {
+  padding: 12px 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: rgba(0, 255, 255, 0.9);
+  line-height: 1.6;
 }
 
 /* ============================================================

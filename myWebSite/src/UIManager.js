@@ -528,10 +528,14 @@ export default class UIManager {
     // 优先使用云端数据库的歌曲，没有则使用默认歌曲
     this.songs = this.loadSongsFromService();
     this.isAudioInitialized = false;
-    // 播放队列：确保5轮内不重复
+    // 播放队列：确保一轮内完全不重复（每轮都是全新随机顺序）
     this.playlist = [];
     this.lastPlayedSongs = []; // 记录最近播放的歌曲索引
     this.initPlaylist();
+    // 第一次播放时从随机播放列表中取一首作为起始，而不是固定从 index=0 开始
+    if (this.playlist.length > 0) {
+      this.currentSongIndex = this.playlist.shift();
+    }
     
     this.closeModalBtns = [
       document.getElementById('close-modal'),
@@ -1538,42 +1542,45 @@ export default class UIManager {
     }
   }
 
-  // 初始化播放队列（Fisher-Yates 洗牌算法）
+  // 初始化播放队列（Fisher-Yates 洗牌算法 + crypto 随机种子）
   initPlaylist() {
     this.playlist = [];
     for (let i = 0; i < this.songs.length; i++) {
       this.playlist.push(i);
     }
-    // 随机打乱播放队列
+    // 使用 crypto.getRandomValues 增强随机性，防止 Math.random 规律性导致固定首曲
+    const random = () => {
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const arr = new Uint32Array(1);
+        crypto.getRandomValues(arr);
+        return arr[0] / (0xFFFFFFFF + 1);
+      }
+      return Math.random();
+    };
+    // Fisher-Yates 洗牌
     for (let i = this.playlist.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(random() * (i + 1));
       [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
     }
     this.lastPlayedSongs = [];
   }
 
-  // 获取下一首歌曲索引（确保5轮内不重复）
+  // 获取下一首歌曲索引（播放列表空了立即重新洗牌，确保每轮完全不重复）
   getNextSongIndex() {
-    console.log('getNextSongIndex called');
-    console.log('Current playlist:', this.playlist);
-    
-    // 如果播放队列为空，重新初始化
+    // 播放列表为空 → 立即重新生成全新随机顺序
     if (this.playlist.length === 0) {
-      console.log('Playlist is empty, reinitializing...');
       this.initPlaylist();
-      console.log('New playlist:', this.playlist);
     }
-    
+
     // 从队列中取出一首
     const songIndex = this.playlist.shift();
-    console.log('Selected song index:', songIndex);
-    
-    // 记录最近播放的歌曲（最多保留4首）
+
+    // 记录最近播放的歌曲（最多保留 4 首）
     this.lastPlayedSongs.push(songIndex);
     if (this.lastPlayedSongs.length > 4) {
       this.lastPlayedSongs.shift();
     }
-    
+
     return songIndex;
   }
 

@@ -39,6 +39,19 @@ const dom = {
   arrowDistance:   $('arrow-distance'),
   arrowHint:       $('arrow-hint'),
 
+  // ★★★ 新增：转弯指示器 ★★★
+  turnIndicator:   $('turn-indicator'),
+  turnIcon:        $('turn-icon'),
+  turnText:        $('turn-text'),
+
+  // 进度条
+  routeProgressFill: $('route-progress-fill'),
+
+  // 路线概览
+  routeSummary:      $('route-summary'),
+  routeSummaryContent: $('route-summary-content'),
+  routeSummaryClose: $('route-summary-close'),
+
   // 主信息
   totalDistance:   $('total-distance'),
   remainTime:      $('remain-time'),
@@ -110,9 +123,20 @@ const state = {
   amapReady: false,      // AMap JS SDK 是否已加载
   geocoder: null,        // 反地理编码器实例
   riding: null,          // 骑行路线规划（AMap.Riding）
+  driving: null,         // 驾车路线规划（AMap.Driving）
+  walking: null,         // 步行路线规划（AMap.Walking）
   lastGeocodeTime: 0,    // 上次反地理编码时间（毫秒）
   roadName: '',          // 当前道路名称
   address: '',           // 完整地址
+
+  // 速度监测
+  currentSpeed: 0,       // 当前速度（km/h，来自 GPS speed 或差分估算）
+  speedHistory: [],      // 最近若干速度样本（便于平滑）
+  lastGpsTime: null,     // 上一次 GPS 时间戳
+  lastGpsLat: null,      // 上一次 GPS 坐标 lat
+  lastGpsLng: null,      // 上一次 GPS 坐标 lng
+
+  weather: null          // 当前天气信息对象
 }
 
 /* ============================================================
@@ -290,6 +314,50 @@ function _pointAtDistance(path, distanceMeters) {
   return { lat: last[1], lng: last[0], segIdx: path.length - 2 }
 }
 
+// 从路径点数组计算"有向路径"：每段都有起点、终点、bearing
+// 返回 [{startLat, startLng, endLat, endLng, bearing, distance, cumDistance}] 数组
+function _buildDirectionalPath(fullPath) {
+  if (!fullPath || fullPath.length < 2) return []
+  const segments = []
+  let cumDist = 0
+  for (let i = 0; i < fullPath.length - 1; i++) {
+    const [lng1, lat1] = fullPath[i]
+    const [lng2, lat2] = fullPath[i + 1]
+    if (typeof lat1 !== 'number' || typeof lat2 !== 'number') continue
+    const segDist = haversine(lat1, lng1, lat2, lng2)
+    // 非常短的段（可能是重复点）忽略，避免 bearing 不稳定
+    if (segDist < 1) continue
+    const segBearing = bearing(lat1, lng1, lat2, lng2)
+    segments.push({
+      startLat: lat1, startLng: lng1,
+      endLat: lat2, endLng: lng2,
+      bearing: segBearing,
+      distance: segDist,
+      cumDistance: cumDist
+    })
+    cumDist += segDist
+  }
+  return segments
+}
+
+// 基于"前一段朝向"与"后一段朝向"计算左转/右转/直行/掉头
+// 返回: 'left' | 'right' | 'left-slight' | 'right-slight' | 'uturn' | 'straight'
+function _computeTurnDirection(prevBearing, nextBearing) {
+  // 归一化角度差到 (-180, 180]
+  let diff = ((nextBearing - prevBearing + 540) % 360) - 180
+  if (Math.abs(diff) < 15) return 'straight'
+  if (Math.abs(diff) > 150) return 'uturn'
+  if (diff < 0) {
+    // 向左偏转
+    if (Math.abs(diff) < 45) return 'left-slight'
+    return 'left'
+  } else {
+    // 向右偏转
+    if (Math.abs(diff) < 45) return 'right-slight'
+    return 'right'
+  }
+}
+
 // 把 AMap.Riding 返回的 orientation 文本转成标准动作
 function _orientationToAction(orientationText) {
   if (!orientationText) return 'straight'
@@ -315,6 +383,136 @@ function _actionToText(action) {
     'uturn': '掉头',
     'arrive': '到达目的地'
   })[action] || '直行'
+}
+
+/**
+ * ★★★ 新增：更新转弯指示器UI ★★★
+ * 根据当前动作类型显示对应的图标和文本
+ */
+function _updateTurnIndicator(action, distance) {
+  if (!dom.turnIndicator) return
+
+  // 转弯图标映射
+  const iconMap = {
+    'straight': '↑',
+    'left': '←',
+    'left-slight': '↖',
+    'right': '→',
+    'right-slight': '↗',
+    'uturn': '↺',
+    'arrive': '★'
+  }
+
+  // 转弯颜色映射
+  const colorMap = {
+    'straight': '#00ffff',
+    'left': '#4dd0e1',
+    'left-slight': '#4dd0e1',
+    'right': '#ffb74d',
+    'right-slight': '#ffb74d',
+    'uturn': '#e57373',
+    'arrive': '#ffd54f'
+  }
+
+  const icon = iconMap[action] || iconMap['straight']
+  const text = _actionToText(action)
+  const color = colorMap[action] || colorMap['straight']
+
+  // 更新图标和文本
+  if (dom.turnIcon) {
+    dom.turnIcon.textContent = icon
+    dom.turnIcon.style.color = color
+  }
+
+  if (dom.turnText) {
+    dom.turnText.textContent = text
+    dom.turnText.style.color = color
+  }
+
+  // 添加动画效果
+  dom.turnIndicator.classList.add('pulse')
+  setTimeout(() => {
+    dom.turnIndicator.classList.remove('pulse')
+  }, 300)
+}
+
+/**
+ * ★★★ 新增：更新路线进度条 ★★★
+ * 显示当前位置在整体路线上的进度
+ */
+function _updateRouteProgress(progressMeters, totalDistance) {
+  if (!dom.routeProgressFill || !totalDistance) return
+
+  const progress = Math.min((progressMeters / totalDistance) * 100, 100)
+  dom.routeProgressFill.style.width = `${progress}%`
+}
+
+/**
+ * ★★★ 新增：显示路线概览 ★★★
+ * 在路线规划成功后显示简要路线信息
+ */
+function _showRouteSummary(steps, totalDist) {
+  if (!dom.routeSummary || !dom.routeSummaryContent) return
+
+  // 生成路线概览内容
+  let content = `<div style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+      <span>总距离：<strong style="color: #00ffff;">${fmtDistance(totalDist)}</strong></span>
+      <span>预计：<strong style="color: #00ff88;">${fmtEta(totalDist)}</strong></span>
+    </div>
+    <div style="border-bottom: 1px solid rgba(0, 255, 255, 0.2); padding-bottom: 8px; margin-bottom: 8px;">
+      途经 <strong style="color: #ffb74d;">${steps.length - 2}</strong> 个路口
+    </div>
+  </div>`
+
+  // 添加主要转弯指示（最多显示前5个）
+  const mainTurns = steps
+    .filter(s => s.action !== 'arrive' && s.action !== 'straight')
+    .slice(0, 5)
+
+  if (mainTurns.length > 0) {
+    content += '<div style="margin-bottom: 8px; font-weight: 600;">主要转弯：</div>'
+    mainTurns.forEach((step, idx) => {
+      const icon = _actionToIcon(step.action)
+      const road = step.road ? `进入${step.road}` : ''
+      const dist = idx === 0 ? '起点' : `${fmtDistance(step.cumDistance)}`
+      content += `<div style="margin: 4px 0; padding-left: 8px; border-left: 2px solid rgba(0, 255, 255, 0.3);">
+        <span style="color: #4dd0e1;">${icon}</span> ${dist} - ${_actionToText(step.action)} ${road}
+      </div>`
+    })
+  }
+
+  dom.routeSummaryContent.innerHTML = content
+  dom.routeSummary.style.display = 'block'
+
+  // 自动隐藏（10秒后）
+  setTimeout(() => {
+    if (dom.routeSummary) {
+      dom.routeSummary.style.display = 'none'
+    }
+  }, 10000)
+
+  // 点击关闭按钮
+  if (dom.routeSummaryClose) {
+    dom.routeSummaryClose.onclick = () => {
+      if (dom.routeSummary) {
+        dom.routeSummary.style.display = 'none'
+      }
+    }
+  }
+}
+
+// 动作转图标
+function _actionToIcon(action) {
+  return ({
+    'straight': '↑',
+    'left': '←',
+    'left-slight': '↖',
+    'right': '→',
+    'right-slight': '↗',
+    'uturn': '↺',
+    'arrive': '★'
+  })[action] || '→'
 }
 
 // 根据动作选择 SVG 箭头样式：返回 arrowRotationDeg（箭头默认朝上，正角度=顺时针旋转）
@@ -427,6 +625,96 @@ function _showVoiceHint(text) {
 }
 
 /* ============================================================
+   天气监测：Open-Meteo（免费、无需 API Key，HTTPS 直连）
+   ============================================================ */
+let _lastWeatherFetchTime = 0
+let _weatherTimer = null
+
+// WMO weather code -> 中文描述
+function _wmoCodeToText(code) {
+  const map = {
+    0: '☀️ 晴',
+    1: '🌤️ 晴间多云', 2: '⛅ 多云', 3: '☁️ 阴',
+    45: '🌫️ 雾', 48: '🌫️ 冻雾',
+    51: '🌦️ 小毛毛雨', 53: '🌦️ 毛毛雨', 55: '🌧️ 强毛毛雨',
+    56: '❄️ 冻毛毛雨', 57: '❄️ 强冻毛毛雨',
+    61: '🌧️ 小雨', 63: '🌧️ 中雨', 65: '🌧️ 大雨',
+    66: '❄️ 冻雨', 67: '❄️ 强冻雨',
+    71: '🌨️ 小雪', 73: '🌨️ 中雪', 75: '❄️ 大雪',
+    77: '🌨️ 雪粒',
+    80: '🌦️ 阵雨', 81: '🌧️ 强阵雨', 82: '⛈️ 暴雨',
+    85: '🌨️ 阵雪', 86: '❄️ 强阵雪',
+    95: '⛈️ 雷雨',
+    96: '⛈️ 雷雨冰雹', 99: '⛈️ 强雷雨冰雹'
+  }
+  return map[code] || '🌡️ 未知'
+}
+
+function fetchWeather(lat, lng) {
+  if (lat == null || lng == null) return
+  // 10 分钟内不重复请求
+  if (Date.now() - _lastWeatherFetchTime < 10 * 60 * 1000) return
+  _lastWeatherFetchTime = Date.now()
+
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=Asia%2FShanghai&forecast_days=1`
+  fetch(url, { cache: 'no-store' })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status)
+      return r.json()
+    })
+    .then(data => {
+      if (!data || !data.current) throw new Error('weather: 无 current 字段')
+      const c = data.current
+      const temp = (typeof c.temperature_2m === 'number') ? c.temperature_2m : null
+      const humidity = (typeof c.relative_humidity_2m === 'number') ? c.relative_humidity_2m : null
+      const windSpeed = (typeof c.wind_speed_10m === 'number') ? c.wind_speed_10m : null
+      const weatherText = _wmoCodeToText(c.weather_code)
+      let hint = weatherText
+      if (temp != null) hint += ` ${temp.toFixed(1)}°C`
+      if (humidity != null) hint += ` · 湿度${humidity}%`
+      if (windSpeed != null) hint += ` · 风${windSpeed.toFixed(1)}km/h`
+
+      state.weather = {
+        temperature: temp,
+        humidity: humidity,
+        windSpeed: windSpeed,
+        weatherCode: c.weather_code,
+        summary: weatherText,
+        text: hint,
+        updatedAt: Date.now()
+      }
+      if (dom['weather-info']) dom['weather-info'].textContent = hint
+      console.log('[AR NAV] ✅ 天气：' + hint)
+    })
+    .catch(err => {
+      console.warn('[AR NAV] ❌ 天气获取失败：', err && err.message || err)
+      if (dom['weather-info']) dom['weather-info'].textContent = '天气服务不可用'
+      _lastWeatherFetchTime = Date.now() - 9 * 60 * 1000 // 1 分钟后重试
+    })
+}
+
+// 启动天气监测：首次立即获取，之后每 10 分钟刷新一次
+function startWeatherMonitor() {
+  if (_weatherTimer) return // 已经启动
+  // 首次请求：延迟 2 秒（等 GPS 定位到）
+  const tryFirst = () => {
+    if (state.currentLat != null && state.currentLng != null) {
+      fetchWeather(state.currentLat, state.currentLng)
+    } else {
+      setTimeout(tryFirst, 2000) // 继续等 GPS
+    }
+  }
+  setTimeout(tryFirst, 1500)
+
+  // 周期性刷新：每 10 分钟
+  _weatherTimer = setInterval(() => {
+    if (state.currentLat != null && state.currentLng != null) {
+      fetchWeather(state.currentLat, state.currentLng)
+    }
+  }, 10 * 60 * 1000)
+}
+
+/* ============================================================
    高德地图：动态加载 JS SDK + 反地理编码
    ============================================================ */
 let _amapLoadingPromise = null
@@ -489,8 +777,8 @@ function _loadAMap() {
     const script = document.createElement('script')
     script.type = 'text/javascript'
     script.async = true
-    // 同时加载 Geocoder（反地理编码）、AutoComplete（POI搜索）、PlaceSearch（周边搜索）和 Riding（骑行路线规划）插件
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch,AMap.Riding`
+    // 同时加载骑行/驾车/步行三种路线规划服务，便于在主服务失败时 fallback 到备用
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(trimmedKey)}&plugin=AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch,AMap.Riding,AMap.Driving,AMap.Walking`
 
     script.onerror = () => {
       const err = '高德 SDK 网络加载失败（可能是网络问题或 Key 被封禁）'
@@ -537,20 +825,28 @@ function _initAMapServices(resolve, reject) {
       radius: 500,
       extensions: 'base'
     })
-    // 骑行路线规划服务
-    if (typeof window.AMap.Riding === 'function') {
-      state.riding = new window.AMap.Riding({
-        policy: 0   // 0=最快捷（推荐），1=最少换乘，2=避免步行
-      })
-    } else {
-      console.warn('[AR NAV] AMap.Riding 不可用（可能是 Key 权限或插件加载顺序）')
+
+    // 同时创建三种路线规划服务（Riding / Driving / Walking），
+    // 运行时根据 CONFIG.NAV_MODE 选择主服务，失败时可 fallback 到备用
+    if (window.AMap.Riding) {
+      try { state.riding = new window.AMap.Riding({ policy: 0 }) } catch (e) { console.warn('[AR NAV] AMap.Riding 初始化失败:', e && e.message) }
     }
+    if (window.AMap.Driving) {
+      try { state.driving = new window.AMap.Driving({ policy: 0 }) } catch (e) { console.warn('[AR NAV] AMap.Driving 初始化失败:', e && e.message) }
+    }
+    if (window.AMap.Walking) {
+      try { state.walking = new window.AMap.Walking({ policy: 0 }) } catch (e) { console.warn('[AR NAV] AMap.Walking 初始化失败:', e && e.message) }
+    }
+
+    const primary = (CONFIG.NAV_MODE || 'riding').toLowerCase()
+    console.log(`[AR NAV] ✅ AMap 服务初始化成功：riding=${!!state.riding} driving=${!!state.driving} walking=${!!state.walking}（主服务=${primary}）`)
+
     _setAMapStatus('ready', null)
     resolve()
   } catch (e) {
-    const err = 'Geocoder 初始化失败（Key 可能无效或白名单不匹配）: ' + (e && e.message || e)
+    const err = 'AMap 服务初始化失败: ' + (e && e.message || e)
     _setAMapStatus('failed', err)
-    console.warn('[AR NAV]', err)
+    console.error('[AR NAV] ❌', err)
     reject(new Error(err))
   }
 }
@@ -620,44 +916,41 @@ function startGPS() {
   // 预加载高德地图 SDK（用于道路显示）
   _loadAMap()
 
+  // 让 MiniMap 也启用定位（此时已是用户手势后）
+  if (state.miniMap && typeof state.miniMap.enableLocation === 'function') {
+    state.miniMap.enableLocation()
+  }
+
   state.watchId = navigator.geolocation.watchPosition(
     (pos) => {
       state.currentLat = pos.coords.latitude
       state.currentLng = pos.coords.longitude
 
-      // 标记 GPS 状态为正常
       dom.gpsStatus.classList.add('active')
 
-      // 如果还没记录起点，这里记录一下
       if (state.startLat == null) {
         state.startLat = state.currentLat
         state.startLng = state.currentLng
         state.startTime = Date.now()
       }
 
-      // 同步到迷你地图（使用真实经纬度）
       if (state.miniMap) {
         state.miniMap.setPosition(state.currentLng, state.currentLat)
       }
 
-      // 如果有目的地且还没规划过路线，立即规划（首次定位成功后）
-      if (state.destination && state.riding && !state._routePlanned) {
-        state._routePlanned = true
-        _planRoute(state.currentLng, state.currentLat,
-                   state.destination.lng, state.destination.lat)
+      // 有目的地但还没路线 → 统一走 _tryPlanRoute（避免重复触发）
+      if (state.destination && !state._navInitialized) {
+        _tryPlanRoute()
       }
 
-      // 有路线 → 沿路线计算导航进度（下一转弯、箭头）
+      // 有路线 → 沿路线计算导航进度；无路线 → 回退到朝向/距离显示
       if (state._navInitialized) {
         _updateNavProgress(state.currentLat, state.currentLng)
-      } else {
-        // 没路线 → 回退到"距离目的地 + 朝向"
+      } else if (state.destination) {
         _updateDistanceAndBearing()
       }
 
-      // 已行驶距离
       if (state._navInitialized) {
-        // 沿路线行驶距离（更准确）
         const p = _projectPointToPath(state.currentLat, state.currentLng, state.navFullPath)
         if (p) dom.traveled.textContent = fmtDistance(p.cumDistanceMeters)
       } else {
@@ -668,13 +961,39 @@ function startGPS() {
         dom.traveled.textContent = fmtDistance(state.traveledDistance)
       }
 
-      // 当前速度
-      if (pos.coords.speed != null && pos.coords.speed > 0) {
-        const kmh = (pos.coords.speed * 3.6).toFixed(1)
-        dom.currentSpeed.textContent = `${kmh} km/h`
+      // ===== 速度估算：优先用 GPS speed；不可用时用差分估算 =====
+      let kmh = null
+      if (pos.coords.speed != null && isFinite(pos.coords.speed) && pos.coords.speed >= 0) {
+        kmh = pos.coords.speed * 3.6
+      } else {
+        // 差分估算：用上一次位置 + 时间差
+        if (state.lastGpsTime && state.lastGpsLat != null && state.lastGpsLng != null) {
+          const dtSeconds = (Date.now() - state.lastGpsTime) / 1000
+          if (dtSeconds > 0.5) {
+            const distMeters = _haversineMeters(
+              state.lastGpsLat, state.lastGpsLng,
+              state.currentLat, state.currentLng)
+            kmh = (distMeters / dtSeconds) * 3.6
+          }
+        }
+      }
+      // 平滑：取最近 5 个样本的移动平均，减少抖动
+      if (kmh != null && isFinite(kmh)) {
+        state.speedHistory.push(Math.min(kmh, 200)) // 上限 200 km/h，过滤跳点
+        if (state.speedHistory.length > 5) state.speedHistory.shift()
+        state.currentSpeed = state.speedHistory.reduce((a, b) => a + b, 0) / state.speedHistory.length
+      } else {
+        // 没有有效 GPS 数据时缓慢衰减显示，避免一直显示旧速度
+        state.currentSpeed = Math.max(0, (state.currentSpeed || 0) - 0.5)
+      }
+      state.lastGpsTime = Date.now()
+      state.lastGpsLat = state.currentLat
+      state.lastGpsLng = state.currentLng
+
+      if (dom['current-speed']) {
+        dom['current-speed'].textContent = `${state.currentSpeed.toFixed(1)} km/h`
       }
 
-      // 反地理编码：获取当前道路名称（限流 ~ 3 秒一次）
       _reverseGeocode(state.currentLng, state.currentLat)
     },
     (err) => {
@@ -761,15 +1080,26 @@ function _startArrowSmoothLoop() {
 
   let lastTs = 0
 
+  let lastLogTs = 0
+  let tickCount = 0
+
   function tick(ts) {
     if (!lastTs) lastTs = ts
     const dt = Math.min((ts - lastTs) / 1000, 0.1)
     lastTs = ts
     const dtScale = Math.max(dt * 60, 1)  // 以 60fps 为基准，做帧率无关缩放
+    tickCount++
+
+    // 每 5 秒打印一次箭头状态（调试用）
+    if (ts - lastLogTs > 5000) {
+      lastLogTs = ts
+      console.log(`[AR NAV] 箭头循环 #${tickCount}: target=${state._arrowTargetAngle?.toFixed(1)}, current=${state._arrowCurrentAngle?.toFixed(1)}, heading=${state.heading}, dom.bigArrow=${dom.bigArrow ? '✅' : '❌'}`)
+    }
 
     // -------- 大箭头 --------
-    // 3D 平视视角：先把箭头"立起来"绕竖直轴（Y 轴）旋转——像前方悬浮的路标
-    // rotateX(65deg)：从屏幕平面向后倾斜，模拟平视视角；rotateY(angle)：绕水平面法线旋转
+    // 3D 平视视角：先让箭头在屏幕平面内转向（rotateZ），再整体向前倾斜（rotateX）
+    // rotateZ(angle)：绕"垂直屏幕平面穿出"的轴旋转——这正是垂直箭头平面的旋转轴
+    // rotateX(65deg)：从屏幕平面向后倾斜，模拟平视视角
     {
       let diff = state._arrowTargetAngle - state._arrowCurrentAngle
       while (diff >  180) diff -= 360
@@ -777,10 +1107,14 @@ function _startArrowSmoothLoop() {
       if (Math.abs(diff) > SNAP_THRESHOLD) {
         const factor = 1 - Math.pow(1 - LERP_FAST, dtScale)
         state._arrowCurrentAngle += diff * factor
-        if (dom.bigArrow) dom.bigArrow.style.transform = `rotateX(65deg) rotateY(${state._arrowCurrentAngle}deg)`
+        if (dom.bigArrow) {
+          dom.bigArrow.style.transform = `rotateX(65deg) rotateZ(${state._arrowCurrentAngle}deg)`
+        }
       } else if (Math.abs(diff) > 0.001) {
         state._arrowCurrentAngle = state._arrowTargetAngle
-        if (dom.bigArrow) dom.bigArrow.style.transform = `rotateX(65deg) rotateY(${state._arrowTargetAngle}deg)`
+        if (dom.bigArrow) {
+          dom.bigArrow.style.transform = `rotateX(65deg) rotateZ(${state._arrowTargetAngle}deg)`
+        }
       }
     }
 
@@ -854,7 +1188,7 @@ function _updateArrowWithHeading() {
     // 无目的地：直接停在 0°，不再抖动
     state._arrowTargetAngle = 0
     state._arrowCurrentAngle = 0
-    dom.bigArrow.style.transform = 'rotateX(65deg) rotateY(0deg)'
+    dom.bigArrow.style.transform = 'rotateX(65deg) rotateZ(0deg)'
     dom.arrowDistance.style.display = 'block'
     dom.arrowHint.textContent = '未设置目的地'
     return
@@ -898,12 +1232,26 @@ function _updateArrowWithHeading() {
    启动流程
    ============================================================ */
 function startNav() {
+  console.log('[AR NAV] startNav() 被调用了！')
+
+  // 防御性检查：确保关键 DOM 元素存在
+  if (!dom.startBtn) {
+    console.error('[AR NAV] ❌ 错误：找不到 start-btn 元素！')
+    return
+  }
+  if (!dom.destinationBox) {
+    console.error('[AR NAV] ❌ 错误：找不到 destination-box 元素！')
+    return
+  }
+
   // 确保 AMap 在加载（init 已预加载，这里再确认一次）
   _loadAMap()
 
   // 显示目的地输入
   dom.destinationBox.classList.remove('hidden')
   dom.startBtn.classList.add('hidden')
+
+  console.log('[AR NAV] ✅ 开始导航界面已显示')
 
   // 获取一次轻量定位（用于 POI 搜索按距离排序）
   _getUserLocationForSearch()
@@ -1254,377 +1602,819 @@ function _waitForAMap(cb, failCb) {
   check()
 }
 
-// 目的地设置完成 → 启动导航
 function _applyDestination(name, lng, lat) {
-  state.destination = {
-    name: name,
-    lng: lng,
-    lat: lat
-  }
+  state.destination = { name: name, lng: lng, lat: lat }
   dom.destination.textContent = name
-
-  // 隐藏启动层
   dom.initOverlay.classList.add('hidden')
 
-  // 同步到 MiniMap
+  // 清除旧路线状态，允许重新规划
+  state._routePlanned = false
+  state._navInitialized = false
+  state.navSteps = null
+  state.navFullPath = null
+  if (state.miniMap && typeof state.miniMap.clearRoute === 'function') {
+    state.miniMap.clearRoute()
+  }
   if (state.miniMap) {
     state.miniMap.setTarget(lng, lat)
   }
 
-  // 开始获取定位和方向
   startGPS()
   startCompass()
 
-  // 如果已经有起点了，立即规划骑行路线
-  if (state.currentLat != null && state.riding) {
-    _planRoute(state.currentLng, state.currentLat, lng, lat)
+  // 尝试规划路线；GPS/AMap 未就绪时每 1 秒重试，最多 30 秒
+  const planned = _tryPlanRoute()
+  if (!planned) {
+    let retryCount = 0
+    const retryInterval = setInterval(() => {
+      retryCount++
+      if (state._navInitialized || retryCount > 30) {
+        clearInterval(retryInterval)
+        if (!state._navInitialized && retryCount > 30 && state.currentLng != null) {
+          _initFallbackRoute(state.currentLng, state.currentLat,
+                             state.destination.lng, state.destination.lat)
+        }
+        return
+      }
+      _tryPlanRoute()
+    }, 1000)
   }
 
-  speak(`目的地已设置：${name}。请面向骑行方向出发`)
+  speak(`目的地已设置：${name}，正在规划路线`)
 }
 
 // ============================================================
 // 🗺️ 完整骑行路线规划与导航引擎（AMap.Riding + 逐路口引导）
 // ============================================================
 
-// 根据起点→终点规划骑行路线（AMap.Riding），并生成结构化步骤
-function _planRoute(fromLng, fromLat, toLng, toLat) {
-  if (!state.riding) return
-  try {
-    state.riding.search(
-      [fromLng, fromLat],
-      [toLng, toLat],
-      (status, result) => {
-        if (status !== 'complete' || !result || !result.routes || result.routes.length === 0) {
-          console.warn('[AR NAV] 骑行路线规划失败：', status, result)
-          // 失败时：回退到简单直线（不影响显示）
-          _initFallbackRoute(fromLng, fromLat, toLng, toLat)
-          return
-        }
-        const route = result.routes[0]
-
-        // ── 解析步骤 ──
-        const steps = []        // {index, path, distance, instruction, road, action, orientation, turnPoint, cumDistance}
-        const fullPath = [[fromLng, fromLat]]  // 完整折线（起始点已插入）
-        let cumDistance = 0
-
-        if (route.steps && route.steps.length > 0) {
-          route.steps.forEach((rawStep, idx) => {
-            // step.path 是 AMap.LngLat 对象或 [lng,lat] 数组的拐点序列
-            const stepPath = []
-            if (rawStep.path && rawStep.path.length > 0) {
-              rawStep.path.forEach((pt) => {
-                if (Array.isArray(pt)) stepPath.push([pt[0], pt[1]])
-                else if (pt && typeof pt.getLng === 'function') stepPath.push([pt.getLng(), pt.getLat()])
-              })
-            }
-
-            const distance = Number(rawStep.distance) || 0
-            const road = rawStep.road || rawStep.assistantName || ''
-            const instruction = rawStep.instruction || ''
-            const orientation = rawStep.orientation || rawStep.orient || ''
-            const action = _orientationToAction(instruction || orientation)
-
-            // 该步骤的起点 = 上一步骤的终点 = fullPath 的最后一个点
-            const turnPoint = stepPath.length > 0 ? stepPath[0] : (fullPath.length > 0 ? fullPath[fullPath.length - 1] : [fromLng, fromLat])
-
-            steps.push({
-              index: idx,
-              path: stepPath,
-              distance: distance,
-              instruction: instruction,
-              road: road,
-              orientation: orientation,
-              action: action,
-              turnPoint: turnPoint,
-              cumDistance: cumDistance
-            })
-
-            // 累积距离 + 连续折线（去重：与上一段的结尾点相同，避免重复）
-            for (let i = 0; i < stepPath.length; i++) {
-              const last = fullPath[fullPath.length - 1]
-              const p = stepPath[i]
-              if (!last || Math.abs(last[0] - p[0]) > 1e-8 || Math.abs(last[1] - p[1]) > 1e-8) {
-                fullPath.push(p)
-              }
-            }
-            cumDistance += distance
-          })
-        }
-
-        // 最后一段 → 终点
-        fullPath.push([toLng, toLat])
-
-        // 步骤不够（路线短，riding 没生成步骤）→ 也补齐一个"到达"步骤
-        if (steps.length === 0) {
-          steps.push({
-            index: 0,
-            path: [[fromLng, fromLat], [toLng, toLat]],
-            distance: haversine(fromLat, fromLng, toLat, toLng),
-            instruction: '沿当前道路骑行至目的地',
-            road: '',
-            orientation: '',
-            action: 'straight',
-            turnPoint: [fromLng, fromLat],
-            cumDistance: 0
-          })
-        }
-
-        // 添加"到达"步骤
-        const totalDist = cumDistance > 0 ? cumDistance : haversine(fromLat, fromLng, toLat, toLng)
-        steps.push({
-          index: steps.length,
-          path: [[toLng, toLat]],
-          distance: 0,
-          instruction: '到达目的地',
-          road: '',
-          orientation: '',
-          action: 'arrive',
-          turnPoint: [toLng, toLat],
-          cumDistance: totalDist
-        })
-
-        // ── 写入导航状态 ──
-        state.navSteps = steps
-        state.navFullPath = fullPath
-        state.navTotalDistance = totalDist
-        state.navCurrentStepIdx = 0
-        state.navProgressMeters = 0
-        state._routePlanned = true
-        state._navInitialized = true
-
-        // 同步到 MiniMap（显示完整路线）
-        if (state.miniMap) {
-          state.miniMap.setRoutePath(fullPath)
-          state.miniMap.setRouteSteps(steps)
-        }
-
-        // 更新总距离显示
-        state.totalDistance = totalDist
-        dom.totalDistance.textContent = fmtDistance(totalDist)
-        dom.remainTime.textContent = fmtEta(totalDist)
-
-        // 立即计算一次导航状态（用于"设置目的地后立即显示第一个转弯提示"）
-        const startPt = fullPath[0]
-        _updateNavProgress(startPt[1], startPt[0])
-
-        console.log(`[AR NAV] 路线规划成功：${steps.length - 1} 个转弯，总距离 ${fmtDistance(totalDist)}`)
-      }
-    )
-  } catch (e) {
-    console.warn('[AR NAV] riding.search 异常：', e && e.message || e)
-    _initFallbackRoute(fromLng, fromLat, toLng, toLat)
+/**
+ * ★★★ 新增：尝试规划路线的安全包装函数 ★★★
+ * 检查所有必要条件：GPS定位、目的地、Riding服务
+ * 确保路线规划在正确的时机触发
+ */
+function _tryPlanRoute() {
+  if (state.currentLat == null || state.currentLng == null) {
+    console.log('[AR NAV] _tryPlanRoute: 等待GPS定位...')
+    return false
   }
+  if (!state.destination) {
+    console.log('[AR NAV] _tryPlanRoute: 等待设置目的地...')
+    return false
+  }
+  if (!state.riding && !state.driving && !state.walking) {
+    console.warn('[AR NAV] _tryPlanRoute: 没有任何路线规划服务就绪（riding/driving/walking 都为 null）')
+    _loadAMap()
+    return false
+  }
+  if (state._navInitialized) return false  // 已经有路线了，不再规划
+  if (state._routePlanned) return false    // 正在规划中，避免重复触发
+
+  state._routePlanned = true  // 标记"正在规划"，防止重复触发
+  console.log('[AR NAV] 🚴 发起路线规划：从', state.currentLat, state.currentLng,
+              '→', state.destination.lat, state.destination.lng)
+  _planRoute(state.currentLng, state.currentLat,
+             state.destination.lng, state.destination.lat)
+  return true
 }
 
-// 规划失败时的兜底：一条从起点到终点的直线（伪 step）
+function _planRoute(fromLng, fromLat, toLng, toLat) {
+  // 按优先级确定服务尝试顺序
+  const primary = (CONFIG.NAV_MODE || 'riding').toLowerCase()
+  // 候选列表：[{name, service}]，主服务在前
+  const candidates = []
+  if (primary === 'driving') {
+    if (state.driving) candidates.push({ name: 'driving', service: state.driving })
+    if (state.riding)  candidates.push({ name: 'riding',  service: state.riding })
+    if (state.walking) candidates.push({ name: 'walking', service: state.walking })
+  } else if (primary === 'walking') {
+    if (state.walking) candidates.push({ name: 'walking', service: state.walking })
+    if (state.riding)  candidates.push({ name: 'riding',  service: state.riding })
+    if (state.driving) candidates.push({ name: 'driving', service: state.driving })
+  } else {
+    if (state.riding)  candidates.push({ name: 'riding',  service: state.riding })
+    if (state.driving) candidates.push({ name: 'driving', service: state.driving })
+    if (state.walking) candidates.push({ name: 'walking', service: state.walking })
+  }
+
+  if (candidates.length === 0) {
+    console.warn('[AR NAV] ❌ 路线规划服务全部不可用，降级为直线导航')
+    _initFallbackRoute(fromLng, fromLat, toLng, toLat)
+    return
+  }
+
+  console.log(`[AR NAV] 📝 路线规划候选服务: ${candidates.map(c => c.name).join(' → ')}，起点(${fromLng.toFixed(5)},${fromLat.toFixed(5)}) → 终点(${toLng.toFixed(5)},${toLat.toFixed(5)})`)
+
+  let attemptIdx = 0
+  let currentTimeout = null
+  let finished = false   // 防止重复处理
+
+  function tryNext() {
+    if (finished) return
+    if (attemptIdx >= candidates.length) {
+      finished = true
+      console.warn('[AR NAV] ⚠️ 所有路线规划服务均失败，降级为直线导航')
+      _initFallbackRoute(fromLng, fromLat, toLng, toLat)
+      return
+    }
+
+    const cand = candidates[attemptIdx]
+    attemptIdx += 1
+    console.log(`[AR NAV] 🎯 第 ${attemptIdx} 次尝试，使用 [${cand.name}] 服务...`)
+
+    // 清除上一个超时
+    if (currentTimeout) { clearTimeout(currentTimeout); currentTimeout = null }
+
+    // 15 秒超时兜底：当前服务无回调则尝试下一个
+    currentTimeout = setTimeout(() => {
+      console.warn(`[AR NAV] ⏱️ [${cand.name}] 15秒无回调，尝试下一个服务...`)
+      tryNext()
+    }, 15000)
+
+    try {
+      cand.service.search(
+        new window.AMap.LngLat(fromLng, fromLat),
+        new window.AMap.LngLat(toLng, toLat),
+        function (status, result) {
+          if (finished) return   // 已经被超时/其他回调接管
+          console.log(`[AR NAV] 🔎 [${cand.name}] 回调：status=${status}, result类型=${result && typeof result}`)
+
+          if (status !== 'complete' || !result) {
+            console.warn(`[AR NAV] ❌ [${cand.name}] 返回异常 (status=${status})，尝试下一个服务...`)
+            tryNext()
+            return
+          }
+
+          // ============ 结构诊断：打印 route 的所有键和数组字段长度 ============
+          let route = null
+          let routeSource = ''
+          if (Array.isArray(result.routes) && result.routes.length > 0) {
+            route = result.routes[0]; routeSource = 'result.routes[0]'
+          } else if (Array.isArray(result.plans) && result.plans.length > 0) {
+            route = result.plans[0]; routeSource = 'result.plans[0]'
+          } else if (result.data && Array.isArray(result.data.routes) && result.data.routes.length > 0) {
+            route = result.data.routes[0]; routeSource = 'result.data.routes[0]'
+          } else if (result.route) {
+            route = result.route; routeSource = 'result.route'
+          } else {
+            route = result; routeSource = 'result（作为 route）'
+          }
+
+          console.log(`[AR NAV] 📊 ${routeSource} 顶层字段: keys=${Object.keys(route).join(',')}`)
+          const arrLens = []
+          for (const k of Object.keys(route)) {
+            if (Array.isArray(route[k])) arrLens.push(`${k}:${route[k].length}`)
+            else if (route[k] !== null && typeof route[k] === 'object' && Array.isArray(route[k].steps)) arrLens.push(`${k}.steps:${route[k].steps.length}`)
+          }
+          console.log(`[AR NAV] 📊 ${routeSource} 各数组字段长度: ${arrLens.join(' ')}`)
+
+          // step[0] 字段检查
+          if (Array.isArray(route.steps) && route.steps.length > 0) {
+            const step0 = route.steps[0]
+            console.log(`[AR NAV] 📊 step[0] 字段: ${Object.keys(step0).join(',')}`)
+            if (step0.path) {
+              const sp = _normalizePath(step0.path)
+              const sample = step0.path.slice(0, 3).map((e, i) => `#${i}=${typeof e === 'object' ? (Array.isArray(e) ? JSON.stringify(e) : JSON.stringify(e)) : String(e)}`)
+              console.log(`[AR NAV] 📊 step[0].path 类型: Array; 长度:${step0.path.length}; 前3元素: ${sample.join(', ')}`)
+              console.log(`[AR NAV] 📊 _normalizePath(step[0].path) 后有效点数: ${sp.length}`)
+            } else {
+              console.log(`[AR NAV] 📊 step[0].path 不存在或为空`)
+            }
+            // step[0].polyline 检查（骑行服务常用 polyline 替代 path）
+            if (step0.polyline) {
+              const sp = _normalizePath(step0.polyline)
+              console.log(`[AR NAV] 📊 step[0].polyline 类型: ${Array.isArray(step0.polyline) ? 'Array' : typeof step0.polyline}; 长度:${Array.isArray(step0.polyline) ? step0.polyline.length : 'N/A'}; _normalizePath 后有效点数: ${sp.length}`)
+            }
+          }
+
+          // route.path / route.polyline / route.route 检查
+          for (const key of ['path', 'polyline', 'route', 'polyline_encoded']) {
+            if (route[key] && Array.isArray(route[key])) {
+              const np = _normalizePath(route[key])
+              const sample = route[key].slice(0, 2).map(e => typeof e === 'object' ? (Array.isArray(e) ? JSON.stringify(e) : (typeof e.getLng === 'function' ? `LngLat(${e.getLng()},${e.getLat()})` : JSON.stringify(e))) : String(e))
+              console.log(`[AR NAV] 📊 route.${key} 类型: Array; 长度:${route[key].length}; _normalizePath 后: ${np.length} 点; 前2元素: ${sample.join(', ')}`)
+            }
+          }
+
+          // ============ 多来源路径提取（按优先级） ============
+          let fullPath = []
+          let extractedFrom = ''
+
+          // 来源 1: route.polyline / route.path / route.route（完整路径）
+          const fullPathKeys = ['polyline', 'path', 'route', 'polyline_encoded']
+          for (let i = 0; i < fullPathKeys.length; i++) {
+            const key = fullPathKeys[i]
+            if (route[key] && Array.isArray(route[key]) && route[key].length > 0) {
+              const np = _normalizePath(route[key])
+              if (np.length >= 2) {
+                fullPath = np
+                extractedFrom = `route.${key}`
+                console.log(`[AR NAV] ✅ 从 ${extractedFrom} 提取到 ${fullPath.length} 个路径点`)
+                break
+              }
+            }
+          }
+
+          // 来源 2: steps[*].path 拼接
+          if (fullPath.length < 2 && Array.isArray(route.steps) && route.steps.length > 0) {
+            const merged = []
+            for (let s = 0; s < route.steps.length; s++) {
+              const step = route.steps[s]
+              const stepPath = _normalizePath(step.path)
+              if (stepPath.length > 0) {
+                for (let i = 0; i < stepPath.length; i++) merged.push(stepPath[i])
+              }
+            }
+            if (merged.length >= 2) {
+              fullPath = merged
+              extractedFrom = 'steps[*].path'
+              console.log(`[AR NAV] ✅ 从 steps[*].path 拼接提取到 ${fullPath.length} 个路径点`)
+            }
+          }
+
+          // 来源 3: steps[*].polyline 拼接（Riding 服务真实路径点常在这里）
+          if (fullPath.length < 2 && Array.isArray(route.steps) && route.steps.length > 0) {
+            const merged = []
+            for (let s = 0; s < route.steps.length; s++) {
+              const step = route.steps[s]
+              const stepPoly = _normalizePath(step.polyline)
+              if (stepPoly.length > 0) {
+                for (let i = 0; i < stepPoly.length; i++) merged.push(stepPoly[i])
+              }
+            }
+            if (merged.length >= 2) {
+              fullPath = merged
+              extractedFrom = 'steps[*].polyline'
+              console.log(`[AR NAV] ✅ 从 steps[*].polyline 拼接提取到 ${fullPath.length} 个路径点`)
+            }
+          }
+
+          // 若所有来源都取不到点 → 尝试下一个服务
+          if (fullPath.length < 2) {
+            console.warn(`[AR NAV] ⚠️ [${cand.name}] 未能从任何来源提取到有效路径点，尝试下一个服务...`)
+            tryNext()
+            return
+          }
+
+          // 成功 → 标记完成并解析步骤（转弯提示）
+          finished = true
+          if (currentTimeout) { clearTimeout(currentTimeout); currentTimeout = null }
+          console.log(`[AR NAV] ✅ 最终从 [${cand.name}] 的 ${extractedFrom} 提取到 ${fullPath.length} 个路径点`)
+
+          // ============ 解析 steps（转弯提示） ============
+          const steps = []
+          let cumDistance = 0
+          const rawSteps = route.steps || (route.TMC && route.TMC.steps) || []
+          if (rawSteps.length > 0) {
+            for (let s = 0; s < rawSteps.length; s++) {
+              const rs = rawSteps[s]
+              // 优先用 path，其次 polyline
+              let stepPath = _normalizePath(rs.path)
+              if (stepPath.length === 0) stepPath = _normalizePath(rs.polyline)
+
+              const distance = Number(rs.distance) || 0
+              const road = rs.road || rs.assistantName || rs.road_name || rs.roadName || ''
+              const instruction = rs.instruction || rs.tips || ''
+              const orientation = rs.orientation || rs.orient || rs.direction || ''
+              const action = _orientationToAction(instruction || orientation)
+              const turnPoint = stepPath.length > 0 ? stepPath[0] : fullPath[0]
+              steps.push({
+                index: steps.length,
+                path: stepPath, distance: distance, instruction: instruction,
+                road: road, action: action, turnPoint: turnPoint, cumDistance: cumDistance
+              })
+              cumDistance += distance
+            }
+          }
+
+          // ===== 基于坐标方向路径重新计算路口转向方向（避免依赖高德 orientation）=====
+          const directionalPath = _buildDirectionalPath(fullPath)
+          if (directionalPath.length >= 2) {
+            // 按累计距离把每个路口 turnPoint 定位到路径上
+            // 策略：取 steps 中每个非 straight/非 arrive 步骤，从该 step 累计距离在路径上
+            // 找到对应的段，用"该段 bearing"与"下一段 bearing"的夹角算转向
+            for (let i = 0; i < steps.length - 1; i++) {
+              const step = steps[i]
+              // 1) 定位 step.cumDistance 对应的路径段
+              const targetCum = step.cumDistance || 0
+              let segIdx = 0
+              for (let j = 0; j < directionalPath.length; j++) {
+                if (directionalPath[j].cumDistance <= targetCum) segIdx = j
+              }
+              const thisSeg = directionalPath[segIdx]
+              const nextSeg = directionalPath[Math.min(segIdx + 1, directionalPath.length - 1)]
+              // 2) 两段 bearing 的差决定左/右/直
+              const turnAction = _computeTurnDirection(thisSeg.bearing, nextSeg.bearing)
+              // 3) 覆盖原 action，若原本是 straight 但这里算到转向也改为真实转向
+              step.action = turnAction
+              // 4) turnPoint 改为两段的交汇点（下一段起点）
+              step.turnPoint = [nextSeg.startLng, nextSeg.startLat]
+            }
+            console.log(`[AR NAV] ✅ 方向路径重建完成：${directionalPath.length} 段，${steps.length - 1} 个路口`)
+          } else {
+            console.warn('[AR NAV] ⚠️ 方向路径不足 2 段，保留原始 step 方向')
+          }
+
+          const totalDist = cumDistance > 0 ? cumDistance
+            : (Number(route.distance) || haversine(fromLat, fromLng, toLat, toLng))
+          // 到达目的地 step
+          steps.push({
+            index: steps.length,
+            path: [[toLng, toLat]],
+            distance: 0,
+            instruction: '到达目的地',
+            road: '',
+            action: 'arrive',
+            turnPoint: [toLng, toLat],
+            cumDistance: totalDist
+          })
+
+          state.navSteps = steps
+          state.navFullPath = fullPath
+          state.navTotalDistance = totalDist
+          state._routePlanned = true
+          state._navInitialized = true
+
+          if (state.miniMap && typeof state.miniMap.setRoutePath === 'function') {
+            state.miniMap.setRoutePath(fullPath, steps)
+          }
+
+          state.totalDistance = totalDist
+          dom.totalDistance.textContent = fmtDistance(totalDist)
+          dom.remainTime.textContent = fmtEta(totalDist)
+
+          _showRouteSummary(steps, totalDist)
+          _updateNavProgress(fromLat, fromLng)
+
+          console.log(`[AR NAV] ✅ 路线规划完成：${steps.length - 1} 个转弯，总距离 ${fmtDistance(totalDist)}，路径点数 ${fullPath.length}（来源：${cand.name}/${extractedFrom}）`)
+          speak(`路线规划完成，总距离 ${fmtDistance(totalDist)}，请出发`)
+        }
+      )
+    } catch (e) {
+      console.error(`[AR NAV] [${cand.name}] 调用抛出异常:`, e && e.message || e)
+      tryNext()
+    }
+  }
+
+  tryNext()
+}
+
+// 辅助：把高德返回的任意格式路径点标准化为 [[lng, lat], ...]
+// 支持格式：
+//   1. "lng,lat" 字符串
+//   2. AMap.LngLat 对象（getLng/getLat 方法）
+//   3. {lng:number, lat:number} 对象
+//   4. 压缩字段名（Q/R/P/O 等高德内部字段）
+//   5. [lng, lat] 数组
+function _normalizePath(points) {
+  const out = []
+  if (!Array.isArray(points) || points.length === 0) return out
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i]
+    if (p == null) continue
+
+    // 1) 字符串 "lng,lat"
+    if (typeof p === 'string') {
+      const parts = p.split(',')
+      if (parts.length >= 2) {
+        const lng = parseFloat(parts[0])
+        const lat = parseFloat(parts[1])
+        if (Number.isFinite(lng) && Number.isFinite(lat)) { out.push([lng, lat]); continue }
+      }
+    }
+
+    // 2) AMap.LngLat 对象（getLng/getLat）
+    if (typeof p.getLng === 'function') {
+      try {
+        const lng = p.getLng()
+        const lat = p.getLat()
+        if (Number.isFinite(lng) && Number.isFinite(lat)) { out.push([lng, lat]); continue }
+      } catch (e) {}
+    }
+
+    // 3) {lng, lat} 对象
+    if (typeof p.lng === 'number' && typeof p.lat === 'number') {
+      out.push([p.lng, p.lat]); continue
+    }
+
+    // 4) 高德压缩字段名（Q/R/P/O 等，不同版本字段名可能不同）
+    let compressedLng = null
+    let compressedLat = null
+    const compressedKeys = ['Q', 'R', 'P', 'O', 'q', 'r', 'p', 'o', 'lng_', 'lat_', 'Lng', 'Lat']
+    for (let k = 0; k < compressedKeys.length; k++) {
+      const key = compressedKeys[k]
+      if (typeof p[key] === 'number') {
+        if (compressedLng === null) { compressedLng = p[key] }
+        else if (compressedLat === null) { compressedLat = p[key]; break }
+      }
+    }
+    if (compressedLng !== null && compressedLat !== null) {
+      out.push([compressedLng, compressedLat]); continue
+    }
+
+    // 5) [lng, lat] 数组
+    if (Array.isArray(p) && p.length >= 2
+        && typeof p[0] === 'number' && typeof p[1] === 'number') {
+      out.push([p[0], p[1]])
+      continue
+    }
+
+    // 6) 兜底：尝试提取任意字段里包含数字
+    const vals = Object.values(p)
+    const nums = vals.filter(v => typeof v === 'number' && Number.isFinite(v))
+    if (nums.length >= 2) { out.push([nums[0], nums[1]]) }
+  }
+  return out
+}
+
 function _initFallbackRoute(fromLng, fromLat, toLng, toLat) {
   const dist = haversine(fromLat, fromLng, toLat, toLng)
-  const steps = [
-    {
-      index: 0,
-      path: [[fromLng, fromLat], [toLng, toLat]],
-      distance: dist,
-      instruction: '直行至目的地',
-      road: '',
-      orientation: '',
-      action: 'straight',
-      turnPoint: [fromLng, fromLat],
-      cumDistance: 0
-    },
-    {
-      index: 1, path: [[toLng, toLat]], distance: 0,
-      instruction: '到达目的地', road: '', orientation: '', action: 'arrive',
-      turnPoint: [toLng, toLat], cumDistance: dist
-    }
+  state.navSteps = [
+    { index: 0, path: [[fromLng, fromLat], [toLng, toLat]], distance: dist,
+      instruction: '直行至目的地', action: 'straight',
+      turnPoint: [fromLng, fromLat], cumDistance: 0 },
+    { index: 1, path: [[toLng, toLat]], distance: 0, action: 'arrive',
+      turnPoint: [toLng, toLat], cumDistance: dist }
   ]
-  state.navSteps = steps
   state.navFullPath = [[fromLng, fromLat], [toLng, toLat]]
   state.navTotalDistance = dist
-  state.navProgressMeters = 0
-  state.navCurrentStepIdx = 0
   state._routePlanned = true
   state._navInitialized = true
-  if (state.miniMap) {
-    state.miniMap.setRoutePath([[fromLng, fromLat], [toLng, toLat]])
-    state.miniMap.setRouteSteps(steps)
+  if (state.miniMap && state.miniMap.setRoutePath) {
+    state.miniMap.setRoutePath([[fromLng, fromLat], [toLng, toLat]], state.navSteps)
   }
   state.totalDistance = dist
   dom.totalDistance.textContent = fmtDistance(dist)
   dom.remainTime.textContent = fmtEta(dist)
-
-  // 立即显示第一个"转弯"提示（其实就是直行到达）
   _updateNavProgress(fromLat, fromLng)
 }
 
-// 主导航更新：基于当前坐标或路线累计距离，计算下一步转弯提示
-// 可传入 (lat, lng) 直接计算；若不传入则使用 state.currentLat/state.currentLng
+
+
+
 function _updateNavProgress(lat, lng) {
-  if (!state._navInitialized || !state.navSteps) return
+  const curLat = (lat != null && lng != null) ? lat : state.currentLat
+  const curLng = (lat != null && lng != null) ? lng : state.currentLng
+  if (curLat == null || !state.destination) return
 
-  const usePos = (lat != null && lng != null)
-  const curLat = usePos ? lat : state.currentLat
-  const curLng = usePos ? lng : state.currentLng
+  let targetLat = state.destination.lat
+  let targetLng = state.destination.lng
+  let displayAction = 'straight'
+  let displayText = `前方 ${fmtDistance(haversine(curLat, curLng, targetLat, targetLng))} · ${state.destination.name || '目的地'}`
+  let distanceToTurn = haversine(curLat, curLng, targetLat, targetLng)
+  let progress = 0
+  let total = Math.max(distanceToTurn, 1)
 
-  if (curLat == null) return
+  // 有规划路线 → 使用路线中的下一个转弯点作为箭头目标
+  if (state._navInitialized && state.navSteps && state.navFullPath) {
+    const proj = _projectPointToPath(curLat, curLng, state.navFullPath)
+    if (proj) {
+      state.navProgressMeters = proj.cumDistanceMeters
 
-  // 1) 找到当前位置在路线上的投影
-  const proj = _projectPointToPath(curLat, curLng, state.navFullPath)
-  if (!proj) return
+      const steps = state.navSteps
+      let nextIdx = 0
+      for (let i = 0; i < steps.length; i++) {
+        if (proj.cumDistanceMeters >= steps[i].cumDistance) nextIdx = i
+      }
+      nextIdx = Math.min(nextIdx + 1, steps.length - 1)
+      state.navNextStepIdx = nextIdx
 
-  state.navProgressMeters = proj.cumDistanceMeters
+      const nextStep = steps[nextIdx]
+      targetLat = nextStep.turnPoint[1]
+      targetLng = nextStep.turnPoint[0]
+      displayAction = nextStep.action || 'straight'
+      distanceToTurn = Math.max(0, nextStep.cumDistance - proj.cumDistanceMeters)
 
-  // 2) 找到当前位于哪一步（基于 cumDistance）
-  const steps = state.navSteps
-  let curStepIdx = 0
-  for (let i = 0; i < steps.length; i++) {
-    if (proj.cumDistanceMeters >= steps[i].cumDistance) curStepIdx = i
-    else break
-  }
-  state.navCurrentStepIdx = curStepIdx
+      if (displayAction === 'arrive') {
+        displayText = `即将到达 · ${state.destination.name}`
+      } else {
+        const road = nextStep.road ? `，进入${nextStep.road}` : ''
+        displayText = `前方 ${fmtDistance(distanceToTurn)} ${_actionToText(displayAction)}${road}`
+      }
 
-  // 3) 下一"转弯"步骤：跳过当前步骤起点，寻找下一个动作非 straight 的步骤
-  //    ——也可以简单地取 steps[curStepIdx + 1]（即下一段路的起点）作为转弯点
-  let nextIdx = curStepIdx + 1
-  if (nextIdx >= steps.length) nextIdx = steps.length - 1
-  state.navNextStepIdx = nextIdx
-
-  const nextStep = steps[nextIdx]
-  const distanceToTurn = Math.max(0, nextStep.cumDistance - proj.cumDistanceMeters)
-  state.navNextTurnDistance = distanceToTurn
-
-  // 4) 生成指示文本
-  const action = nextStep.action || 'straight'
-  state.navNextTurnAction = action
-
-  let text = ''
-  if (action === 'arrive') {
-    if (distanceToTurn < 50) text = `即将到达 · ${state.destination ? state.destination.name : '目的地'}`
-    else text = `前方 ${fmtDistance(distanceToTurn)} · 到达 ${state.destination ? state.destination.name : '目的地'}`
-  } else {
-    const road = nextStep.road ? `进入${nextStep.road}` : ''
-    text = `前方 ${fmtDistance(distanceToTurn)} ${_actionToText(action)} ${road}`.trim()
-  }
-  state.navNextTurnText = text
-
-  // 5) 计算指向"下一个转弯点"的方位（用于箭头角度）
-  //    —— 接近转弯时（<80m）用动作本身的方向（已相对朝向，不用再减 heading）；
-  //       否则用"朝向转弯点的地理方位"（需减去 heading 得到屏幕相对角度）
-  let relative = 0  // 最终给大箭头的屏幕相对旋转角（-180 ~ 180）
-  if (distanceToTurn < 80 || action === 'arrive') {
-    // 接近路口：用动作本身的方向（如 -60 = 左转，已经是相对角度，不要再减 heading）
-    relative = _actionToDefaultArrow(action)
-  } else {
-    // 指向转弯点：用地理方位角（0=北），减去当前朝向得到屏幕相对角度
-    const brg = bearing(curLat, curLng, nextStep.turnPoint[1], nextStep.turnPoint[0])
-    relative = ((brg - (state.heading || 0) + 540) % 360) - 180
-  }
-  state.navArrowAngle = relative
-  state._arrowTargetAngle = relative
-
-  // 记录朝向转弯点的绝对方位（供调试）
-  if (distanceToTurn >= 80 && action !== 'arrive') {
-    state.navBearingToTurn = bearing(curLat, curLng, nextStep.turnPoint[1], nextStep.turnPoint[0])
-  } else {
-    state.navBearingToTurn = (state.heading || 0) + relative
+      progress = proj.cumDistanceMeters
+      total = Math.max(state.navTotalDistance || 1, 1)
+    }
   }
 
-  // 文本提示（中央）
-  dom.arrowHint.textContent = text
-  dom.arrowDistance.textContent = action === 'arrive'
-    ? fmtDistance(Math.max(0, state.navTotalDistance - proj.cumDistanceMeters))
-    : fmtDistance(distanceToTurn)
+  if (dom.arrowHint) dom.arrowHint.textContent = displayText
+  if (dom.arrowDistance) dom.arrowDistance.textContent = fmtDistance(distanceToTurn)
+  if (dom.nextTurn) dom.nextTurn.textContent = _actionToText(displayAction)
+  _updateTurnIndicator(displayAction, distanceToTurn)
+  _updateRouteProgress(progress, total)
 
-  // 底部信息栏
-  const remaining = Math.max(0, state.navTotalDistance - proj.cumDistanceMeters)
-  dom.totalDistance.textContent = fmtDistance(state.navTotalDistance)
-  dom.remainTime.textContent = fmtEta(remaining)
-  dom.nextTurn.textContent = action === 'arrive' ? '到达目的地' : _actionToText(action)
-  dom.traveled.textContent = fmtDistance(proj.cumDistanceMeters)
+  // 蓝色大箭头：始终从"用户当前朝向"为基准，指向目的地
+  // bearing(curLat, curLng, destLat, destLng) 给出目标方位角（0°=北）
+  // 减去手机 heading（当前朝向）→ 相对手机的角度（0°=前方，-90°=左方，+90°=右方）
+  const brg = bearing(curLat, curLng,
+                      (state.destination ? state.destination.lat : targetLat),
+                      (state.destination ? state.destination.lng : targetLng))
+  const arrowAngle = ((brg - (state.heading || 0) + 540) % 360) - 180
+  state.navArrowAngle = arrowAngle
+  state._arrowTargetAngle = arrowAngle
 
-  // 同步 MiniMap：高亮当前步骤与下一步
-  if (state.miniMap) {
-    state.miniMap.setNavProgress({
-      progressMeters: proj.cumDistanceMeters,
-      totalDistance: state.navTotalDistance,
-      currentStepIdx: curStepIdx,
-      nextStepIdx: nextIdx,
-      position: [proj.lng, proj.lat]
-    })
+  if (state._navInitialized && state.navSteps && state.navNextStepIdx != null) {
+    const ns = state.navSteps[state.navNextStepIdx]
+    if (ns) {
+      _maybeAnnounceTurn(
+        distanceToTurn,
+        displayAction,
+        ns.index,
+        ns.road,
+        state.destination.name
+      )
+    }
   }
-
-  // 7) 语音播报（仅在关键节点）
-  _maybeAnnounceTurn(distanceToTurn, action, nextStep, remaining)
 }
 
-// 转弯语音播报：接近路口时触发
-let _lastAnnouncedStepIdx = -1
-let _lastAnnouncedDistance = -1
-function _maybeAnnounceTurn(distanceToTurn, action, nextStep, remaining) {
+/* ============================================================
+   ★★★ 路口提示：按距离分级播报 ★★★
+   - 500米：预告前方路口
+   - 300米：再次提醒
+   - 100米：强提示 + 视觉动画
+   - 50米：最后提醒（开始转向）
+   - 到达：提示即将到达目的地
+   ============================================================ */
+let _announceState = {
+  lastStepIndex: -1,
+  lastAnnouncedMark: -1
+}
+
+function _maybeAnnounceTurn(distanceToTurnMeters, action, stepIndex, roadName, destName) {
   if (!state.destination) return
 
-  const announceKey = `${nextStep.index}-${Math.floor(distanceToTurn / 50)}`
-  if (announceKey === _lastAnnouncedStepIdx + '-' + _lastAnnouncedDistance) return
-
-  let shouldSpeak = false
-  let text = ''
+  const d = Math.round(distanceToTurnMeters)
 
   if (action === 'arrive') {
-    if (distanceToTurn < 80 && _lastAnnouncedStepIdx !== nextStep.index) {
-      shouldSpeak = true
-      text = `前方即将到达 ${state.destination.name}`
+    if (d < 50 && _announceState.lastStepIndex !== stepIndex) {
+      _announceState.lastStepIndex = stepIndex
+      _announceState.lastAnnouncedMark = 50
+      speak(`前方即将到达 ${destName || '目的地'}，请准备停车`, false)
+      _pulseTurnIndicator()
     }
-  } else {
-    // 在三个距离点播报
-    const dist = Math.round(distanceToTurn)
-    const marks = [500, 300, 100, 50]
-    for (const m of marks) {
-      if (dist <= m && _lastAnnouncedDistance > m && _lastAnnouncedStepIdx === nextStep.index) {
-        shouldSpeak = true
-        text = `前方 ${fmtDistance(distanceToTurn)} ${_actionToText(action)}`
-        break
-      }
-    }
-    if (!shouldSpeak && _lastAnnouncedStepIdx !== nextStep.index) {
-      // 第一次遇到该步骤（例如跨段了）
-      shouldSpeak = true
-      text = `${_actionToText(action)}，继续骑行 ${fmtDistance(distanceToTurn)}`
-    }
+    return
   }
 
-  _lastAnnouncedStepIdx = nextStep.index
-  _lastAnnouncedDistance = Math.floor(distanceToTurn / 50)
+  if (stepIndex !== _announceState.lastStepIndex) {
+    const actionText = _actionToText(action)
+    let hint = `前方路口${actionText}`
+    if (roadName) hint += `，进入${roadName}`
+    if (d > 0) hint += `，还有 ${fmtDistance(d)}`
+    speak(hint, false)
+    _announceState.lastStepIndex = stepIndex
+    _announceState.lastAnnouncedMark = 9999
+    _pulseTurnIndicator()
+    return
+  }
 
-  if (shouldSpeak && text) speak(text, false)
+  const marks = [500, 300, 100, 50]
+  for (const m of marks) {
+    if (d <= m && _announceState.lastAnnouncedMark > m) {
+      _announceState.lastAnnouncedMark = m
+      const actionText = _actionToText(action)
+      if (m === 50) {
+        speak(`现在${actionText}`, true)
+        _pulseTurnIndicator()
+      } else if (m === 100) {
+        speak(`${fmtDistance(d)}后${actionText}`, false)
+        _pulseTurnIndicator()
+      } else {
+        speak(`前方${fmtDistance(d)}${actionText}`, false)
+      }
+      break
+    }
+  }
+}
+
+function _pulseTurnIndicator() {
+  if (!dom.turnIndicator) return
+  dom.turnIndicator.classList.add('pulse')
+  setTimeout(() => {
+    if (dom.turnIndicator) dom.turnIndicator.classList.remove('pulse')
+  }, 500)
+  if (dom.turnIcon) {
+    dom.turnIcon.style.textShadow = '0 0 20px currentColor, 0 0 40px currentColor'
+    setTimeout(() => {
+      if (dom.turnIcon) dom.turnIcon.style.textShadow = 'none'
+    }, 800)
+  }
 }
 
 /* ============================================================
    入口
    ============================================================ */
 function init() {
-  // 初始化迷你地图
+  console.log('[AR NAV] 🚀 开始初始化...')
+  console.log('[AR NAV] 检查 DOM 元素...')
+  console.log('  startBtn:', dom.startBtn ? '✅ 存在' : '❌ 不存在')
+  console.log('  destinationBox:', dom.destinationBox ? '✅ 存在' : '❌ 不存在')
+
+  // 1) 初始化迷你地图（此时还没有AMap，它会自己等待）
   state.miniMap = new MiniMap('mini-map')
 
-  // 🔄 启动大箭头平滑旋转循环（rAF + lerp，替代 CSS transition）
+  // 2) 启动大箭头平滑旋转循环（rAF + lerp，替代 CSS transition）
   _startArrowSmoothLoop()
 
-  // ⚡ 预加载高德地图 SDK（不等用户点按钮，避免点击确定后才加载）
-  _loadAMap()
-
-  // 🔊 提前初始化语音（选择最佳中文音色）
+  // 3) 🔊 提前初始化语音（选择最佳中文音色）
   _initVoice()
 
-  // 点击开始
+  // 4) 启动按钮绑定
   dom.startBtn.addEventListener('click', startNav)
+  console.log('[AR NAV] ✅ 开始导航按钮事件监听已绑定')
 
-  // 调试模式：URL 参数 ?debug=1 或键盘 D 键切换
+  // 5) 调试模式：URL 参数 ?debug=1 或键盘 D 键切换
   _initDebugMode()
 
-  // 演示：如果是演示模式
+  // 6) 演示：如果是演示模式
   if (CONFIG.USE_MOCK_DATA) {
     _startDemo()
   }
+
+  // ★★★ 关键改进：页面加载时立即并行执行两件事 ★★★
+  //   A. 加载高德地图 SDK（等SDK加载好后，迷你地图会自动初始化）
+  //   B. 获取 GPS 定位（拿到坐标后立即在地图上显示当前位置）
+  _bootstrapNavigationSystem()
+
+  // ★★★ 小提示：如果 5 秒后还没拿到GPS，告诉用户可能需要授权 ★★★
+  setTimeout(() => {
+    if (state.currentLat == null) {
+      console.log('[AR NAV] ⏱️ 5秒未获取定位，检查是否需要授权')
+    }
+  }, 5000)
+
+  // ★★★ 天气监测（Open-Meteo，10 分钟刷新一次）★★★
+  startWeatherMonitor()
 }
+
+/* ============================================================
+   ★★★ 新增：导航系统启动入口 ★★★
+   页面加载时立即调用，并行完成：
+     1) 加载高德 SDK
+     2) 获取 GPS 定位
+     3) 在迷你地图上显示当前位置和道路
+   ============================================================ */
+function _bootstrapNavigationSystem() {
+  console.log('[AR NAV] 📍 并行启动：地图SDK加载 + GPS定位')
+
+  // --- 并行 A：加载高德 SDK ---
+  const mapPromise = _loadAMap()
+    .then(() => {
+      console.log('[AR NAV] ✅ 高德地图SDK加载完成')
+      return true
+    })
+    .catch((err) => {
+      console.warn('[AR NAV] ❌ 高德地图SDK加载失败：', err)
+      return false
+    })
+
+  // --- 并行 B：获取 GPS 定位 ---
+  const gpsPromise = new Promise((resolve) => {
+    if (!('geolocation' in navigator)) {
+      console.warn('[AR NAV] ❌ 浏览器不支持定位')
+      resolve(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // 拿到GPS定位
+        state.currentLat = pos.coords.latitude
+        state.currentLng = pos.coords.longitude
+        state.startLat = state.currentLat
+        state.startLng = state.currentLng
+        state.startTime = Date.now()
+
+        dom.gpsStatus.classList.add('active')
+        console.log(`[AR NAV] ✅ GPS定位成功：(${state.currentLng.toFixed(6)}, ${state.currentLat.toFixed(6)})`)
+
+        // 同步到迷你地图
+        if (state.miniMap) {
+          state.miniMap.setPosition(state.currentLng, state.currentLat)
+        }
+
+        // 立即反地理编码获取道路名称
+        _reverseGeocode(state.currentLng, state.currentLat)
+
+        resolve(true)
+      },
+      (err) => {
+        console.warn('[AR NAV] ⚠️ GPS定位失败：', err.message)
+        // 失败时用默认位置（北京），让用户仍能体验功能
+        state.currentLat = CONFIG.DEFAULT_LOCATION.lat
+        state.currentLng = CONFIG.DEFAULT_LOCATION.lng
+        state.startLat = state.currentLat
+        state.startLng = state.currentLng
+        state.startTime = Date.now()
+
+        console.log(`[AR NAV] 📌 使用默认位置：${CONFIG.DEFAULT_LOCATION.name}（${CONFIG.DEFAULT_LOCATION.lng}, ${CONFIG.DEFAULT_LOCATION.lat}）`)
+
+        if (state.miniMap) {
+          state.miniMap.setPosition(state.currentLng, state.currentLat)
+        }
+        // 也获取一下默认位置的道路名
+        _reverseGeocode(state.currentLng, state.currentLat)
+
+        resolve(false)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    )
+  })
+
+  // 等待两个都完成（或者其中一个失败后继续）
+  Promise.all([mapPromise, gpsPromise]).then(([mapOK, gpsOK]) => {
+    console.log(`[AR NAV] 🎯 初始化阶段完成：地图=${mapOK ? '✅' : '❌'}，GPS=${gpsOK ? '✅' : '⚠️'}`)
+
+    // 现在启动持续GPS跟踪（用于实时更新位置）
+    if (gpsOK) {
+      _startGpsWatch()
+    }
+
+    // 如果两个都OK，显示"准备就绪"状态
+    if (mapOK && (gpsOK || CONFIG.USE_MOCK_DATA)) {
+      // 更新UI，让用户知道可以开始导航了
+      _updateReadyState()
+    }
+  })
+}
+
+/* ============================================================
+   ★★★ 新增：持续 GPS 位置跟踪 ★★★
+   用 watchPosition 监听位置变化，实时更新当前位置和道路信息
+   ============================================================ */
+function _startGpsWatch() {
+  if (state.watchId != null) return  // 已经启动过了
+  if (!('geolocation' in navigator)) return
+
+  state.watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const newLat = pos.coords.latitude
+      const newLng = pos.coords.longitude
+
+      // 计算移动距离（只有移动超过5米才更新，避免GPS抖动）
+      const moved = state.currentLat != null
+        ? _haversineMeters(state.currentLat, state.currentLng, newLat, newLng)
+        : Infinity
+
+      state.currentLat = newLat
+      state.currentLng = newLng
+      dom.gpsStatus.classList.add('active')
+
+      if (state.startLat == null) {
+        state.startLat = newLat
+        state.startLng = newLng
+        state.startTime = Date.now()
+      }
+
+      // 同步到迷你地图
+      if (state.miniMap && moved > 3) {
+        state.miniMap.setPosition(newLng, newLat)
+      }
+
+      // 有目的地 → 更新导航进度（直线模式）
+      if (state.destination) {
+        _updateNavProgress(newLat, newLng)
+      }
+
+      if (moved > 10) {
+        _reverseGeocode(newLng, newLat)
+      }
+
+      // 已行驶距离
+      state.traveledDistance = _haversineMeters(
+        state.startLat, state.startLng,
+        state.currentLat, state.currentLng
+      )
+      dom.traveled.textContent = fmtDistance(state.traveledDistance)
+    },
+    (err) => {
+      console.warn('[AR NAV] GPS更新失败：', err)
+      dom.gpsStatus.classList.remove('active')
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 2000
+    }
+  )
+}
+
+/* ============================================================
+   ★★★ 新增：更新"准备就绪"状态 ★★★
+   ============================================================ */
+function _updateReadyState() {
+  // 显示道路信息
+  if (state.roadName) {
+    const info = `📍 当前位置：${state.roadName}`
+    if (state.miniMap && state.miniMap.setInfo) {
+      state.miniMap.setInfo(info)
+    }
+  }
+}
+
+
 
 /* ============================================================
    调试模式：URL 参数 + 键盘 D + checkbox 联动
@@ -1660,7 +2450,7 @@ function _initDebugMode() {
     if (!state.debugMode) return
     const tracked = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
                      'w', 'W', 'a', 'A', 's', 'S', 'q', 'Q',
-                     'Shift']
+                     'Shift', 'Alt']
     if (tracked.includes(e.key)) {
       debugKeys.add(e.key)
       e.preventDefault()
@@ -1699,6 +2489,12 @@ function _initDebugMode() {
       turnDelta += turnSpeed * dt
     }
 
+    // ★★★ 修复1：先处理转向，再处理移动 ★★★
+    // 这样转向是独立的，不会被移动逻辑覆盖
+    if (turnDelta !== 0) {
+      state.heading = (state.heading + turnDelta + 360) % 360
+    }
+
     // -------- 前进 / 后退（沿当前朝向）--------
     let moveDir = 0  // +1 前进 / -1 后退 / 0 不动
     if (debugKeys.has('ArrowUp') || debugKeys.has('w') || debugKeys.has('W')) moveDir += 1
@@ -1710,25 +2506,8 @@ function _initDebugMode() {
       return
     }
 
-    // ================= 关键：设置初始起点 =================
-    // 优先级（从"最自然"到"最后兜底"）：
-    //   1) 已有 state.currentLat / Lng（之前 GPS 定位成功）
-    //   2) 规划路线 navFullPath 的起点（如果已有路线）
-    //   3) miniMap.currentLngLat（用户可能点过地图）
-    //   4) 地图中心点（如果地图已初始化）
-    //   5) 最后兜底：天安门（用户从没进入过路线设置时）
     if (state.currentLat == null) {
-      if (state._navInitialized && state.navFullPath && state.navFullPath.length > 0) {
-        // ★ 优先：使用路线起点（这是调试导航最自然的起点）
-        state.currentLng = state.navFullPath[0][0]
-        state.currentLat = state.navFullPath[0][1]
-        if (state.navFullPath.length >= 2) {
-          state.heading = bearing(state.navFullPath[0][1], state.navFullPath[0][0],
-                                  state.navFullPath[1][1], state.navFullPath[1][0])
-        } else {
-          state.heading = 0
-        }
-      } else if (state.miniMap && state.miniMap.currentLngLat) {
+      if (state.miniMap && state.miniMap.currentLngLat) {
         state.currentLat = state.miniMap.currentLngLat[1]
         state.currentLng = state.miniMap.currentLngLat[0]
       } else if (state.miniMap && state.miniMap.map && typeof state.miniMap.map.getCenter === 'function') {
@@ -1746,39 +2525,13 @@ function _initDebugMode() {
     }
     if (state.heading == null) state.heading = 0
 
-    // ================= 沿路线移动 vs 自由移动 =================
+    // ★★★ 简化：统一自由移动，不再区分路线模式 ★★★
+    // 始终按当前 heading 方向自由移动，不再沿路线锁定
     const dist = moveSpeed * dt * moveDir
-    let movedAlongRoute = false
-
-    if (state._navInitialized && state.navFullPath && moveDir !== 0) {
-      // ── 有路线 → 沿路线前进 ──
-      state.navProgressMeters = Math.max(0, (state.navProgressMeters || 0) + dist)
-      const total = state.navTotalDistance || 0
-      if (total > 0 && state.navProgressMeters >= total) state.navProgressMeters = total
-
-      const pt = _pointAtDistance(state.navFullPath, state.navProgressMeters)
-      if (pt && typeof pt.lat === 'number') {
-        const prevLat = state.currentLat, prevLng = state.currentLng
-        state.currentLat = pt.lat
-        state.currentLng = pt.lng
-        if (moveDir !== 0 && (Math.abs(prevLat - pt.lat) > 1e-8 || Math.abs(prevLng - pt.lng) > 1e-8)) {
-          const routeHeading = bearing(prevLat, prevLng, pt.lat, pt.lng)
-          state.heading = moveDir > 0 ? routeHeading : (routeHeading + 180) % 360
-        }
-        movedAlongRoute = true
-      }
-    }
-
-    if (!movedAlongRoute && moveDir !== 0) {
-      // ── 没路线 → 自由按朝向移动 ──
+    if (moveDir !== 0) {
       const p = moveAlongBearing(state.currentLat, state.currentLng, state.heading, dist)
       state.currentLat = p.lat
       state.currentLng = p.lng
-    }
-
-    // 再叠加"手动转向"（允许用户在路线上也叠加一点角度微调）
-    if (turnDelta !== 0) {
-      state.heading = (state.heading + turnDelta + 360) % 360
     }
 
     // -------- 同步 MiniMap --------
@@ -1801,36 +2554,22 @@ function _initDebugMode() {
         state.startTime = Date.now()
       }
 
-      // 优先：有导航引擎 → 更新导航进度（这也会更新大箭头和 arrowHint/距离）
-      if (state._navInitialized && state.destination) {
+      if (state.destination) {
         _updateNavProgress(state.currentLat, state.currentLng)
-      } else if (state.destination) {
-        _updateDistanceAndBearing()
-        _updateArrowWithHeading()
       }
 
-      // 已行驶距离
-      if (state._navInitialized) {
-        dom.traveled.textContent = fmtDistance(state.navProgressMeters || 0)
-      } else {
-        state.traveledDistance = haversine(state.startLat, state.startLng, state.currentLat, state.currentLng)
-        dom.traveled.textContent = fmtDistance(state.traveledDistance)
-      }
+      state.traveledDistance = haversine(state.startLat, state.startLng, state.currentLat, state.currentLng)
+      dom.traveled.textContent = fmtDistance(state.traveledDistance)
 
       const distDest = state.destination
         ? haversine(state.currentLat, state.currentLng, state.destination.lat, state.destination.lng)
         : null
       const speedKmh = Math.round(moveSpeed * 3.6 * Math.abs(moveDir))
       const moveTag = moveDir > 0 ? '🚴 前进' : moveDir < 0 ? '🚴↩ 后退' : ''
-      const turnTag = turnDelta < 0 ? ' ⬅ 左偏' : turnDelta > 0 ? ' ➡ 右偏' : ''
-      const destStr = distDest != null ? ' → 目的地 ' + fmtDistance(distDest) : ''
-
-      // 调试信息不要覆盖导航提示（导航提示更重要）
-      if (!state._navInitialized) {
-        const hint = `[DEBUG] ${moveTag}${turnTag} ${speedKmh} km/h · (${state.currentLng.toFixed(5)}, ${state.currentLat.toFixed(5)}) · 朝向 ${Math.round(state.heading)}°${destStr}`
-        dom.arrowHint.textContent = hint
-        if (distDest != null) dom.arrowDistance.textContent = fmtDistance(distDest)
-      }
+      const turnTag = turnDelta < 0 ? ' ⬅ 左转' : turnDelta > 0 ? ' ➡ 右转' : ''
+      const hint = `[DEBUG] ${moveTag}${turnTag} ${speedKmh} km/h · (${state.currentLng.toFixed(5)}, ${state.currentLat.toFixed(5)}) · 朝向 ${Math.round(state.heading)}°`
+      dom.arrowHint.textContent = hint
+      if (distDest != null) dom.arrowDistance.textContent = fmtDistance(distDest)
     }
 
     debugRafId = requestAnimationFrame(_debugTick)
@@ -1874,8 +2613,7 @@ function _initDebugMode() {
     }
 
     if (state.destination) {
-      _updateDistanceAndBearing()
-      _updateArrowWithHeading()
+      _updateNavProgress(state.currentLat, state.currentLng)
     }
 
     state.traveledDistance = haversine(
@@ -1894,6 +2632,11 @@ function _initDebugMode() {
     if (state.destination) {
       _updateArrowWithHeading()
     }
+  })
+
+  // 6) 迷你地图就绪（直线导航模式，不需要额外处理）
+  window.addEventListener('minimap:ready', (e) => {
+    console.log('[AR NAV] 迷你地图就绪（直线导航模式）')
   })
 }
 

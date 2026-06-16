@@ -39,4 +39,7 @@ export const CONFIG = {
   // ---- 模拟数据（没有 Key 时也能看效果）----
   USE_MOCK_DATA: false,     // true=使用模拟数据（演示用），false=真实API
 
+  // ---- 调试模式 ----
+  DEBUG_NAV: true,          // true=在控制台输出详细导航日志，false=关闭日志
+
 }

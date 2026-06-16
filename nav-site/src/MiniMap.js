@@ -31,13 +31,9 @@ export class MiniMap {
     this.hasTarget = false;
     this.targetLngLat = null;     // [lng, lat]
     this.polyline = null;
-    this.routePath = null;        // 骑行规划路线（[[lng, lat], ...]），null 时回退到简单直线
-    this.routeSteps = null;       // [{index, path, distance, action, turnPoint, cumDistance, ...}]
-    this._passedPolyline = null;  // 已走过：深色（或浅色淡化）
-    this._pendingPolyline = null; // 未走：主色高亮
-    this._nextTurnMarker = null;  // 下一个转弯点标记
-    this._currentProgressMeters = 0;
-    this._navData = null;
+    this.routePath = null;        // 真实道路规划路线：[[lng, lat], ...]
+    this.routeSteps = null;       // 转弯步骤列表
+    this.turnMarkers = [];        // 路口方向标记
 
     this.debugMode = false;
     this._isDragging = false;      // 鼠标是否按下中
@@ -108,15 +104,19 @@ export class MiniMap {
       this._createUserMarker(defaultCenter);
       this._createHeadingArrow(defaultCenter);
 
+      // ★★★ 新增：地图初始化完成后通知 main.js ★★★
+      console.log('[MiniMap] ✅ 高德地图初始化完成')
+      window.dispatchEvent(new CustomEvent('minimap:ready', { detail: { map: this.map } }))
+
       // 若在 AMap 初始化之前已被切换到调试模式，此时再绑定事件、加样式、放大 zoom
       if (this.debugMode) {
         this._bindDebugEvents();
         this.container.classList.add('debug');
         this._showDebugOverlay();
         try { this.map.setZoom(17); } catch (e) {}
-      } else {
-        this._startBrowserLocation();
       }
+      // 注意：不再在初始化时自动调用 _startBrowserLocation（避免违反"仅在用户手势后请求定位"）
+      // 改为由外部（main.js 的 startGPS）在用户点击目的地后调用 this.enableLocation()
     } catch (e) {
       console.warn('[MiniMap] 初始化失败:', e);
       if (this.infoElement) {
@@ -207,6 +207,17 @@ export class MiniMap {
       } catch (e) {}
       this.watchId = null;
     }
+  }
+
+  // 公开方法：由外部（main.js 的 startGPS）在用户手势后调用
+  // 这样可以确保 geolocation 请求发生在用户 gesture 之后，符合浏览器策略
+  enableLocation() {
+    if (this.debugMode) return;
+    this._startBrowserLocation();
+  }
+
+  disableLocation() {
+    this._stopBrowserLocation();
   }
 
   /* ============================================================
@@ -436,8 +447,7 @@ export class MiniMap {
   _updatePolyline() {
     if (!window.AMap || !this.map) return;
 
-    // 1) 有规划路线 → 拆分"已走"和"未走"两条折线
-    // 2) 没规划 → 简单直线
+    // 优先使用真实道路规划路线；否则回退到当前位置→目的地直线
     let fullPath = null;
     if (this.routePath && this.routePath.length >= 2) {
       fullPath = this.routePath;
@@ -446,7 +456,6 @@ export class MiniMap {
     }
     if (!fullPath) return;
 
-    // 规范化为 [[lng, lat], ...]
     const normalized = [];
     for (let i = 0; i < fullPath.length; i++) {
       const p = fullPath[i];
@@ -457,190 +466,127 @@ export class MiniMap {
     }
     if (normalized.length < 2) return;
 
-    // ── 有导航进度 → 拆分已走 / 未走 ──
-    const progressMeters = this._navData ? this._navData.progressMeters : 0;
-    if (progressMeters > 0 && this.routePath) {
-      const split = this._splitPathAtProgress(normalized, progressMeters);
-
-      if (!this._passedPolyline) {
-        this._passedPolyline = new window.AMap.Polyline({
-          path: split.passed,
-          strokeColor: '#7a7a7a',
-          strokeWeight: 4,
-          strokeOpacity: 0.5,
-          strokeStyle: 'solid',
-          lineJoin: 'round',
-          zIndex: 50,
-          map: this.map
-        });
-      } else {
-        this._passedPolyline.setPath(split.passed);
-      }
-
-      if (!this._pendingPolyline) {
-        this._pendingPolyline = new window.AMap.Polyline({
-          path: split.pending,
-          strokeColor: '#00ffaa',
-          strokeWeight: 6,
-          strokeOpacity: 0.95,
-          strokeStyle: 'solid',
-          lineJoin: 'round',
-          zIndex: 60,
-          map: this.map
-        });
-      } else {
-        this._pendingPolyline.setPath(split.pending);
-      }
-
-      // ── 下一转弯点标记 ──
-      if (this.routeSteps && this._navData) {
-        const nextIdx = Math.min(this._navData.nextStepIdx, this.routeSteps.length - 1);
-        const next = this.routeSteps[nextIdx];
-        if (next && next.turnPoint) {
-          const icon = this._turnMarkerSVG(next.action);
-          if (!this._nextTurnMarker) {
-            this._nextTurnMarker = new window.AMap.Marker({
-              position: next.turnPoint,
-              content: icon,
-              offset: new window.AMap.Pixel(-18, -18),
-              zIndex: 200,
-              map: this.map
-            });
-          } else {
-            this._nextTurnMarker.setPosition(next.turnPoint);
-            this._nextTurnMarker.setContent(icon);
-          }
-        } else if (this._nextTurnMarker) {
-          this._nextTurnMarker.setMap(null);
-          this._nextTurnMarker = null;
-        }
-      }
-      return;
-    }
-
-    // ── 没有进度 → 简单渲染整条路线（青绿色实线）──
-    if (this._passedPolyline) { this._passedPolyline.setMap(null); this._passedPolyline = null; }
-    if (this._pendingPolyline) { this._pendingPolyline.setMap(null); this._pendingPolyline = null; }
-    if (this._nextTurnMarker) { this._nextTurnMarker.setMap(null); this._nextTurnMarker = null; }
-
-    const isRoute = (this.routePath && this.routePath.length >= 2);
-    const color = isRoute ? '#00ffaa' : '#ffaa00';
-    const dash = isRoute ? 'solid' : 'dashed';
-    const weight = isRoute ? 5 : 4;
-
+    // 统一绿色虚线样式（沿真实道路从起点到终点）
     if (!this.polyline) {
       this.polyline = new window.AMap.Polyline({
         path: normalized,
-        strokeColor: color,
-        strokeWeight: weight,
-        strokeOpacity: 0.85,
-        strokeStyle: dash,
+        strokeColor: '#00ff88',
+        strokeWeight: 5,
+        strokeOpacity: 0.9,
+        strokeStyle: 'dashed',
         lineJoin: 'round',
-        zIndex: 55,
+        zIndex: 80,
         map: this.map
       });
     } else {
-      this.polyline.setOptions({ strokeColor: color, strokeWeight: weight, strokeStyle: dash });
+      this.polyline.setOptions({
+        strokeColor: '#00ff88',
+        strokeWeight: 5,
+        strokeOpacity: 0.9,
+        strokeStyle: 'dashed'
+      });
       this.polyline.setPath(normalized);
     }
   }
 
-  // 把路径按进度切分成"已走"和"未走"两段
-  _splitPathAtProgress(path, progressMeters) {
-    let acc = 0;
-    const passed = [];
-    const pending = [];
-    let splitDone = false;
-
-    const R = 6371000;
-    function haversineMeters(a, b) {
-      const toRad = d => d * Math.PI / 180;
-      const dLat = toRad(b[1] - a[1]);
-      const dLng = toRad(b[0] - a[0]);
-      const lat1 = toRad(a[1]);
-      const lat2 = toRad(b[1]);
-      const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-      return 2 * R * Math.asin(Math.sqrt(h));
-    }
-
-    for (let i = 0; i < path.length; i++) {
-      if (i === 0) {
-        passed.push(path[i]);
-        continue;
-      }
-      const segLen = haversineMeters(path[i - 1], path[i]);
-
-      if (!splitDone && acc + segLen >= progressMeters) {
-        // 插值：在线段 path[i-1] -> path[i] 上找到 progress 的位置
-        const remain = progressMeters - acc;
-        const t = segLen > 0.01 ? remain / segLen : 0;
-        const interp = [
-          path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t,
-          path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t
-        ];
-        passed.push(interp);
-        pending.push(interp);
-        pending.push(path[i]);
-        splitDone = true;
-      } else if (splitDone) {
-        pending.push(path[i]);
-      } else {
-        passed.push(path[i]);
-      }
-      acc += segLen;
-    }
-
-    // 如果走完了还没切分（progress > total），切分点=终点
-    if (!splitDone && path.length > 0) {
-      const last = path[path.length - 1];
-      if (passed.length === 0 || passed[passed.length - 1][0] !== last[0] || passed[passed.length - 1][1] !== last[1]) {
-        passed.push(last);
-      }
-      pending.push(last);
-    }
-
-    return { passed: passed.length >= 2 ? passed : [], pending: pending.length >= 2 ? pending : [path[path.length - 1], path[path.length - 1]] };
-  }
-
-  // 转弯点标记 SVG（不同动作不同图标）
-  _turnMarkerSVG(action) {
-    let color = '#00d48a';
-    let label = '●';
-    if (action === 'left') { color = '#4dd0e1'; label = '↰'; }
-    else if (action === 'right') { color = '#ffb74d'; label = '↱'; }
-    else if (action === 'uturn') { color = '#e57373'; label = '↺'; }
-    else if (action === 'arrive') { color = '#ffd54f'; label = '★'; }
-    else { color = '#00d48a'; label = '↑'; }
-
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
-         <circle cx="18" cy="18" r="15" fill="` + color + `" stroke="white" stroke-width="2.5" opacity="0.95"/>
-         <text x="18" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white">` + label + `</text>
-       </svg>`;
-    return svg;
-  }
-
-  // 设置真实骑行路线（来自 AMap.Riding 的规划结果）
-  // pathArray: [[lng, lat], ...]
-  setRoutePath(pathArray) {
+  setRoutePath(pathArray, steps) {
     if (!pathArray || pathArray.length < 2) return;
     this.routePath = pathArray;
     this._updatePolyline();
+
+    // 路线规划成功后，自动调整地图范围让整条路线可见
+    if (window.AMap && this.map && this.routePath && this.routePath.length >= 2) {
+      try {
+        const bounds = new window.AMap.Bounds(
+          new window.AMap.LngLat(this.routePath[0][0], this.routePath[0][1]),
+          new window.AMap.LngLat(this.routePath[this.routePath.length - 1][0],
+                                 this.routePath[this.routePath.length - 1][1])
+        );
+        for (let i = 1; i < this.routePath.length - 1; i++) {
+          try { bounds.extend(new window.AMap.LngLat(this.routePath[i][0], this.routePath[i][1])); }
+          catch (e) {}
+        }
+        try { this.map.setBounds(bounds, [40, 40, 40, 40]); }
+        catch (e) { this.map.setFitView(); }
+      } catch (e) {
+        try { this.map.setFitView(); } catch (e2) {}
+      }
+    }
+
+    // 清理旧的路口标记
+    this._clearTurnMarkers();
+
+    // 只在有 steps 信息时创建路口标记
+    if (steps && Array.isArray(steps) && steps.length > 0) {
+      for (let i = 0; i < steps.length - 1; i++) {
+        const step = steps[i];
+        if (!step.turnPoint || step.action === 'straight') continue;
+        this._createTurnMarker(step);
+      }
+    }
   }
 
-  // 设置步骤信息（用于转弯点标记）
-  setRouteSteps(steps) {
-    this.routeSteps = steps;
-    this._updatePolyline();
+  setRouteSteps(steps) { this.routeSteps = steps; }
+
+  clearRoute() {
+    this.routePath = null;
+    this.routeSteps = null;
+    if (this.polyline) { this.polyline.setMap(null); this.polyline = null; }
+    this._clearTurnMarkers();
+    this.hasTarget = false;
+    this.targetLngLat = null;
+    if (this.destMarker) { this.destMarker.setMap(null); this.destMarker = null; }
   }
 
-  // 外部导航引擎传入当前进度（progressMeters / nextStepIdx 等）
+  _createTurnMarker(step) {
+    if (!window.AMap || !this.map) return;
+    const [lng, lat] = step.turnPoint;
+    if (typeof lng !== 'number' || typeof lat !== 'number') return;
+
+    const iconMap = {
+      'left': '↰',
+      'left-slight': '↖',
+      'right': '↱',
+      'right-slight': '↗',
+      'uturn': '↺',
+      'arrive': '★'
+    };
+    const colorMap = {
+      'left': '#4dd0e1',
+      'left-slight': '#4dd0e1',
+      'right': '#ffb74d',
+      'right-slight': '#ffb74d',
+      'uturn': '#e57373',
+      'arrive': '#ffd54f'
+    };
+    const icon = iconMap[step.action] || '↑';
+    const color = colorMap[step.action] || '#00ffff';
+
+    try {
+      const marker = new window.AMap.Marker({
+        position: [lng, lat],
+        offset: new window.AMap.Pixel(-12, -12),
+        content: `<div style="width:24px;height:24px;background:rgba(0,0,0,0.7);border:2px solid ${color};border-radius:50%;color:${color};font-size:16px;font-weight:bold;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px ${color};">${icon}</div>`,
+        map: this.map,
+        zIndex: 120
+      });
+      this.turnMarkers.push(marker);
+    } catch (e) {}
+  }
+
+  _clearTurnMarkers() {
+    if (this.turnMarkers && this.turnMarkers.length > 0) {
+      for (const m of this.turnMarkers) {
+        try { m.setMap(null); } catch (e) {}
+      }
+      this.turnMarkers = [];
+    }
+  }
+
+  // 外部导航引擎传入当前进度（仅记录，不再参与绘制）
   // info: { progressMeters, totalDistance, currentStepIdx, nextStepIdx, position:[lng,lat] }
   setNavProgress(info) {
-    this._navData = info
-      ? { progressMeters: info.progressMeters || 0, nextStepIdx: info.nextStepIdx }
-      : null;
-    this._updatePolyline();
+    this._navData = info;
   }
 
   _reverseGeocode(lng, lat) {

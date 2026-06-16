@@ -42,6 +42,13 @@
 
         <!-- 大箭头指示 -->
         <div class="big-arrow-container">
+          <!-- 转弯类型指示器 -->
+          <div class="turn-indicator" id="turn-indicator">
+            <span class="turn-icon" id="turn-icon">↑</span>
+            <span class="turn-text" id="turn-text">直行</span>
+          </div>
+
+          <!-- 主箭头 -->
           <div class="big-arrow" id="big-arrow">
             <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
               <defs>
@@ -49,15 +56,40 @@
                   <stop offset="0%" stop-color="#66ffff" stop-opacity="1"/>
                   <stop offset="100%" stop-color="#00ffff" stop-opacity="0.7"/>
                 </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
               </defs>
               <!-- 箭头主体（指向上方） -->
-              <polygon points="50,3 95,55 62,55 62,130 38,130 38,55 5,55" fill="url(#arrowGrad)"/>
+              <polygon points="50,3 95,55 62,55 62,130 38,130 38,55 5,55" fill="url(#arrowGrad)" filter="url(#glow)"/>
               <!-- 中心高光线条 -->
               <polygon points="50,15 80,60 50,52 20,60" fill="#ffffff" opacity="0.35"/>
             </svg>
           </div>
+
+          <!-- 距离显示 -->
           <div class="arrow-distance" id="arrow-distance">0.0 km</div>
+
+          <!-- 下一个动作提示 -->
           <div class="arrow-hint" id="arrow-hint">直行</div>
+
+          <!-- 进度条指示 -->
+          <div class="route-progress-bar">
+            <div class="route-progress-fill" id="route-progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- 路线概览卡片（可折叠） -->
+        <div class="route-summary" id="route-summary" style="display:none;">
+          <div class="route-summary-header">
+            <span class="route-summary-title">路线概览</span>
+            <button class="route-summary-close" id="route-summary-close">×</button>
+          </div>
+          <div class="route-summary-content" id="route-summary-content"></div>
         </div>
 
       </div>
