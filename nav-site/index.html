@@ -22,6 +22,22 @@
         <div class="mini-map-info" id="mini-map-info" data-comp-id="mini-map-info">定位中...</div>
       </div>
 
+      <!-- ★ 3D 场景比例尺滑条（与 mini-map 同步缩放）★ -->
+      <div class="scale-slider" data-comp-id="scale-slider">
+        <div class="scale-slider-header" data-comp-id="scale-slider-header">
+          <span class="scale-slider-label" data-comp-id="scale-slider-label">比例尺</span>
+          <span class="scale-slider-value" id="scale-value" data-comp-id="scale-value">1.0×</span>
+        </div>
+        <input type="range"
+               id="scale-range"
+               class="scale-range"
+               data-comp-id="scale-range"
+               min="0.3"
+               max="3.0"
+               step="0.05"
+               value="1.0" />
+      </div>
+
       <!-- ★ 顶部状态栏组件（左：目的地；右：指南针）★ -->
       <div class="status-bar" data-comp-id="status-bar">
         <div class="status-item" data-comp-id="status-destination">

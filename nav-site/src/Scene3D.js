@@ -23,14 +23,16 @@ export class Scene3D {
     this.scene = new THREE.Scene()
     this.scene.background = null  // 透明背景（AR效果）
 
-    // ---- 相机 ----
+    // ---- 相机：偏仰视视角 — 路线悬浮在用户前上方 ----
     this.camera = new THREE.PerspectiveCamera(
-      60,
+      70,  // FOV 略大，透视感更强
       window.innerWidth / window.innerHeight,
       0.1,
       1000
     )
-    this.camera.position.z = 5
+    // 相机位于下方偏后，朝上看
+    this.camera.position.set(0, -1.5, 3.5)
+    this.camera.lookAt(0, 3.0, 0)
 
     // ---- 渲染器 ----
     this.renderer = new THREE.WebGLRenderer({
@@ -44,10 +46,12 @@ export class Scene3D {
     this.renderer.setClearColor(0x000000, 0)  // 完全透明
 
     // ---- UI 根节点（承载：指向箭头 + 霓虹路线）
-    // 所有"AR 全息 UI"都挂在它下面，共享：
-    //   - 浮动呼吸 position.y = sin(t*1.5)*0.08
-    //   - 统一的 z 深度（避免箭头与路线视觉分层）
+    // 抬高到用户前上方，轻微朝相机倾斜 — 形成仰视感
     this._uiRoot = new THREE.Group()
+    this._uiRoot.position.y = 3.0           // 悬浮高度
+    this._uiRoot.rotation.x = -0.35         // 顶部向相机方向倾斜（约 20°）
+    this._uiScale = 1.0                     // 用户可调节的比例尺（1.0 = 默认大小）
+    this._uiRoot.scale.set(this._uiScale, this._uiScale, this._uiScale)
     this.scene.add(this._uiRoot)
 
     // ---- 初始化元素 ----
@@ -225,8 +229,8 @@ export class Scene3D {
       if (y < minY) minY = y
       if (y > maxY) maxY = y
     }
-    const routeExtent = Math.max(maxX - minX, maxY - minY, 100)  // 至少 100m 范围
-    const scale = 30.0 / routeExtent  // 再次放大 2 倍（原 15.0），固定 scale
+    const routeExtent = Math.max(maxX - minX, maxY - minY, 100)
+    const scale = 50.0 / routeExtent  // 再次放大（原 30.0），悬浮效果更醒目
 
     // 3) 存储固定参考信息，供后续 updateUserPosition/updateHeading 使用
     this._routeRef = {
@@ -391,8 +395,8 @@ export class Scene3D {
 
     // (e) 沿路线每隔固定距离放置一个无柄箭头（三角形箭头头）
     //     箭头方向 = 该点处路线的前进方向
-    const arrowSpacing = 1.2       // 箭头间距（世界单位）
-    const arrowSize = 0.09         // 箭头大小（0.03 的 3 倍）
+    const arrowSpacing = 1.6       // 箭头间距（世界单位）
+    const arrowSize = 0.14         // 箭头大小（稍放大以匹配新场景比例）
     const accumSegs = []           // 原始路线段（细分后的 segs，用于精确沿路径放箭头）
     for (let si = 0; si < segData.length; si++) {
       const sg = segData[si]
@@ -480,7 +484,7 @@ export class Scene3D {
       const eys = ey * scale
 
       // 外发光立方（大）
-      const outerEndGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9)
+      const outerEndGeo = new THREE.BoxGeometry(1.3, 1.3, 1.3)
       const outerEndMat = new THREE.MeshBasicMaterial({
         color: neonColor,
         transparent: true,
@@ -491,7 +495,7 @@ export class Scene3D {
       this.routeLineGroup.add(outerEnd)
 
       // 核心立方（小，更亮）
-      const endGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6)
+      const endGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8)
       const endMat = new THREE.MeshBasicMaterial({
         color: neonColor,
         transparent: true,
@@ -503,7 +507,7 @@ export class Scene3D {
       this.routeLineGroup.add(endBox)
 
       // 外环（更粗）
-      const ringGeo = new THREE.TorusGeometry(1.4, 0.08, 8, 80)
+      const ringGeo = new THREE.TorusGeometry(2.0, 0.12, 8, 80)
       const ringMat = new THREE.MeshBasicMaterial({
         color: neonColor,
         transparent: true,
@@ -515,7 +519,7 @@ export class Scene3D {
       this.routeLineGroup.add(ring)
 
       // 第二环（外发光）
-      const ring2Geo = new THREE.TorusGeometry(2.0, 0.05, 6, 60)
+      const ring2Geo = new THREE.TorusGeometry(2.8, 0.08, 6, 60)
       const ring2Mat = new THREE.MeshBasicMaterial({
         color: 0x88ffff,
         transparent: true,
@@ -526,8 +530,8 @@ export class Scene3D {
       this.routeLineGroup.add(ring2)
     }
 
-    // (e) 起点标记（小立方 + 发光）—— 加粗 2 倍
-    const startGeo = new THREE.BoxGeometry(0.44, 0.44, 0.44)
+    // (f) 起点标记（小立方 + 发光）
+    const startGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6)
     const startMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
@@ -670,6 +674,22 @@ export class Scene3D {
   }
 
   /* ========================================================
+     ★ 3D 场景比例尺缩放（与 mini-map 同步）
+     scale: 相对默认大小的倍数（0.2 ~ 3.0）
+     影响：指向箭头 + 霓虹路线 + 终点环 + 粒子 整体放大/缩小
+     ======================================================== */
+  setUIScale(scale) {
+    if (!this._uiRoot) return
+    const s = Math.max(0.1, Math.min(5.0, Number(scale) || 1.0))
+    this._uiScale = s
+    this._uiRoot.scale.set(s, s, s)
+  }
+
+  getUIScale() {
+    return this._uiScale
+  }
+
+  /* ========================================================
      ★ 内部：根据存储的参考信息，更新路线的 position + rotation
      routeLineGroup 坐标系统：
        - 子几何体在 ENU 空间（localXY * scale，以 first point 为原点）
@@ -737,8 +757,10 @@ export class Scene3D {
 
     const t = performance.now() * 0.001
 
-    // _uiRoot 位置固定，不再上下浮动呼吸
-    this._uiRoot.position.y = 0
+    // _uiRoot 位置 & 倾斜固定（悬浮在前上方，顶部朝向相机）
+    // 不再做呼吸浮动，保持稳定的仰视姿态
+    this._uiRoot.position.y = 3.0
+    this._uiRoot.rotation.x = -0.35
 
     // 箭头旋转朝向平滑过渡
     if (this.arrowGroup) {

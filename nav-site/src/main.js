@@ -2419,12 +2419,10 @@ function _updateNavProgress(lat, lng) {
 }
 
 /* ============================================================
-   ★★★ 路口提示：按距离分级播报 ★★★
-   - 500米：预告前方路口
-   - 300米：再次提醒
-   - 100米：强提示 + 视觉动画
+   ★★★ 路口提示：3 次分级播报 ★★★
+   - 100米：预告前方路口
    - 50米：最后提醒（开始转向）
-   - 到达：提示即将到达目的地
+   - 到达路口（0米）：执行转向指令
    ============================================================ */
 let _announceState = {
   lastStepIndex: -1,
@@ -2446,31 +2444,26 @@ function _maybeAnnounceTurn(distanceToTurnMeters, action, stepIndex, roadName, d
     return
   }
 
+  // 新路口：重置播报状态，但不立即播报（避免一开始就提示"前方 500m 转弯"）
   if (stepIndex !== _announceState.lastStepIndex) {
-    const actionText = _actionToText(action)
-    let hint = `前方路口${actionText}`
-    if (roadName) hint += `，进入${roadName}`
-    if (d > 0) hint += `，还有 ${fmtDistance(d)}`
-    speak(hint, false)
     _announceState.lastStepIndex = stepIndex
-    _announceState.lastAnnouncedMark = 9999
-    _pulseTurnIndicator()
-    return
+    _announceState.lastAnnouncedMark = 9999  // 表示"尚未播报任何 mark"
   }
 
-  const marks = [500, 300, 100, 50]
+  // 3 次播报：100m → 50m → 0m（到达路口）
+  const marks = [100, 50, 0]
   for (const m of marks) {
     if (d <= m && _announceState.lastAnnouncedMark > m) {
       _announceState.lastAnnouncedMark = m
       const actionText = _actionToText(action)
-      if (m === 50) {
+      if (m === 0) {
         speak(`现在${actionText}`, true)
         _pulseTurnIndicator()
-      } else if (m === 100) {
-        speak(`${fmtDistance(d)}后${actionText}`, false)
+      } else if (m === 50) {
+        speak(`${m}米后${actionText}`, false)
         _pulseTurnIndicator()
       } else {
-        speak(`前方${fmtDistance(d)}${actionText}`, false)
+        speak(`前方${m}米${actionText}`, false)
       }
       break
     }
@@ -2514,6 +2507,32 @@ function init() {
     }
   } else {
     console.warn('[AR NAV] ⚠️ 未找到 scene3d-canvas，3D 霓虹路线将不可用')
+  }
+
+  // 1.55) ★ 新增：比例尺滑条（控制 3D 场景 UI 整体缩放）
+  const scaleRange = document.getElementById('scale-range')
+  const scaleValue = document.getElementById('scale-value')
+  if (scaleRange) {
+    const applyScale = () => {
+      const val = parseFloat(scaleRange.value) || 1.0
+      if (state.scene3D) state.scene3D.setUIScale(val)
+      if (scaleValue) {
+        scaleValue.textContent = val.toFixed(2) + '\u00d7'
+      }
+      // 同步滑条填充颜色（已填充部分高亮，未填充部分暗淡）
+      const minV = parseFloat(scaleRange.min) || 0.3
+      const maxV = parseFloat(scaleRange.max) || 3.0
+      const pct = ((val - minV) / (maxV - minV)) * 100
+      scaleRange.style.background =
+        'linear-gradient(to right, ' +
+        'rgba(0,255,255,0.9) 0%, ' +
+        'rgba(0,255,255,0.9) ' + pct + '%, ' +
+        'rgba(0,255,255,0.25) ' + pct + '%, ' +
+        'rgba(0,255,255,0.25) 100%)'
+    }
+    scaleRange.addEventListener('input', applyScale)
+    scaleRange.addEventListener('change', applyScale)
+    applyScale()  // 初始化一次
   }
 
   // 1.6) ★ 新增：绑定路线保存/历史 UI

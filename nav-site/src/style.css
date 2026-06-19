@@ -63,6 +63,86 @@ html, body {
   pointer-events: none;
 }
 
+/* ============================================================
+   3D 场景比例尺滑条（显示在 mini-map 下方 / 与 mini-map 同步缩放）
+   ============================================================ */
+.scale-slider {
+  position: absolute;
+  top: calc(1.5vh + 180px + 8px);
+  left: 1.5vh;
+  width: 180px;
+  z-index: 21;
+  background: rgba(0, 20, 30, 0.6);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 1.5vh;
+  padding: 8px 12px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.15);
+}
+
+.scale-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.scale-slider-label {
+  font-size: 12px;
+  color: rgba(0, 255, 255, 0.8);
+  text-shadow: 0 0 4px rgba(0, 255, 255, 0.6);
+  letter-spacing: 1px;
+}
+
+.scale-slider-value {
+  font-size: 12px;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
+}
+
+.scale-range {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(
+    to right,
+    rgba(0, 255, 255, 0.9) 0%,
+    rgba(0, 255, 255, 0.9) 33%,
+    rgba(0, 255, 255, 0.25) 33%,
+    rgba(0, 255, 255, 0.25) 100%
+  );
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.scale-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #00ffff;
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.scale-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #00ffff;
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.9);
+  cursor: pointer;
+}
+
 /* ---------- 导航信息层 ---------- */
 .nav-layer {
   position: fixed;
