@@ -15,6 +15,7 @@
 
 import { CONFIG } from './config.js'
 import { MiniMap } from './MiniMap.js'
+import { Scene3D } from './Scene3D.js'
 
 /* ============================================================
    DOM 元素引用
@@ -30,22 +31,22 @@ const dom = {
   destination:     $('destination-display'),
   poiSuggestions:  $('poi-suggestions'),
 
+  // 迷你地图组件
+  miniMapInfo:     $('mini-map-info'),
+
   // 指南针
   compassArrow:    $('compass-arrow'),
   compassText:     $('compass-text'),
 
-  // 大箭头
-  bigArrow:        $('big-arrow'),
-  arrowDistance:   $('arrow-distance'),
-  arrowHint:       $('arrow-hint'),
-
-  // ★★★ 新增：转弯指示器 ★★★
-  turnIndicator:   $('turn-indicator'),
-  turnIcon:        $('turn-icon'),
-  turnText:        $('turn-text'),
-
-  // 进度条
-  routeProgressFill: $('route-progress-fill'),
+  // ★ 旧版本的 DOM 大箭头容器已删除（改用 Scene3D 中的 3D 箭头 + 霓虹路线）
+  // 保留这些变量为 null，以便旧代码的 if (dom.bigArrow) 安全短路
+  bigArrow:        null,
+  arrowDistance:   null,
+  arrowHint:       null,
+  turnIndicator:   null,
+  turnIcon:        null,
+  turnText:        null,
+  routeProgressFill: null,
 
   // 路线概览
   routeSummary:      $('route-summary'),
@@ -71,6 +72,14 @@ const dom = {
   gpsStatus:       $('gps-status'),
   compassStatus:   $('compass-status'),
   gyroStatus:      $('gyro-status'),
+
+  // ★★★ 新增：路线保存/历史 ★★★
+  saveRouteBtn:    $('save-route-btn'),
+  historyPanel:    $('history-panel'),
+  historyList:     $('history-list'),
+  historyToggle:   $('history-toggle'),
+  historyClose:    $('history-close'),
+  historyEmpty:    $('history-empty'),
 }
 
 /* ============================================================
@@ -78,6 +87,7 @@ const dom = {
    ============================================================ */
 const state = {
   miniMap: null,
+  scene3D: null,   // ★ 新增：3D 场景管理器
   watchId: null,
   headingWatchId: null,
 
@@ -1033,6 +1043,9 @@ async function startCompass() {
     heading = (heading + 360) % 360
     state.heading = heading
 
+    // 同步到 3D 场景路线旋转角
+    _syncScene3DHeading()
+
     // 同步到迷你3D地图
     if (state.miniMap) {
       state.miniMap.setHeading(heading)
@@ -1096,10 +1109,8 @@ function _startArrowSmoothLoop() {
       console.log(`[AR NAV] 箭头循环 #${tickCount}: target=${state._arrowTargetAngle?.toFixed(1)}, current=${state._arrowCurrentAngle?.toFixed(1)}, heading=${state.heading}, dom.bigArrow=${dom.bigArrow ? '✅' : '❌'}`)
     }
 
-    // -------- 大箭头 --------
-    // 3D 平视视角：先让箭头在屏幕平面内转向（rotateZ），再整体向前倾斜（rotateX）
-    // rotateZ(angle)：绕"垂直屏幕平面穿出"的轴旋转——这正是垂直箭头平面的旋转轴
-    // rotateX(65deg)：从屏幕平面向后倾斜，模拟平视视角
+    // -------- 3D 全息箭头 --------
+    // 统一由 Scene3D 负责渲染（3D 几何 + 发光环），此处只更新目标角度
     {
       let diff = state._arrowTargetAngle - state._arrowCurrentAngle
       while (diff >  180) diff -= 360
@@ -1107,14 +1118,10 @@ function _startArrowSmoothLoop() {
       if (Math.abs(diff) > SNAP_THRESHOLD) {
         const factor = 1 - Math.pow(1 - LERP_FAST, dtScale)
         state._arrowCurrentAngle += diff * factor
-        if (dom.bigArrow) {
-          dom.bigArrow.style.transform = `rotateX(65deg) rotateZ(${state._arrowCurrentAngle}deg)`
-        }
+        if (state.scene3D) state.scene3D.setDirection(state._arrowCurrentAngle)
       } else if (Math.abs(diff) > 0.001) {
         state._arrowCurrentAngle = state._arrowTargetAngle
-        if (dom.bigArrow) {
-          dom.bigArrow.style.transform = `rotateX(65deg) rotateZ(${state._arrowTargetAngle}deg)`
-        }
+        if (state.scene3D) state.scene3D.setDirection(state._arrowTargetAngle)
       }
     }
 
@@ -1164,7 +1171,10 @@ function _updateDistanceAndBearing() {
 
   dom.totalDistance.textContent = fmtDistance(dist)
   dom.remainTime.textContent = fmtEta(dist)
-  dom.arrowDistance.textContent = fmtDistance(dist)
+  // dom.arrowDistance 已删除，改为写入 mini-map 提示（如果有）
+  if (dom.miniMapInfo) dom.miniMapInfo.textContent = fmtDistance(dist) + ' ' + bearingToText(
+    bearing(state.currentLat, state.currentLng, state.destination.lat, state.destination.lng)
+  )
 
   // 计算相对目的地的方位（从当前位置到目的地）
   state.bearing = bearing(
@@ -1172,39 +1182,31 @@ function _updateDistanceAndBearing() {
     state.destination.lat, state.destination.lng
   )
 
-  // 同步目的地到迷你地图（直接用经纬度）
+  // 同步目的地到迷你地图
   if (state.miniMap) {
     state.miniMap.setTarget(state.destination.lng, state.destination.lat)
   }
 
   _updateArrowWithHeading()
 
-  // 更新"下一个转弯"文本（第一阶段用简单方向）
+  // 更新"下一个转弯"文本
   dom.nextTurn.textContent = `向 ${bearingToText(state.bearing)}`
 }
 
 function _updateArrowWithHeading() {
   if (!state.destination) {
-    // 无目的地：直接停在 0°，不再抖动
+    // 无目的地：3D 箭头复位到正前方
     state._arrowTargetAngle = 0
     state._arrowCurrentAngle = 0
-    dom.bigArrow.style.transform = 'rotateX(65deg) rotateZ(0deg)'
-    dom.arrowDistance.style.display = 'block'
-    dom.arrowHint.textContent = '未设置目的地'
+    if (state.scene3D) state.scene3D.setDirection(0)
     return
   }
 
-  // 计算相对手机朝向，到目的地的方向差
-  // bearing: 从当前位置指北顺时针到目的地的角度
-  // heading: 手机朝向（度，0=北）
-  // 相对角度 = (bearing - heading + 360) % 360
+  // 相对手机朝向来计算箭头角度
   let relative = (state.bearing - state.heading + 360) % 360
   if (relative > 180) relative -= 360  // 归一化到 -180 ~ 180
 
-  // --- 关键点：避免 180° 翻转导致 CSS 绕远路 ---
-  // 把 relative 换算成"与当前显示角度最接近的等价角度"——
-  // 即如果当前显示 179°，新 relative 是 -177°，我们把目标设为 183°（而不是 -177°）
-  // 这样 rAF lerp 只会转 4°，不会绕一整圈
+  // 避免 180° 翻转导致绕远路
   if (state._arrowCurrentAngle == null) state._arrowCurrentAngle = 0
   let target = relative
   const TWO_PI = 360
@@ -1212,20 +1214,8 @@ function _updateArrowWithHeading() {
   while (target - state._arrowCurrentAngle < -180) target += TWO_PI
   state._arrowTargetAngle = target
 
-  // 实际的 transform 由 rAF 平滑循环设置，这里只更新目标值
-
-  // --- 提示文字（用精确相对角度）---
-  let hintText = ''
-  const absRel = Math.abs(relative)
-  if (absRel < 15)            hintText = `前方直行 · ${Math.round(absRel)}°`
-  else if (absRel < 45)       hintText = `${relative > 0 ? '右' : '左'}前方 · ${Math.round(absRel)}°`
-  else if (absRel < 75)       hintText = `${relative > 0 ? '右' : '左'}转 · ${Math.round(absRel)}°`
-  else if (absRel < 105)      hintText = `${relative > 0 ? '右' : '左'}转 · ${Math.round(absRel)}°`
-  else if (absRel < 135)      hintText = `${relative > 0 ? '右' : '左'}后方 · ${Math.round(absRel)}°`
-  else if (absRel < 165)      hintText = `后方 · ${Math.round(180 - absRel)}°`
-  else                        hintText = `掉头 · ${Math.round(absRel)}°`
-
-  dom.arrowHint.textContent = hintText
+  // 立即把目标角度写入 3D 场景箭头（平滑插值由 Scene3D 的 _animate 完成）
+  if (state.scene3D) state.scene3D.setDirection(target)
 }
 
 /* ============================================================
@@ -1944,6 +1934,7 @@ function _planRoute(fromLng, fromLat, toLng, toLat) {
 
           _showRouteSummary(steps, totalDist)
           _updateNavProgress(fromLat, fromLng)
+          _syncScene3DRoute()
 
           console.log(`[AR NAV] ✅ 路线规划完成：${steps.length - 1} 个转弯，总距离 ${fmtDistance(totalDist)}，路径点数 ${fullPath.length}（来源：${cand.name}/${extractedFrom}）`)
           speak(`路线规划完成，总距离 ${fmtDistance(totalDist)}，请出发`)
@@ -2046,9 +2037,310 @@ function _initFallbackRoute(fromLng, fromLat, toLng, toLat) {
   dom.totalDistance.textContent = fmtDistance(dist)
   dom.remainTime.textContent = fmtEta(dist)
   _updateNavProgress(fromLat, fromLng)
+  _syncScene3DRoute()
 }
 
 
+/* ============================================================
+   ★ 3D 霓虹路线 · 与 Scene3D 交互
+   功能：
+     _syncScene3DRoute     - 把当前路线（state.navFullPath）传递给 3D 场景
+     _clearScene3DRoute    - 清除 3D 场景中的路线
+     _syncScene3DHeading   - heading 变化时旋转 3D 路线
+   ============================================================ */
+
+function _syncScene3DRoute() {
+  if (!state.scene3D) return
+  if (!state.navFullPath || state.navFullPath.length < 2) {
+    state.scene3D.clearRoute()
+    return
+  }
+  const originLat = state.currentLat != null ? state.currentLat : state.startLat
+  const originLng = state.currentLng != null ? state.currentLng : state.startLng
+  if (originLat == null || originLng == null) return
+
+  // ★ 性能优化：若路线点未变（同一 navFullPath），仅更新用户位置 + heading（不重建几何体）
+  if (state._3dRouteLastPath === state.navFullPath) {
+    state.scene3D.updateUserPosition(originLat, originLng, state.heading || 0)
+    return
+  }
+
+  // 路线点变化 → 重建几何体
+  state._3dRouteLastPath = state.navFullPath
+  state.scene3D.setRoute(state.navFullPath, originLat, originLng, state.heading || 0)
+  console.log(`[AR NAV] 🎯 3D 霓虹路线已同步：${state.navFullPath.length} 点`)
+}
+
+function _clearScene3DRoute() {
+  if (state.scene3D) state.scene3D.clearRoute()
+  state._3dRouteLastPath = null
+}
+
+function _syncScene3DHeading() {
+  if (!state.scene3D) return
+  state.scene3D.updateHeading(state.heading || 0)
+}
+
+
+/* ============================================================
+   ★ 路线持久化（localStorage + GeoJSON）
+   存储结构：
+     key: 'ar_nav_saved_routes'
+     value: [{
+       id: string,
+       name: string,          // 目的地名称
+       createdAt: number,     // timestamp (ms)
+       origin: { lat, lng },
+       destination: { lat, lng, name },
+       totalDistance: number, // 总距离（米）
+       geoJson: {             // 标准 GeoJSON FeatureCollection
+         type: 'FeatureCollection',
+         features: [
+           { type: 'Feature', geometry: { type: 'LineString', coordinates: [[lng,lat],...] },
+             properties: { name: 'route' } },
+           { type: 'Feature', geometry: { type: 'Point', coordinates: [lng,lat] },
+             properties: { name: 'start' } },
+           { type: 'Feature', geometry: { type: 'Point', coordinates: [lng,lat] },
+             properties: { name: 'end' } }
+         ]
+       }
+     }, ...]
+   ============================================================ */
+
+const ROUTE_STORAGE_KEY = 'ar_nav_saved_routes'
+
+function _persistGetAllRoutes() {
+  try {
+    const raw = localStorage.getItem(ROUTE_STORAGE_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr : []
+  } catch (e) {
+    console.warn('[AR NAV] ❌ 读取历史路线失败:', e)
+    return []
+  }
+}
+
+function _persistSaveRoute(overrideName) {
+  if (!state.navFullPath || state.navFullPath.length < 2) {
+    console.warn('[AR NAV] ⚠️ 没有可保存的路线（请先规划）')
+    speak('没有可保存的路线')
+    return null
+  }
+  const destName = overrideName
+    || (state.destination && state.destination.name)
+    || `路线 ${new Date().toLocaleString('zh-CN')}`
+
+  const all = _persistGetAllRoutes()
+  const id = 'rt_' + Date.now()
+  const origin = {
+    lat: state.startLat != null ? state.startLat : state.currentLat,
+    lng: state.startLng != null ? state.startLng : state.currentLng,
+  }
+  const destination = state.destination
+    ? { lat: state.destination.lat, lng: state.destination.lng, name: state.destination.name }
+    : {
+      lat: state.navFullPath[state.navFullPath.length - 1][1],
+      lng: state.navFullPath[state.navFullPath.length - 1][0],
+      name: destName,
+    }
+
+  // GeoJSON FeatureCollection：一条 LineString + 起/终点 Point
+  const features = [
+    {
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: state.navFullPath.map(p => [p[0], p[1]]) },
+      properties: { name: 'route' },
+    },
+    {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [origin.lng, origin.lat] },
+      properties: { name: 'start' },
+    },
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: state.navFullPath[state.navFullPath.length - 1],
+      },
+      properties: { name: 'end' },
+    },
+  ]
+
+  const routeObj = {
+    id,
+    name: destName,
+    createdAt: Date.now(),
+    origin,
+    destination,
+    totalDistance: state.navTotalDistance || 0,
+    geoJson: { type: 'FeatureCollection', features },
+  }
+  all.push(routeObj)
+
+  // 限制最多保留 50 条
+  while (all.length > 50) all.shift()
+
+  try {
+    localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify(all))
+    console.log(`[AR NAV] ✅ 路线已保存：${destName}（${routeObj.geoJson.features[0].geometry.coordinates.length} 点）`)
+    speak(`路线已保存：${destName}`)
+    _renderHistoryList()
+    return routeObj
+  } catch (e) {
+    console.warn('[AR NAV] ❌ 保存失败（localStorage 可能已满或不可用）:', e)
+    speak('保存失败')
+    return null
+  }
+}
+
+function _persistDeleteRoute(id) {
+  if (!id) return
+  const all = _persistGetAllRoutes().filter(r => r.id !== id)
+  try {
+    localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify(all))
+    console.log(`[AR NAV] 🗑️ 路线已删除：${id}`)
+    _renderHistoryList()
+  } catch (e) {
+    console.warn('[AR NAV] ❌ 删除失败:', e)
+  }
+}
+
+function _persistExportRoute(id) {
+  const all = _persistGetAllRoutes()
+  const route = id ? all.find(r => r.id === id) : null
+  const payload = route
+    ? route.geoJson
+    : // 若没有指定 id 且当前有规划路线，则导出当前路线
+      state.navFullPath && state.navFullPath.length >= 2
+        ? {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: state.navFullPath },
+                properties: { name: 'current-route' },
+              },
+            ],
+          }
+        : null
+
+  if (!payload) {
+    speak('没有可导出的路线')
+    return
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/geo+json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const filename = (route ? route.name : '当前路线').replace(/[\\/:*?"<>|]/g, '_')
+  a.href = url
+  a.download = `${filename}.geojson`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 500)
+  console.log(`[AR NAV] 📤 已导出 GeoJSON：${a.download}`)
+  speak('已导出 GeoJSON 文件')
+}
+
+// 从历史路线恢复到 3D 场景显示（不覆盖导航状态，仅做视觉显示）
+function _persistPreviewRoute(id) {
+  const all = _persistGetAllRoutes()
+  const route = all.find(r => r.id === id)
+  if (!route || !state.scene3D) return
+
+  const coords = []
+  for (const f of route.geoJson.features) {
+    if (f.geometry && f.geometry.type === 'LineString' && Array.isArray(f.geometry.coordinates)) {
+      for (const p of f.geometry.coordinates) {
+        if (Array.isArray(p) && p.length >= 2) coords.push([p[0], p[1]])
+      }
+    }
+  }
+  if (coords.length < 2) return
+
+  state.scene3D.setRoute(coords, route.origin.lat, route.origin.lng, 0)
+  console.log(`[AR NAV] 🎯 已从历史恢复 3D 霓虹路线：${route.name}`)
+  speak(`已在 3D 场景预览：${route.name}`)
+}
+
+
+/* ============================================================
+   ★ 历史路线 UI · 渲染 + 事件绑定
+   ============================================================ */
+
+function _renderHistoryList() {
+  if (!dom.historyList) return
+  const all = _persistGetAllRoutes()
+  dom.historyList.innerHTML = ''
+  if (all.length === 0) {
+    if (dom.historyEmpty) dom.historyEmpty.style.display = 'block'
+    return
+  }
+  if (dom.historyEmpty) dom.historyEmpty.style.display = 'none'
+
+  // 最新的排在前面
+  const sorted = [...all].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  for (const r of sorted) {
+    const d = new Date(r.createdAt || 0)
+    const pad = n => String(n).padStart(2, '0')
+    const timeStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    const distStr = fmtDistance(r.totalDistance || 0)
+
+    const li = document.createElement('div')
+    li.className = 'history-item'
+    li.innerHTML = `
+      <div class="history-item-main">
+        <div class="history-item-title">${r.name || '未命名路线'}</div>
+        <div class="history-item-meta">${timeStr} · ${distStr}</div>
+      </div>
+      <div class="history-item-actions">
+        <button class="history-btn history-btn-preview" title="在 3D 场景中预览">🎯</button>
+        <button class="history-btn history-btn-export" title="导出 GeoJSON">📤</button>
+        <button class="history-btn history-btn-delete" title="删除">🗑️</button>
+      </div>
+    `
+
+    li.querySelector('.history-btn-preview').addEventListener('click', () => _persistPreviewRoute(r.id))
+    li.querySelector('.history-btn-export').addEventListener('click', () => _persistExportRoute(r.id))
+    li.querySelector('.history-btn-delete').addEventListener('click', () => {
+      if (confirm(`确认删除路线「${r.name || '未命名路线'}」？`)) _persistDeleteRoute(r.id)
+    })
+    dom.historyList.appendChild(li)
+  }
+}
+
+function _toggleHistoryPanel(force) {
+  if (!dom.historyPanel) return
+  const show = typeof force === 'boolean' ? force : dom.historyPanel.classList.contains('hidden')
+  if (show) {
+    _renderHistoryList()
+    dom.historyPanel.classList.remove('hidden')
+  } else {
+    dom.historyPanel.classList.add('hidden')
+  }
+}
+
+function _bindRoutePersistenceUI() {
+  if (dom.saveRouteBtn) {
+    dom.saveRouteBtn.addEventListener('click', () => _persistSaveRoute())
+  }
+  if (dom.historyToggle) {
+    dom.historyToggle.addEventListener('click', () => _toggleHistoryPanel())
+  }
+  if (dom.historyClose) {
+    dom.historyClose.addEventListener('click', () => _toggleHistoryPanel(false))
+  }
+  // 点击面板之外关闭
+  document.addEventListener('click', (e) => {
+    if (!dom.historyPanel) return
+    if (dom.historyPanel.classList.contains('hidden')) return
+    if (dom.historyPanel.contains(e.target)) return
+    if (dom.historyToggle && dom.historyToggle.contains(e.target)) return
+    _toggleHistoryPanel(false)
+  })
+}
 
 
 function _updateNavProgress(lat, lng) {
@@ -2210,6 +2502,22 @@ function init() {
 
   // 1) 初始化迷你地图（此时还没有AMap，它会自己等待）
   state.miniMap = new MiniMap('mini-map')
+
+  // 1.5) ★ 新增：初始化 3D 场景（Three.js 负责箭头+霓虹路线）
+  const scene3DCanvas = document.getElementById('scene3d-canvas')
+  if (scene3DCanvas) {
+    try {
+      state.scene3D = new Scene3D(scene3DCanvas)
+      console.log('[AR NAV] ✅ 3D 场景（Scene3D）已初始化')
+    } catch (e) {
+      console.warn('[AR NAV] ⚠️ Scene3D 初始化失败:', e)
+    }
+  } else {
+    console.warn('[AR NAV] ⚠️ 未找到 scene3d-canvas，3D 霓虹路线将不可用')
+  }
+
+  // 1.6) ★ 新增：绑定路线保存/历史 UI
+  _bindRoutePersistenceUI()
 
   // 2) 启动大箭头平滑旋转循环（rAF + lerp，替代 CSS transition）
   _startArrowSmoothLoop()
@@ -2493,6 +2801,7 @@ function _initDebugMode() {
     // 这样转向是独立的，不会被移动逻辑覆盖
     if (turnDelta !== 0) {
       state.heading = (state.heading + turnDelta + 360) % 360
+      _syncScene3DHeading()
     }
 
     // -------- 前进 / 后退（沿当前朝向）--------
@@ -2559,8 +2868,13 @@ function _initDebugMode() {
       }
 
       state.traveledDistance = haversine(state.startLat, state.startLng, state.currentLat, state.currentLng)
-      dom.traveled.textContent = fmtDistance(state.traveledDistance)
+      if (dom.traveled) dom.traveled.textContent = fmtDistance(state.traveledDistance)
 
+      // ★ 3D 霓虹路线：用户位置变化后重新渲染（以当前位置为本地原点）
+      //   只在 3D 场景 + 有路线点的情况下刷新
+      _syncScene3DRoute()
+
+      // ★ 调试提示：改写到 mini-map info（之前的 arrowHint/arrowDistance 已被删除）
       const distDest = state.destination
         ? haversine(state.currentLat, state.currentLng, state.destination.lat, state.destination.lng)
         : null
@@ -2568,8 +2882,12 @@ function _initDebugMode() {
       const moveTag = moveDir > 0 ? '🚴 前进' : moveDir < 0 ? '🚴↩ 后退' : ''
       const turnTag = turnDelta < 0 ? ' ⬅ 左转' : turnDelta > 0 ? ' ➡ 右转' : ''
       const hint = `[DEBUG] ${moveTag}${turnTag} ${speedKmh} km/h · (${state.currentLng.toFixed(5)}, ${state.currentLat.toFixed(5)}) · 朝向 ${Math.round(state.heading)}°`
-      dom.arrowHint.textContent = hint
-      if (distDest != null) dom.arrowDistance.textContent = fmtDistance(distDest)
+      if (dom.miniMapInfo) {
+        dom.miniMapInfo.textContent = distDest != null
+          ? `${hint} · 距目的地 ${fmtDistance(distDest)}`
+          : hint
+      }
+      console.log(hint)
     }
 
     debugRafId = requestAnimationFrame(_debugTick)
@@ -2628,6 +2946,7 @@ function _initDebugMode() {
     if (!state.debugMode) return
     const { heading } = e.detail
     state.heading = heading
+    _syncScene3DHeading()
     _updateCompassUI(heading)
     if (state.destination) {
       _updateArrowWithHeading()
@@ -2688,6 +3007,7 @@ function _startDemo() {
   setInterval(() => {
     demoHeading = (demoHeading + 1) % 360
     state.heading = demoHeading
+    _syncScene3DHeading()
     _updateCompassUI(demoHeading)
 
     if (state.destination) {

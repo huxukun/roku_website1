@@ -12,149 +12,126 @@
   </head>
   <body>
     <!-- 导航信息层（AR 透明层） -->
-    <div class="nav-layer">
+    <div class="nav-layer" data-comp-id="nav-layer">
 
-      <!-- 左上角 3D 迷你地图 -->
-      <div class="mini-map" id="mini-map">
-        <div class="mini-map-info" id="mini-map-info">定位中...</div>
+      <!-- ★ 3D 全息画布（Three.js 渲染：指向箭头 + 霓虹路线 + 背景粒子）★ -->
+      <canvas id="scene3d-canvas" class="scene3d-canvas" data-comp-id="scene3d-canvas"></canvas>
+
+      <!-- ★ 迷你地图组件（高德地图 SDK 渲染：位置点 + 路线 + 调试交互）★ -->
+      <div class="mini-map" id="mini-map" data-comp-id="mini-map">
+        <div class="mini-map-info" id="mini-map-info" data-comp-id="mini-map-info">定位中...</div>
       </div>
 
-      <!-- 顶部状态栏 -->
-      <div class="status-bar">
-        <div class="status-item">
-          <span class="status-label">目的地</span>
-          <span class="status-value" id="destination-display">未设置</span>
+      <!-- ★ 顶部状态栏组件（左：目的地；右：指南针）★ -->
+      <div class="status-bar" data-comp-id="status-bar">
+        <div class="status-item" data-comp-id="status-destination">
+          <span class="status-label" data-comp-id="status-destination-label">目的地</span>
+          <span class="status-value" id="destination-display" data-comp-id="status-destination-value">未设置</span>
         </div>
-        <div class="status-item status-compass">
-          <span class="compass-arrow" id="compass-arrow">
+        <div class="status-item status-compass" data-comp-id="status-compass">
+          <span class="compass-arrow" id="compass-arrow" data-comp-id="compass-arrow">
             <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
               <!-- 北箭头：上半部分红色（北），下半部分黑色 -->
               <polygon points="50,3 92,55 50,42 8,55" fill="#ff4444"/>
               <polygon points="50,137 92,85 50,98 8,85" fill="#ffffff" opacity="0.85"/>
             </svg>
           </span>
-          <span class="compass-text" id="compass-text">N</span>
+          <span class="compass-text" id="compass-text" data-comp-id="compass-text">N</span>
         </div>
       </div>
 
-      <!-- 中央导航指示区 -->
-      <div class="center-display">
+      <!-- 中央 3D 导航层（AR 全息显示区）：Three.js 在此渲染箭头 + 霓虹路线 -->
+      <div class="center-display" data-comp-id="center-display"></div>
 
-        <!-- 大箭头指示 -->
-        <div class="big-arrow-container">
-          <!-- 转弯类型指示器 -->
-          <div class="turn-indicator" id="turn-indicator">
-            <span class="turn-icon" id="turn-icon">↑</span>
-            <span class="turn-text" id="turn-text">直行</span>
-          </div>
-
-          <!-- 主箭头 -->
-          <div class="big-arrow" id="big-arrow">
-            <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stop-color="#66ffff" stop-opacity="1"/>
-                  <stop offset="100%" stop-color="#00ffff" stop-opacity="0.7"/>
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              <!-- 箭头主体（指向上方） -->
-              <polygon points="50,3 95,55 62,55 62,130 38,130 38,55 5,55" fill="url(#arrowGrad)" filter="url(#glow)"/>
-              <!-- 中心高光线条 -->
-              <polygon points="50,15 80,60 50,52 20,60" fill="#ffffff" opacity="0.35"/>
-            </svg>
-          </div>
-
-          <!-- 距离显示 -->
-          <div class="arrow-distance" id="arrow-distance">0.0 km</div>
-
-          <!-- 下一个动作提示 -->
-          <div class="arrow-hint" id="arrow-hint">直行</div>
-
-          <!-- 进度条指示 -->
-          <div class="route-progress-bar">
-            <div class="route-progress-fill" id="route-progress-fill"></div>
-          </div>
+      <!-- ★ 路线概览卡片（可折叠）★ -->
+      <div class="route-summary hidden" id="route-summary" data-comp-id="route-summary">
+        <div class="route-summary-header">
+          <span class="route-summary-title" data-comp-id="route-summary-title">路线概览</span>
+          <button class="route-summary-close" id="route-summary-close" data-comp-id="route-summary-close">×</button>
         </div>
-
-        <!-- 路线概览卡片（可折叠） -->
-        <div class="route-summary" id="route-summary" style="display:none;">
-          <div class="route-summary-header">
-            <span class="route-summary-title">路线概览</span>
-            <button class="route-summary-close" id="route-summary-close">×</button>
-          </div>
-          <div class="route-summary-content" id="route-summary-content"></div>
-        </div>
-
+        <div class="route-summary-content" id="route-summary-content" data-comp-id="route-summary-content"></div>
       </div>
 
-      <!-- 底部信息栏 -->
-      <div class="bottom-panel">
+      <!-- ★ 顶部右侧操作按钮组（保存路线 / 历史路线）★ -->
+      <div class="action-bar" data-comp-id="action-bar">
+        <button class="action-btn" id="save-route-btn" data-comp-id="save-route-btn" title="保存当前路线到本地">💾 保存路线</button>
+        <button class="action-btn" id="history-toggle" data-comp-id="history-toggle" title="查看历史路线">📚 历史路线</button>
+      </div>
 
-        <div class="info-card info-main">
-          <div class="info-row">
-            <div class="info-item">
-              <div class="info-icon">🚴</div>
+      <!-- ★ 历史路线面板 ★ -->
+      <div class="history-panel hidden" id="history-panel" data-comp-id="history-panel">
+        <div class="history-panel-header" data-comp-id="history-panel-header">
+          <span class="history-panel-title" data-comp-id="history-panel-title">📚 历史路线</span>
+          <button class="history-close-btn" id="history-close" data-comp-id="history-close">×</button>
+        </div>
+        <div class="history-empty" id="history-empty" data-comp-id="history-empty">暂无保存的路线，规划路线后点击"保存路线"即可</div>
+        <div class="history-list" id="history-list" data-comp-id="history-list"></div>
+        <div class="history-panel-footer" data-comp-id="history-panel-footer">
+          <small>数据存储在浏览器本地（localStorage），最多保留 50 条</small>
+        </div>
+      </div>
+
+      <!-- ★ 底部信息栏 ★（默认隐藏，需要时可在调试模式或其他场景打开） -->
+      <div class="bottom-panel hidden" data-comp-id="bottom-panel">
+
+        <div class="info-card info-main" data-comp-id="info-card-main">
+          <div class="info-row" data-comp-id="info-row-top">
+            <div class="info-item" data-comp-id="info-total-distance">
+              <div class="info-icon" data-comp-id="info-icon-total-distance">🚴</div>
               <div class="info-content">
-                <div class="info-label">总距离</div>
-                <div class="info-value" id="total-distance">-- km</div>
+                <div class="info-label" data-comp-id="info-label-total-distance">总距离</div>
+                <div class="info-value" id="total-distance" data-comp-id="info-value-total-distance">-- km</div>
               </div>
             </div>
-            <div class="info-item">
-              <div class="info-icon">⏱</div>
+            <div class="info-item" data-comp-id="info-remain-time">
+              <div class="info-icon" data-comp-id="info-icon-remain-time">⏱</div>
               <div class="info-content">
-                <div class="info-label">剩余时间</div>
-                <div class="info-value" id="remain-time">-- min</div>
+                <div class="info-label" data-comp-id="info-label-remain-time">剩余时间</div>
+                <div class="info-value" id="remain-time" data-comp-id="info-value-remain-time">-- min</div>
               </div>
             </div>
           </div>
 
-          <div class="info-row">
-            <div class="info-item">
-              <div class="info-icon">📍</div>
+          <div class="info-row" data-comp-id="info-row-bottom">
+            <div class="info-item" data-comp-id="info-current-speed">
+              <div class="info-icon" data-comp-id="info-icon-current-speed">📍</div>
               <div class="info-content">
-                <div class="info-label">当前速度</div>
-                <div class="info-value" id="current-speed">-- km/h</div>
+                <div class="info-label" data-comp-id="info-label-current-speed">当前速度</div>
+                <div class="info-value" id="current-speed" data-comp-id="info-value-current-speed">-- km/h</div>
               </div>
             </div>
-            <div class="info-item">
-              <div class="info-icon">🔄</div>
+            <div class="info-item" data-comp-id="info-next-turn">
+              <div class="info-icon" data-comp-id="info-icon-next-turn">🔄</div>
               <div class="info-content">
-                <div class="info-label">下一个转弯</div>
-                <div class="info-value" id="next-turn">--</div>
+                <div class="info-label" data-comp-id="info-label-next-turn">下一个转弯</div>
+                <div class="info-value" id="next-turn" data-comp-id="info-value-next-turn">--</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 次要信息卡 -->
-        <div class="info-card info-secondary">
-          <div class="info-row">
-            <div class="info-item small">
-              <div class="info-icon">🌤️</div>
+        <!-- ★ 次要信息卡（天气 / 当前道路 / 已行驶）★ -->
+        <div class="info-card info-secondary" data-comp-id="info-card-secondary">
+          <div class="info-row" data-comp-id="info-row-secondary">
+            <div class="info-item small" data-comp-id="info-weather">
+              <div class="info-icon" data-comp-id="info-icon-weather">🌤️</div>
               <div class="info-content">
-                <div class="info-label">天气</div>
-                <div class="info-value" id="weather-info">--</div>
+                <div class="info-label" data-comp-id="info-label-weather">天气</div>
+                <div class="info-value" id="weather-info" data-comp-id="info-value-weather">--</div>
               </div>
             </div>
-            <div class="info-item small">
-              <div class="info-icon">🛣️</div>
+            <div class="info-item small" data-comp-id="info-road">
+              <div class="info-icon" data-comp-id="info-icon-road">🛣️</div>
               <div class="info-content">
-                <div class="info-label">当前道路</div>
-                <div class="info-value" id="traffic-light">定位中...</div>
+                <div class="info-label" data-comp-id="info-label-road">当前道路</div>
+                <div class="info-value" id="traffic-light" data-comp-id="info-value-road">定位中...</div>
               </div>
             </div>
-            <div class="info-item small">
-              <div class="info-icon">📏</div>
+            <div class="info-item small" data-comp-id="info-traveled">
+              <div class="info-icon" data-comp-id="info-icon-traveled">📏</div>
               <div class="info-content">
-                <div class="info-label">已行驶</div>
-                <div class="info-value" id="traveled">0 km</div>
+                <div class="info-label" data-comp-id="info-label-traveled">已行驶</div>
+                <div class="info-value" id="traveled" data-comp-id="info-value-traveled">0 km</div>
               </div>
             </div>
           </div>
@@ -162,55 +139,56 @@
 
       </div>
 
-      <!-- 语音提示浮动层 -->
-      <div class="voice-hint" id="voice-hint">
-        <span id="voice-text">🔊 准备出发</span>
+      <!-- ★ 语音提示浮动层 ★ -->
+      <div class="voice-hint" id="voice-hint" data-comp-id="voice-hint">
+        <span id="voice-text" data-comp-id="voice-text">🔊 准备出发</span>
       </div>
 
-      <!-- 传感器与定位状态指示 -->
-      <div class="sensor-status">
-        <div class="sensor-dot" id="gps-status" title="GPS"></div>
-        <div class="sensor-dot" id="compass-status" title="指南针"></div>
-        <div class="sensor-dot" id="gyro-status" title="陀螺仪"></div>
+      <!-- ★ 传感器与定位状态指示 ★ -->
+      <div class="sensor-status" data-comp-id="sensor-status">
+        <div class="sensor-dot" id="gps-status" data-comp-id="gps-status" title="GPS"></div>
+        <div class="sensor-dot" id="compass-status" data-comp-id="compass-status" title="指南针"></div>
+        <div class="sensor-dot" id="gyro-status" data-comp-id="gyro-status" title="陀螺仪"></div>
       </div>
 
-      <!-- 调试模式开关（iOS 风格） -->
-      <label class="debug-toggle" for="debug-checkbox" title="按 D 键也可切换">
-        <span class="debug-toggle-label">调试</span>
-        <div class="debug-switch">
-          <input type="checkbox" id="debug-checkbox" />
-          <div class="debug-switch-track"></div>
+      <!-- ★ 调试模式开关（iOS 风格）★ -->
+      <label class="debug-toggle" for="debug-checkbox" data-comp-id="debug-toggle" title="按 D 键也可切换">
+        <span class="debug-toggle-label" data-comp-id="debug-toggle-label">调试</span>
+        <div class="debug-switch" data-comp-id="debug-switch">
+          <input type="checkbox" id="debug-checkbox" data-comp-id="debug-checkbox" />
+          <div class="debug-switch-track" data-comp-id="debug-switch-track"></div>
         </div>
       </label>
 
     </div>
 
-    <!-- 初始化提示层 -->
-    <div class="init-overlay" id="init-overlay">
-      <div class="init-content">
-        <h1 class="init-title">AR NAV</h1>
-        <p class="init-subtitle">骑行导航 · 极简科技风</p>
+    <!-- ★ 初始化覆盖层（启动页）★ -->
+    <div class="init-overlay" id="init-overlay" data-comp-id="init-overlay">
+      <div class="init-content" data-comp-id="init-content">
+        <h1 class="init-title" data-comp-id="init-title">AR NAV</h1>
+        <p class="init-subtitle" data-comp-id="init-subtitle">骑行导航 · 极简科技风</p>
 
-        <div class="init-step">
-          <button class="start-btn" id="start-btn">
+        <div class="init-step" data-comp-id="init-step">
+          <button class="start-btn" id="start-btn" data-comp-id="start-btn">
             🚴 开始导航
           </button>
         </div>
 
-        <p class="init-hint">
+        <p class="init-hint" data-comp-id="init-hint">
           请在户外使用 · 需要定位权限 · 建议竖屏
         </p>
 
-        <!-- 目的地输入 + POI 搜索 -->
-        <div class="destination-input hidden" id="destination-box">
+        <!-- ★ 目的地输入 + POI 搜索 ★ -->
+        <div class="destination-input hidden" id="destination-box" data-comp-id="destination-box">
           <div style="position:relative;width:90vw;max-width:500px;margin:0 auto;">
             <input type="text" id="destination-input"
                    class="dest-input"
+                   data-comp-id="destination-input"
                    placeholder="输入目的地（例如：天安门）"
                    autocomplete="off" />
             <!-- POI 搜索结果下拉列表 -->
-            <div class="poi-suggestions" id="poi-suggestions"></div>
-            <button class="dest-btn" id="dest-confirm-btn">确定</button>
+            <div class="poi-suggestions" id="poi-suggestions" data-comp-id="poi-suggestions"></div>
+            <button class="dest-btn" id="dest-confirm-btn" data-comp-id="dest-confirm-btn">确定</button>
           </div>
         </div>
 
