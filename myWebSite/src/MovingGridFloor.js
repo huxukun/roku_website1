@@ -109,7 +109,7 @@ export default class MovingGridFloor {
 
     // RGB颜色变化效果
     if (this.isColorChanging) {
-      this.colorPhase += delta * 0.002
+      this.colorPhase += delta * 0.00067
       const r = 0.5 + 0.5 * Math.sin(this.colorPhase)
       const g = 0.5 + 0.5 * Math.sin(this.colorPhase + 2 * Math.PI / 3)
       const b = 0.5 + 0.5 * Math.sin(this.colorPhase + 4 * Math.PI / 3)

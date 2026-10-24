@@ -62,6 +62,8 @@ export const languages = {
       'message-hint': '写下你的想法...',
       'send': '发送留言 🚀',
       'no-messages': '暂无留言，成为第一个留言的人吧！ 🌟',
+      'show-more-messages': '展开更多留言',
+      'show-less-messages': '收起留言',
       'history': '💬 历史留言',
       'submitting': '发送中...',
       
@@ -169,6 +171,8 @@ export const languages = {
       'message-hint': 'Write your message...',
       'send': 'Send 🚀',
       'no-messages': 'No messages yet, be the first! 🌟',
+      'show-more-messages': 'Show more',
+      'show-less-messages': 'Show less',
       'history': '💬 History',
       'submitting': 'Sending...',
       
@@ -276,6 +280,8 @@ export const languages = {
       'message-hint': 'メッセージを入力...',
       'send': '送信 🚀',
       'no-messages': 'まだメッセージはありません。最初のメッセージを残してください！ 🌟',
+      'show-more-messages': 'もっと見る',
+      'show-less-messages': '折りたたむ',
       'history': '💬 履歴',
       'submitting': '送信中...',
       

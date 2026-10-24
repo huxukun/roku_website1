@@ -335,7 +335,7 @@ html, body {
 }
 
 .header-bar h1 {
-  font-size: 1.5rem;
+  font-size: 2rem;
   font-family: var(--font-main);
   position: relative;
   letter-spacing: 0.05em;
@@ -1201,7 +1201,7 @@ html, body {
   }
   
   .header-bar h1 {
-    font-size: 0.9rem !important;
+    font-size: 1.1rem !important;
     letter-spacing: 0.02em !important;
     text-shadow: 
       0 0 8px #00ffff,
@@ -2443,6 +2443,36 @@ html, body {
   box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
 }
 
+/* 留言超过 4 条时折叠隐藏，点击展开按钮再显示 */
+.message-item.message-collapsed {
+  display: none;
+}
+
+.messages-toggle-btn {
+  margin-top: 0.6rem;
+  padding: 0.55rem 1rem;
+  font-family: var(--font-main);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: #8fdfe6;
+  background: rgba(6, 8, 18, 0.6);
+  border: 1px solid rgba(0, 255, 255, 0.22);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.messages-toggle-btn:hover {
+  color: #f2eefa;
+  border-color: rgba(255, 0, 255, 0.4);
+  background: rgba(10, 8, 22, 0.72);
+  box-shadow: 0 0 14px rgba(255, 0, 255, 0.18);
+}
+
 .message-header {
   display: flex;
   justify-content: space-between;
@@ -2686,6 +2716,81 @@ html, body {
 .control-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 0 20px var(--neon-cyan);
+}
+
+/* 音量控制：静音开关 + 竖向滑杆，与悬浮按钮保持同一玻璃质感 */
+.volume-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.volume-btn {
+  width: 52px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 255, 0.22);
+  background: rgba(6, 8, 18, 0.6);
+  color: #8fdfe6;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.volume-btn:hover {
+  color: #f2eefa;
+  border-color: rgba(255, 0, 255, 0.4);
+  background: rgba(10, 8, 22, 0.72);
+  box-shadow: 0 0 14px rgba(255, 0, 255, 0.18);
+}
+
+.volume-btn.is-muted {
+  color: rgba(198, 202, 214, 0.6);
+}
+
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 4px;
+  height: 64px;
+  margin: 0;
+  border-radius: 2px;
+  background: rgba(143, 223, 230, 0.2);
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #8fdfe6;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.35);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: #8fdfe6;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.35);
 }
 
 .notification-dot {

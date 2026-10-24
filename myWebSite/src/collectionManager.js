@@ -5,8 +5,9 @@ const TABLE = 'collection_items';
 const BUCKET = 'collection-images';
 const LOCAL_STORAGE_KEY = 'synthwave-collection-items';
 const LOCAL_BUDGET = 3 * 1024 * 1024;
-const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const MAX_EDGE = 2000;
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i;
 
 let items = [];
 let initialized = false;
@@ -98,8 +99,11 @@ function compressImage(file) {
 }
 
 async function uploadFile(file) {
-  if (!file.type.startsWith('image/')) throw new Error('不是图片文件');
-  if (file.size > MAX_FILE_SIZE) throw new Error('单张图片不能超过 15MB');
+  // 部分系统/手机导出的图片 MIME 为空，用扩展名兜底判断
+  if (!file.type.startsWith('image/') && !IMAGE_EXTENSIONS.test(file.name)) {
+    throw new Error('不是图片文件');
+  }
+  if (file.size > MAX_FILE_SIZE) throw new Error('单张图片不能超过 30MB');
 
   const optimized = await compressImage(file);
   const now = Date.now();
@@ -127,7 +131,9 @@ async function uploadFile(file) {
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
     .upload(path, optimized, { cacheControl: '31536000', upsert: false });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    throw new Error(`存储上传失败：${uploadError.message}`);
+  }
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const { data, error } = await supabase
@@ -135,7 +141,11 @@ async function uploadFile(file) {
     .insert([{ title: file.name, image_url: urlData.publicUrl, storage_path: path }])
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    // 写入记录失败时清理已上传的文件，避免留下孤儿对象
+    await supabase.storage.from(BUCKET).remove([path]);
+    throw new Error(`写入数据库失败：${error.message}`);
+  }
   return data;
 }
 
@@ -247,6 +257,7 @@ async function handleFiles(fileList) {
   setStatus(`正在上传 1/${files.length}…`);
   let success = 0;
   let failed = 0;
+  let lastError = '';
 
   for (let i = 0; i < files.length; i++) {
     try {
@@ -254,6 +265,7 @@ async function handleFiles(fileList) {
       success += 1;
     } catch (error) {
       failed += 1;
+      lastError = error.message || String(error);
       console.error('上传图片失败:', error);
     }
     setStatus(`正在上传 ${i + 1}/${files.length}…`);
@@ -262,8 +274,11 @@ async function handleFiles(fileList) {
   await refreshImageCollection();
 
   if (isSupabaseConfigured) {
+    const detail = failed && lastError ? `（${lastError}）` : '';
     setStatus(
-      failed ? `上传完成：成功 ${success} 张，失败 ${failed} 张` : `已上传 ${success} 张`,
+      failed
+        ? `上传完成：成功 ${success} 张，失败 ${failed} 张${detail}`
+        : `已上传 ${success} 张`,
       failed ? 'error' : 'success'
     );
   } else {
