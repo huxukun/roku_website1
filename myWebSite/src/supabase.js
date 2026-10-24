@@ -5,7 +5,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 let supabase
 
-if (supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https://your-project-id.supabase.co' && supabaseAnonKey !== 'your-anon-key-here') {
+const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey &&
+  supabaseUrl !== 'https://your-project-id.supabase.co' &&
+  supabaseAnonKey !== 'your-anon-key-here')
+
+if (isSupabaseConfigured) {
   supabase = createClient(supabaseUrl, supabaseAnonKey)
   console.log('Supabase client initialized successfully')
 } else {
@@ -34,5 +38,5 @@ if (supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https://your-project-id.s
   }
 }
 
-export { supabase }
+export { supabase, isSupabaseConfigured }
 export default supabase

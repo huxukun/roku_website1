@@ -36,17 +36,6 @@ const projectsData = [
   }
 ];
 
-const skillsData = [
-  { name: 'Blender', level: 90 },
-  { name: 'Maya', level: 85 },
-  { name: 'ZBrush', level: 80 },
-  { name: 'Substance Painter', level: 88 },
-  { name: 'Three.js', level: 92 },
-  { name: 'Unreal Engine', level: 75 },
-  { name: 'Unity', level: 82 },
-  { name: 'Houdini', level: 70 }
-];
-
 const blogData = [
   {
     id: 1,
@@ -76,6 +65,7 @@ const blogData = [
 
 // Supabase 导入
 import { supabase } from './supabase.js';
+import { refreshSkills } from './skillsManager.js';
 import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY, getDefaultBio } from './profileConfig.js';
 import { 
   ADMIN_PASSWORD, 
@@ -521,6 +511,19 @@ export default class UIManager {
     this.blogModal = document.getElementById('blog-modal');
     this.guestbookModal = document.getElementById('guestbook-modal');
     this.projectModal = document.getElementById('project-modal');
+
+    // 内容面板（SHEET 层）：底部抽屉，默认露出顶部 1/5
+    this.contentSheet = document.getElementById('content-sheet');
+    this.sheetPanel = document.querySelector('.sheet-panel');
+    this.sheetScrim = document.getElementById('sheet-scrim');
+    this.sheetScroll = document.getElementById('sheet-scroll');
+    this.sheetNav = document.getElementById('sheet-nav');
+    this.sheetNavBtns = document.querySelectorAll('.sheet-nav-btn');
+    this.isSheetOpen = false;
+    this.sheetProgress = 0;   // 0 = 只露 1/5，1 = 完全展开
+    this.sheetTarget = 0;
+    this.pendingSheetSection = null;
+    this._sheetAnimRaf = null;
     
     this.isMusicPlaying = false;
     this.audio = null;
@@ -596,7 +599,7 @@ export default class UIManager {
       this.aboutBtn.addEventListener('click', () => this.openAboutModal());
     }
     if (this.worksBtn) {
-      this.worksBtn.addEventListener('click', () => this.openGalleryModal());
+      this.worksBtn.addEventListener('click', () => this.openWorksSheet());
     }
     if (this.blogBtn) {
       this.blogBtn.addEventListener('click', () => this.openBlogModal());
@@ -647,9 +650,37 @@ export default class UIManager {
     
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (this.isSheetOpen) {
+          this.closeContentSheet();
+        }
         this.closeAllModals();
       }
     });
+
+    // 内容面板（SHEET）事件
+    if (this.sheetNav) {
+      this.sheetNav.addEventListener('click', (e) => {
+        const btn = e.target.closest('.sheet-nav-btn');
+        if (btn && btn.dataset.section) {
+          this.openContentSheet(btn.dataset.section);
+        }
+      });
+    }
+    const enterGalleryBtn = document.getElementById('enter-gallery-btn');
+    if (enterGalleryBtn) {
+      enterGalleryBtn.addEventListener('click', () => {
+        this.closeContentSheet();
+        setTimeout(() => {
+          if (window.toggleGalleryMode && !window.isGalleryModeActive?.()) {
+            window.toggleGalleryMode();
+          }
+        }, 260);
+      });
+    }
+    this.initSheetScrollSpy();
+    this.initSheetReveal();
+    this.initSheetDrawer();
+    this.initScrollReveal();
     
     if (this.submitMessageBtn) {
       this.submitMessageBtn.addEventListener('click', () => this.handleMessageSubmit());
@@ -743,6 +774,7 @@ export default class UIManager {
       this.updateAdminModalTexts();
       this.updateMusicControlTexts();
       this.updateStorageStatusTexts();
+      this.updateSheetTexts();
       
       // 更新模态框加载文本
       this.updateModalLoadingTexts();
@@ -750,25 +782,16 @@ export default class UIManager {
       // 重新翻译数据库内容
       await this.renderProfile();
       
-      // 如果博客模态框是打开的
-      if (this.isBlogModalOpen && this.blogModal) {
-        // 先显示模态框内的加载动画
-        this.showModalLoading('blog-modal', 'opening-blog');
-        
-        // 稍微等待动画可见
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
+      // 如果博客面板是打开的
+      if (this.isBlogModalOpen) {
         // 重新翻译博客列表
         await this.createBlogList();
         
         // 如果有正在预览的博客，也重新翻译
-        const activeBlogItem = this.blogModal.querySelector('.blog-item.active');
+        const activeBlogItem = document.querySelector('#sheet-blog .blog-item.active');
         if (activeBlogItem && this.currentBlogPost) {
           await this.renderBlogPost(this.currentBlogPost, null);
         }
-        
-        // 隐藏加载动画
-        this.hideModalLoading('blog-modal');
       }
       
       // 重新翻译留言板
@@ -812,14 +835,14 @@ export default class UIManager {
   }
   
   updateAboutModalTexts() {
-    const aboutTitle = document.querySelector('#about-modal .modal-title');
-    const bioLabel = document.querySelector('#about-modal .bio-label');
-    const editBtn = document.querySelector('#about-modal .edit-bio-btn .edit-text');
-    const saveBtn = document.querySelector('#about-modal .save-bio-btn .save-text');
-    const cancelBtn = document.querySelector('#about-modal .cancel-bio-btn .cancel-text');
-    const changeAvatarBtn = document.querySelector('#about-modal .change-avatar-text');
-    const skillsLabel = document.querySelector('#about-modal .skills-label');
-    const closeFooter = document.querySelector('#about-modal .close-footer-text');
+    const aboutTitle = document.querySelector('#sheet-about .modal-title');
+    const bioLabel = document.querySelector('#sheet-about .bio-label');
+    const editBtn = document.querySelector('#sheet-about .edit-bio-btn .edit-text');
+    const saveBtn = document.querySelector('#sheet-about .save-bio-btn .save-text');
+    const cancelBtn = document.querySelector('#sheet-about .cancel-bio-btn .cancel-text');
+    const changeAvatarBtn = document.querySelector('#sheet-about .change-avatar-text');
+    const skillsLabel = document.querySelector('#sheet-about .skills-label');
+    const closeFooter = document.querySelector('#sheet-about .close-footer-text');
     
     if (aboutTitle) aboutTitle.textContent = t('about-title');
     if (bioLabel) bioLabel.textContent = t('bio');
@@ -832,18 +855,18 @@ export default class UIManager {
   }
   
   updateGuestbookTexts() {
-    const guestbookTitle = document.querySelector('#guestbook-modal .modal-title');
-    const storageStatusText = document.querySelector('#guestbook-modal .storage-status-text');
-    const refreshText = document.querySelector('#guestbook-modal .refresh-text');
-    const leaveMessageLabel = document.querySelector('#guestbook-modal .leave-message-label');
+    const guestbookTitle = document.querySelector('#sheet-guestbook .modal-title');
+    const storageStatusText = document.querySelector('#sheet-guestbook .storage-status-text');
+    const refreshText = document.querySelector('#sheet-guestbook .refresh-text');
+    const leaveMessageLabel = document.querySelector('#sheet-guestbook .leave-message-label');
     const nameInput = document.getElementById('guest-name');
     const tagInput = document.getElementById('guest-tag');
-    const messageInput = document.querySelector('#guestbook-modal .message-input');
-    const sendText = document.querySelector('#guestbook-modal .send-text');
-    const noMessages = document.querySelector('#guestbook-modal .no-messages');
-    const historyLabel = document.querySelector('#guestbook-modal .history-label');
-    const loadingIndicator = document.querySelector('#guestbook-modal .loading-indicator-text');
-    const closeFooter = document.querySelector('#guestbook-modal .close-guestbook-footer-text');
+    const messageInput = document.querySelector('#sheet-guestbook .message-input');
+    const sendText = document.querySelector('#sheet-guestbook .send-text');
+    const noMessages = document.querySelector('#sheet-guestbook .no-messages');
+    const historyLabel = document.querySelector('#sheet-guestbook .history-label');
+    const loadingIndicator = document.querySelector('#sheet-guestbook .loading-indicator-text');
+    const closeFooter = document.querySelector('#sheet-guestbook .close-guestbook-footer-text');
     
     if (guestbookTitle) guestbookTitle.textContent = t('guestbook-title');
     if (storageStatusText) storageStatusText.textContent = t('storage-status');
@@ -860,17 +883,17 @@ export default class UIManager {
   }
   
   updateBlogModalTexts() {
-    const blogTitle = document.querySelector('#blog-modal .modal-title');
-    const articleListLabel = document.querySelector('#blog-modal .article-list-label');
-    const selectArticleHint = document.querySelector('#blog-modal .select-article-hint');
-    const addBlogBtn = document.querySelector('#blog-modal .add-blog-text');
-    const deleteBlogBtn = document.querySelector('#blog-modal .delete-blog-text');
-    const saveBlogBtn = document.querySelector('#blog-modal .save-blog-text');
-    const cancelBlogBtn = document.querySelector('#blog-modal .cancel-blog-text');
+    const blogTitle = document.querySelector('#sheet-blog .modal-title');
+    const articleListLabel = document.querySelector('#sheet-blog .article-list-label');
+    const selectArticleHint = document.querySelector('#sheet-blog .select-article-hint');
+    const addBlogBtn = document.querySelector('#sheet-blog .add-blog-text');
+    const deleteBlogBtn = document.querySelector('#sheet-blog .delete-blog-text');
+    const saveBlogBtn = document.querySelector('#sheet-blog .save-blog-text');
+    const cancelBlogBtn = document.querySelector('#sheet-blog .cancel-blog-text');
     const titleInput = document.getElementById('blog-title-input');
     const dateInput = document.getElementById('blog-date-input');
     const contentTextarea = document.getElementById('blog-content-textarea');
-    const closeFooter = document.querySelector('#blog-modal .close-blog-footer-text');
+    const closeFooter = document.querySelector('#sheet-blog .close-blog-footer-text');
     
     if (blogTitle) blogTitle.textContent = t('blog-title');
     if (articleListLabel) articleListLabel.textContent = t('article-list');
@@ -1151,8 +1174,12 @@ export default class UIManager {
           </div>
         `;
         card.addEventListener('click', () => {
-          this.closeAllModals();
-          setTimeout(() => this.openProjectModal(project), 300);
+          this.closeContentSheet();
+          setTimeout(() => {
+            if (window.toggleGalleryMode && !window.isGalleryModeActive?.()) {
+              window.toggleGalleryMode();
+            }
+          }, 260);
         });
         this.projectCardsContainer.appendChild(card);
       });
@@ -1409,38 +1436,7 @@ export default class UIManager {
   }
 
   renderSkills() {
-    if (!this.skillsContainer) return;
-    
-    try {
-      this.skillsContainer.innerHTML = '';
-      skillsData.forEach((skill, index) => {
-        const skillItem = document.createElement('div');
-        skillItem.className = 'skill-item content-fade-in';
-        // 设置延迟动画，让每个技能依次淡入
-        skillItem.style.animationDelay = `${index * 0.1}s`;
-        skillItem.innerHTML = `
-          <div class="skill-label">
-            <span>${skill.name}</span>
-            <span>${skill.level}%</span>
-          </div>
-          <div class="skill-bar">
-            <div class="skill-fill" data-level="${skill.level}"></div>
-          </div>
-        `;
-        this.skillsContainer.appendChild(skillItem);
-      });
-      
-      setTimeout(() => {
-        const fills = this.skillsContainer?.querySelectorAll('.skill-fill');
-        if (fills) {
-          fills.forEach(fill => {
-            fill.style.width = fill.dataset.level + '%';
-          });
-        }
-      }, 100);
-    } catch (error) {
-      console.error('Error rendering skills:', error);
-    }
+    refreshSkills();
   }
 
   openProjectModal(project) {
@@ -2108,6 +2104,21 @@ export default class UIManager {
     this.updateAdminButtons();
   }
 
+  // 轻量提示条（管理员登录、保存成功等反馈）
+  showNotification(message) {
+    let toast = document.getElementById('ui-notification');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'ui-notification';
+      toast.className = 'ui-notification hidden';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.remove('hidden');
+    clearTimeout(this._notificationTimer);
+    this._notificationTimer = setTimeout(() => toast.classList.add('hidden'), 2200);
+  }
+
   // 更新管理员按钮状态
   updateAdminButtons() {
     if (this.adminToggleBtn) {
@@ -2333,21 +2344,284 @@ export default class UIManager {
     this.hideBlogEditor();
   }
 
-  // 更新 openBlogModal 方法
+  // ========== 内容面板（SHEET 层）==========
+
+  updateSheetTexts() {
+    const navMap = {
+      '.sheet-nav-about-text': t('about'),
+      '.sheet-nav-works-text': t('works'),
+      '.sheet-nav-collection-text': t('collection'),
+      '.sheet-nav-guestbook-text': t('guestbook'),
+      '.sheet-nav-blog-text': t('blog')
+    };
+    Object.entries(navMap).forEach(([selector, text]) => {
+      const el = document.querySelector(selector);
+      if (el) el.textContent = text;
+    });
+
+    const titleMap = {
+      '#sheet-about .modal-title': t('about-title'),
+      '#sheet-works .modal-title': t('works'),
+      '#sheet-collection .modal-title': `🖼️ ${t('collection')}`,
+      '#sheet-guestbook .modal-title': t('guestbook'),
+      '#sheet-blog .modal-title': t('blog')
+    };
+    Object.entries(titleMap).forEach(([selector, text]) => {
+      const el = document.querySelector(selector);
+      if (el) el.textContent = text;
+    });
+  }
+
+  // ========== SHEET 底部抽屉（整体上下翻出） ==========
+
+  // 关闭时面板顶部停在视口 90% 处，即只露出顶部 1/10
+  getSheetClosedOffset() {
+    return window.innerHeight * 0.9;
+  }
+
+  applySheetProgress(progress) {
+    if (!this.sheetPanel) return;
+    const clamped = Math.max(0, Math.min(1, progress));
+    this.sheetProgress = clamped;
+    const offset = this.getSheetClosedOffset() * (1 - clamped);
+    this.sheetPanel.style.transform = `translate(-50%, ${offset}px)`;
+    if (this.sheetScrim) {
+      this.sheetScrim.style.opacity = (clamped * 0.4).toFixed(3);
+    }
+  }
+
+  setSheetTarget(progress) {
+    const next = Math.max(0, Math.min(1, progress));
+    if (next === this.sheetTarget) return;
+    this.sheetTarget = next;
+    this.startSheetAnimation();
+  }
+
+  startSheetAnimation() {
+    if (this._sheetAnimRaf) return;
+    const tick = () => {
+      const diff = this.sheetTarget - this.sheetProgress;
+      if (Math.abs(diff) <= 0.002) {
+        this.applySheetProgress(this.sheetTarget);
+        this._sheetAnimRaf = null;
+        this.onSheetSettled();
+        return;
+      }
+      this.applySheetProgress(this.sheetProgress + diff * 0.2);
+      this._sheetAnimRaf = requestAnimationFrame(tick);
+    };
+    this._sheetAnimRaf = requestAnimationFrame(tick);
+  }
+
+  onSheetSettled() {
+    if (this.sheetProgress >= 0.999) {
+      this.contentSheet?.classList.add('sheet-fully-open');
+      this.isSheetOpen = true;
+      document.body.classList.add('sheet-open');
+      if (this.pendingSheetSection) {
+        const section = this.pendingSheetSection;
+        this.pendingSheetSection = null;
+        this.scrollToSheetSection(section);
+      }
+    } else if (this.sheetProgress <= 0.001) {
+      this.contentSheet?.classList.remove('sheet-fully-open');
+      this.isSheetOpen = false;
+      document.body.classList.remove('sheet-open');
+    }
+  }
+
+  initSheetDrawer() {
+    if (!this.sheetPanel) return;
+    this.applySheetProgress(this.sheetProgress);
+    window.addEventListener('resize', () => this.applySheetProgress(this.sheetProgress));
+  }
+
+  // 打开内容面板，并滚动到指定分区
+  openContentSheet(section = 'about') {
+    if (!this.contentSheet) return;
+    if (window.isGalleryModeActive && window.isGalleryModeActive()) {
+      window.toggleGalleryMode();
+    }
+    this.contentSheet.setAttribute('aria-hidden', 'false');
+    this.updateSheetTexts();
+
+    if (this.sheetProgress >= 0.999) {
+      this.scrollToSheetSection(section);
+      return;
+    }
+
+    this.pendingSheetSection = section;
+    this.setSheetTarget(1);
+  }
+
+  closeContentSheet() {
+    if (!this.contentSheet) return;
+    this.contentSheet.setAttribute('aria-hidden', 'true');
+    this.contentSheet.classList.remove('sheet-fully-open');
+    this.isSheetOpen = false;
+    document.body.classList.remove('sheet-open');
+    this.pendingSheetSection = null;
+    this.setSheetTarget(0);
+    this.isAboutModalOpen = false;
+    this.isBlogModalOpen = false;
+    this.isGuestbookModalOpen = false;
+  }
+
+  scrollToSheetSection(section, smooth = true) {
+    if (!this.sheetScroll) return;
+    const target = document.getElementById(`sheet-${section}`);
+    if (!target) return;
+    const top = target.getBoundingClientRect().top - this.sheetScroll.getBoundingClientRect().top + this.sheetScroll.scrollTop;
+    this.sheetScroll.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+    this.setActiveSheetNav(section);
+  }
+
+  setActiveSheetNav(section) {
+    this.sheetNavBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.section === section);
+    });
+  }
+
+  // 滚动时高亮当前分区导航
+  initSheetScrollSpy() {
+    if (!this.sheetScroll) return;
+    this.sheetScroll.addEventListener('scroll', () => {
+      if (this._sheetScrollRaf) return;
+      this._sheetScrollRaf = requestAnimationFrame(() => {
+        this._sheetScrollRaf = null;
+        const anchor = this.sheetScroll.getBoundingClientRect().top + 90;
+        let current = 'about';
+        document.querySelectorAll('.sheet-section').forEach(sec => {
+          if (sec.getBoundingClientRect().top <= anchor) {
+            current = sec.id.replace('sheet-', '');
+          }
+        });
+        this.setActiveSheetNav(current);
+      });
+    }, { passive: true });
+  }
+
+  // 分区进入视口时淡入上移（滚动触发的入场节奏）
+  initSheetReveal() {
+    const sections = document.querySelectorAll('.sheet-section');
+    if (!sections.length) return;
+
+    if (!('IntersectionObserver' in window) || !this.sheetScroll) {
+      sections.forEach((section) => section.classList.add('is-visible'));
+      return;
+    }
+
+    this.sheetScroll.classList.add('sheet-reveal-ready');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      });
+    }, { root: this.sheetScroll, threshold: 0.08, rootMargin: '0px 0px -4% 0px' });
+
+    sections.forEach((section) => observer.observe(section));
+    this.sheetRevealObserver = observer;
+  }
+
+  // 首屏：滚轮向下 / 手指上滑 → 整个面板从底部 1/5 处一起向上翻出；
+  // 完全展开后内容区正常滚动，回到顶部继续上滑 → 整体向下收回
+  initScrollReveal() {
+    const wheelSpeed = 1.4;
+
+    window.addEventListener('wheel', (e) => {
+      const span = this.getSheetClosedOffset();
+      if (!span) return;
+
+      if (this.sheetProgress >= 0.999) {
+        const atTop = this.sheetScroll && this.sheetScroll.scrollTop <= 0;
+        if (atTop && e.deltaY < 0) {
+          this.setSheetTarget(this.sheetProgress + (e.deltaY / span) * wheelSpeed);
+        }
+        return;
+      }
+
+      if (this.sheetProgress <= 0.001 && e.deltaY <= 0) return;
+      this.setSheetTarget(this.sheetTarget + (e.deltaY / span) * wheelSpeed);
+    }, { passive: true });
+
+    let touchStartY = 0;
+    let touchStartProgress = 0;
+
+    window.addEventListener('touchstart', (e) => {
+      if (!e.touches[0]) return;
+      touchStartY = e.touches[0].clientY;
+      touchStartProgress = this.sheetProgress;
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (!e.touches[0]) return;
+      const distance = touchStartY - e.touches[0].clientY; // >0 表示手指上滑
+      const span = this.getSheetClosedOffset();
+      if (!span) return;
+
+      if (this.sheetProgress >= 0.999) {
+        const atTop = this.sheetScroll && this.sheetScroll.scrollTop <= 0;
+        if (atTop && distance < -40) {
+          this.setSheetTarget(this.sheetProgress + (distance / span) * 1.2);
+        }
+        return;
+      }
+
+      if (this.sheetProgress <= 0.001 && distance <= 0) return;
+      this.setSheetTarget(touchStartProgress + (distance / span) * 1.2);
+    }, { passive: true });
+  }
+
+  async openAboutModal() {
+    try {
+      this.openContentSheet('about');
+      this.renderSkills();
+      await this.renderProfile();
+    } catch (error) {
+      console.error('Error opening about sheet:', error);
+    }
+  }
+
+  async openWorksSheet() {
+    try {
+      this.openContentSheet('works');
+    } catch (error) {
+      console.error('Error opening works sheet:', error);
+    }
+  }
+
   async openBlogModal() {
     try {
-      this.closeAllModals();
+      this.openContentSheet('blog');
       this.isBlogModalOpen = true;
-      if (this.blogModal) {
-        // 重新加载博客列表
-        await this.createBlogList();
-        this.blogModal.classList.remove('hidden');
-        setTimeout(() => {
-          this.blogModal.classList.add('visible');
-        }, 10);
+      this.currentBlogPost = null;
+      await this.loadBlogs();
+      await this.createBlogList();
+
+      if (this.blogPreviewContainer) {
+        this.blogPreviewContainer.innerHTML = '';
+        const hint = document.createElement('p');
+        hint.className = 'select-article-hint';
+        hint.textContent = t('select-article');
+        this.blogPreviewContainer.appendChild(hint);
+      }
+      if (this.blogEditor) {
+        this.blogEditor.classList.add('hidden');
       }
     } catch (error) {
-      console.error('Error opening blog modal:', error);
+      console.error('Error opening blog sheet:', error);
+    }
+  }
+
+  async openGuestbookModal() {
+    try {
+      this.openContentSheet('guestbook');
+      this.isGuestbookModalOpen = true;
+      await this.initGuestbook();
+    } catch (error) {
+      console.error('Error opening guestbook sheet:', error);
     }
   }
 }

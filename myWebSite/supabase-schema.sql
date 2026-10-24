@@ -126,3 +126,80 @@ CREATE POLICY "Allow authenticated insert songs" ON songs
 
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_songs_created_at ON songs(created_at DESC);
+
+-- =============================================
+-- 互联网图片收藏：数据表 + Storage 桶
+-- =============================================
+CREATE TABLE IF NOT EXISTS collection_items (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(300),
+    image_url TEXT NOT NULL,
+    storage_path VARCHAR(500),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE collection_items ENABLE ROW LEVEL SECURITY;
+
+-- 允许所有人读取收藏图片
+CREATE POLICY "Allow public read access to collection" ON collection_items
+    FOR SELECT USING (true);
+
+-- 注意：站点使用的是前端密码模式，没有 Supabase Auth 用户，
+-- 因此这里放开写入。若要更安全，请接入 Supabase Auth 并改为 authenticated 策略。
+CREATE POLICY "Allow public write access to collection" ON collection_items
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_collection_created_at ON collection_items(created_at DESC);
+
+-- Storage 桶：collection-images（公开读）
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('collection-images', 'collection-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage 策略：允许匿名读取 / 上传 / 删除（与前端密码模式一致）
+CREATE POLICY "Public read collection images" ON storage.objects
+    FOR SELECT USING (bucket_id = 'collection-images');
+
+CREATE POLICY "Public upload collection images" ON storage.objects
+    FOR INSERT WITH CHECK (bucket_id = 'collection-images');
+
+CREATE POLICY "Public delete collection images" ON storage.objects
+    FOR DELETE USING (bucket_id = 'collection-images');
+
+-- =============================================
+-- 技能面板：可自定义词条 + 熟练度
+-- =============================================
+CREATE TABLE IF NOT EXISTS skills_items (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    level INTEGER NOT NULL DEFAULT 50 CHECK (level >= 0 AND level <= 100),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE skills_items ENABLE ROW LEVEL SECURITY;
+
+-- 允许所有人读取技能面板
+CREATE POLICY "Allow public read access to skills" ON skills_items
+    FOR SELECT USING (true);
+
+-- 与收藏区一致：前端密码模式下放开写入。
+-- 若要更安全，请接入 Supabase Auth 并改为 authenticated 策略。
+CREATE POLICY "Allow public write access to skills" ON skills_items
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_skills_sort_order ON skills_items(sort_order ASC, created_at ASC);
+
+-- 更新时间戳触发器（复用上方已创建的 update_updated_at_column 函数）
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'update_skills_updated_at'
+    ) THEN
+        CREATE TRIGGER update_skills_updated_at
+            BEFORE UPDATE ON skills_items
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;

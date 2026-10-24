@@ -12,6 +12,8 @@ import Camera from './Camera.js'
 import Renderer from './Renderer.js'
 import ModelLoader from './ModelLoader.js'
 import UIManager from './UIManager.js'
+import { initImageCollection } from './collectionManager.js'
+import { initSkillsManager } from './skillsManager.js'
 import MovingGridFloor from './MovingGridFloor.js'
 import SynthwaveSun from './SynthwaveSun.js'
 import ElectronicDust from './ElectronicDust.js'
@@ -1176,6 +1178,12 @@ const init = async () => {
   
   console.log('Initializing UIManager...');
   uiManager = new UIManager();
+
+  // 初始化互联网图片收藏区
+  initImageCollection();
+
+  // 初始化可编辑技能面板
+  initSkillsManager();
   
   // 初始化励志语录
   initMotivationQuotes();

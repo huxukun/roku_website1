@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="preload" href="/fonts/pixel-zh.woff2" as="font" type="font/woff2" crossorigin>
     <link href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css" rel="stylesheet">
     <title>SYNTHWAVE PORTFOLIO</title>
   </head>
@@ -88,15 +88,6 @@
       </header>
     </div>
 
-    <div class="button-container">
-      <div class="top-buttons">
-        <button id="about-btn" class="nes-btn is-success"><span class="about-btn-text">关于我</span></button>
-        <button id="works-btn" class="nes-btn is-success"><span class="works-btn-text">作品展示</span></button>
-        <button id="guestbook-btn" class="nes-btn is-success"><span class="guestbook-btn-text">留言板</span></button>
-      </div>
-      <button id="blog-btn" class="nes-btn is-success blog-btn-floating"><span class="blog-btn-text">Blog</span></button>
-    </div>
-
     <!-- 管理员密码输入弹窗 -->
     <div id="admin-modal" class="modal-overlay hidden">
       <div class="admin-modal-content">
@@ -120,144 +111,125 @@
       </div>
     </div>
 
-    <div id="about-modal" class="modal-overlay hidden">
-      <div class="about-modal-content">
-        <div class="modal-loading hidden" id="about-modal-loading">
-          <div class="modal-loading-content">
-            <div class="modal-loading-spinner"></div>
-            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
-          </div>
+    <!-- 关于我：内容已迁移至 #content-sheet > #sheet-about -->
+
+
+    <!-- Blog：内容已迁移至 #content-sheet > #sheet-blog -->
+
+    <!-- ====================================================================
+         内容面板层 SHEET (L3.5, z:150)
+         默认只露出顶部 1/10（底部抽屉），滚轮下滚时整个面板一起向上翻出
+         ==================================================================== -->
+    <div id="content-sheet" class="content-sheet" aria-hidden="false">
+      <div id="sheet-scrim" class="sheet-scrim" aria-hidden="true"></div>
+      <div class="sheet-panel">
+        <div class="sheet-header">
+          <span class="sheet-title">SYNTHWAVE // ARCHIVE</span>
+          <nav class="sheet-nav" id="sheet-nav">
+            <button class="sheet-nav-btn active" data-section="about"><span class="sheet-nav-about-text">关于我</span></button>
+            <button class="sheet-nav-btn" data-section="works"><span class="sheet-nav-works-text">作品展示</span></button>
+            <button class="sheet-nav-btn" data-section="collection"><span class="sheet-nav-collection-text">互联网收藏</span></button>
+            <button class="sheet-nav-btn" data-section="guestbook"><span class="sheet-nav-guestbook-text">留言板</span></button>
+            <button class="sheet-nav-btn" data-section="blog"><span class="sheet-nav-blog-text">Blog</span></button>
+          </nav>
         </div>
-        <div class="nes-dialog about-dialog">
-          <span class="corner-tl"></span>
-          <span class="corner-tr"></span>
-          <span class="corner-bl"></span>
-          <span class="corner-br"></span>
-          <div class="about-header">
-            <h2 class="modal-title">关于我</h2>
-            <div class="about-header-right">
+
+        <div class="sheet-scroll" id="sheet-scroll">
+
+          <!-- ===== 01 关于我 ===== -->
+          <section id="sheet-about" class="sheet-section">
+            <div class="sheet-section-head">
+              <h2 class="modal-title sheet-section-title">关于我</h2>
               <button id="admin-toggle-btn" class="nes-btn is-warning admin-toggle-btn">⚙️</button>
-              <button id="close-modal" class="nes-btn is-error close-btn">×</button>
             </div>
-          </div>
-          <div class="about-body">
-            <div class="profile-avatar-container">
-              <div class="profile-avatar-frame">
-                <img id="profile-avatar" src="https://images.unsplash.com/photo-1561948955-570b270e7c36?w=200&h=200&fit=crop" alt="Profile" class="profile-avatar">
-                <input type="file" id="avatar-upload" accept="image/*" class="avatar-input">
-                <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only"><span class="change-avatar-text">📷 更换头像</span></button>
+            <div class="about-body">
+              <div class="profile-avatar-container">
+                <div class="profile-avatar-frame">
+                  <img id="profile-avatar" src="https://images.unsplash.com/photo-1561948955-570b270e7c36?w=200&h=200&fit=crop" alt="Profile" class="profile-avatar">
+                  <input type="file" id="avatar-upload" accept="image/*" class="avatar-input">
+                  <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only"><span class="change-avatar-text">📷 更换头像</span></button>
+                </div>
               </div>
-            </div>
-            <div class="about-sections">
-              <div class="about-bio">
-                <div class="bio-header">
-                  <h3 class="bio-label">个人介绍</h3>
-                  <div class="bio-controls admin-only">
-                    <button id="edit-profile-btn" class="nes-btn is-warning edit-bio-btn"><span class="edit-text">✏️ 编辑</span></button>
-                    <button id="save-profile-btn" class="nes-btn is-success hidden save-bio-btn"><span class="save-text">💾 保存</span></button>
-                    <button id="cancel-profile-btn" class="nes-btn is-error hidden cancel-bio-btn"><span class="cancel-text">❌ 取消</span></button>
+              <div class="about-sections">
+                <div class="about-bio">
+                  <div class="bio-header">
+                    <h3 class="bio-label">个人介绍</h3>
+                    <div class="bio-controls admin-only">
+                      <button id="edit-profile-btn" class="nes-btn is-warning edit-bio-btn"><span class="edit-text">✏️ 编辑</span></button>
+                      <button id="save-profile-btn" class="nes-btn is-success hidden save-bio-btn"><span class="save-text">💾 保存</span></button>
+                      <button id="cancel-profile-btn" class="nes-btn is-error hidden cancel-bio-btn"><span class="cancel-text">❌ 取消</span></button>
+                    </div>
                   </div>
+                  <p id="profile-bio">
+                    欢迎来到赛博网格！
+                    <br><br>
+                    我是一名数字艺术家和创意开发者，专注于3D视觉化、互动体验以及复古未来主义设计。
+                    <br><br>
+                    凭借对像素艺术、霓虹灯和合成波美学的热爱，我将数字梦境变成现实。
+                  </p>
+                  <textarea id="profile-bio-textarea" class="nes-textarea hidden" rows="6"></textarea>
                 </div>
-                <p id="profile-bio">
-                  欢迎来到赛博网格！
-                  <br><br>
-                  我是一名数字艺术家和创意开发者，专注于3D视觉化、互动体验以及复古未来主义设计。
-                  <br><br>
-                  凭借对像素艺术、霓虹灯和合成波美学的热爱，我将数字梦境变成现实。
-                </p>
-                <textarea id="profile-bio-textarea" class="nes-textarea hidden" rows="6"></textarea>
-              </div>
-              <div class="skills-panel">
-                <h3 class="skills-label">技能面板</h3>
-                <div id="skills-container" class="skills-container"></div>
-              </div>
-            </div>
-          </div>
-          <div class="dialog-footer">
-            <button id="close-modal-footer" class="nes-btn is-primary"><span class="close-footer-text">关闭</span></button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-
-
-    <div id="blog-modal" class="modal-overlay hidden">
-      <div class="blog-modal-content">
-        <div class="modal-loading hidden" id="blog-modal-loading">
-          <div class="modal-loading-content">
-            <div class="modal-loading-spinner"></div>
-            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
-          </div>
-        </div>
-        <div class="nes-dialog blog-dialog">
-          <span class="corner-tl"></span>
-          <span class="corner-tr"></span>
-          <span class="corner-bl"></span>
-          <span class="corner-br"></span>
-          <div class="blog-header">
-            <h2 class="modal-title">📝 赛博博客</h2>
-            <div class="blog-header-right">
-              <button id="blog-admin-toggle-btn" class="nes-btn is-warning admin-toggle-btn">⚙️</button>
-              <button id="close-blog" class="nes-btn is-error close-btn">×</button>
-            </div>
-          </div>
-          <div class="blog-body">
-            <div class="blog-sidebar">
-              <div class="blog-sidebar-header">
-                <h3 class="article-list-label">📌 文章列表</h3>
-                <button id="add-blog-btn" class="nes-btn is-success admin-only" style="font-size: 0.6rem; padding: 0.3rem 0.5rem;"><span class="add-blog-text">➕ 新建</span></button>
-              </div>
-              <div id="blog-list" class="blog-list"></div>
-            </div>
-            <div class="blog-content">
-              <div id="blog-preview" class="blog-preview blog-content-loading">
-                <!-- 博客加载动画 -->
-                <div class="blog-preview-loading hidden" id="blog-preview-loading">
-                  <div class="modal-loading-content">
-                    <div class="modal-loading-spinner"></div>
-                    <p class="modal-loading-text" data-i18n="loading">加载中...</p>
+                <div class="skills-panel">
+                  <div class="skills-panel-head">
+                    <h3 class="skills-label">技能面板</h3>
+                    <button id="skills-add-btn" class="nes-btn is-success admin-only skills-add-btn" type="button">＋</button>
                   </div>
-                </div>
-                <p class="select-article-hint">请选择左侧文章进行预览...</p>
-              </div>
-              <div id="blog-editor" class="blog-editor hidden">
-                <input type="text" id="blog-title-input" class="nes-input blog-title-input" placeholder="文章标题">
-                <input type="text" id="blog-date-input" class="nes-input blog-date-input" placeholder="日期 (YYYY-MM-DD)">
-                <textarea id="blog-content-textarea" class="nes-textarea blog-content-textarea" rows="12" placeholder="文章内容 (支持换行)"></textarea>
-                <div class="blog-editor-controls">
-                  <button id="save-blog-btn" class="nes-btn is-success"><span class="save-blog-text">💾 保存</span></button>
-                  <button id="delete-blog-btn" class="nes-btn is-error admin-only"><span class="delete-blog-text">🗑️ 删除</span></button>
-                  <button id="cancel-blog-edit-btn" class="nes-btn is-primary"><span class="cancel-blog-text">❌ 取消</span></button>
+                  <form id="skill-editor" class="skill-editor admin-only hidden">
+                    <input type="hidden" id="skill-edit-id">
+                    <input id="skill-name-input" class="nes-input skill-name-input" type="text" maxlength="40" placeholder="技能名称">
+                    <div class="skill-level-row">
+                      <label class="skill-level-label" for="skill-level-input">熟练度</label>
+                      <input id="skill-level-input" class="skill-level-range" type="range" min="0" max="100" step="1" value="50">
+                      <output id="skill-level-value" class="skill-level-value" for="skill-level-input">50%</output>
+                    </div>
+                    <div class="skill-editor-actions">
+                      <button type="submit" class="nes-btn is-success skill-save-btn">💾 保存</button>
+                      <button type="button" id="skill-cancel-btn" class="nes-btn is-error skill-cancel-btn">✕ 取消</button>
+                    </div>
+                  </form>
+                  <div id="skills-container" class="skills-container"></div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="dialog-footer">
-            <button id="close-blog-footer" class="nes-btn is-primary"><span class="close-blog-footer-text">关闭</span></button>
-          </div>
-        </div>
-      </div>
-    </div>
+          </section>
 
-    <div id="guestbook-modal" class="modal-overlay hidden">
-      <div class="guestbook-modal-content">
-        <div class="modal-loading hidden" id="guestbook-modal-loading">
-          <div class="modal-loading-content">
-            <div class="modal-loading-spinner"></div>
-            <p class="modal-loading-text" data-i18n="loading">加载中...</p>
-          </div>
-        </div>
-        <div class="nes-dialog guestbook-dialog">
-          <span class="corner-tl"></span>
-          <span class="corner-tr"></span>
-          <span class="corner-bl"></span>
-          <span class="corner-br"></span>
-          <div class="guestbook-header">
-            <h2 class="modal-title">📜 赛博留言板</h2>
-            <button id="close-guestbook" class="nes-btn is-error close-btn">×</button>
-          </div>
-          <div class="guestbook-body">
+          <!-- ===== 02 作品展示（传送门） ===== -->
+          <section id="sheet-works" class="sheet-section">
+            <div class="sheet-section-head">
+              <h2 class="modal-title sheet-section-title">作品展示</h2>
+            </div>
+            <button id="enter-gallery-btn" class="works-portal-btn" type="button">
+              <span class="works-portal-ring works-portal-ring-1"></span>
+              <span class="works-portal-ring works-portal-ring-2"></span>
+              <span class="works-portal-core"></span>
+              <span class="works-portal-content">
+                <span class="works-portal-label">WORKS PORTAL</span>
+                <span class="works-portal-sub">点击穿过传送门 · 进入 3D 作品检视</span>
+              </span>
+            </button>
+          </section>
+
+          <!-- ===== 03 互联网收藏 ===== -->
+          <section id="sheet-collection" class="sheet-section">
+            <div class="sheet-section-head">
+              <h2 class="modal-title sheet-section-title">🖼️ 互联网收藏</h2>
+              <label for="collection-file-input" class="nes-btn is-success admin-only collection-upload-btn">
+                <span class="collection-upload-text">⬆️ 上传图片</span>
+              </label>
+              <input type="file" id="collection-file-input" accept="image/*" multiple hidden>
+            </div>
+            <p class="collection-subtitle">这里是我从互联网上捡到的图片收藏。</p>
+            <div id="collection-upload-status" class="collection-upload-status hidden"></div>
+            <div id="collection-grid" class="collection-grid"></div>
+            <p id="collection-empty" class="collection-empty">还没有收藏，去互联网上捡点图吧。</p>
+          </section>
+
+          <!-- ===== 04 留言板 ===== -->
+          <section id="sheet-guestbook" class="sheet-section">
+            <div class="sheet-section-head">
+              <h2 class="modal-title sheet-section-title">📜 赛博留言板</h2>
+            </div>
+            <div class="guestbook-body">
               <div class="guestbook-status-bar">
                 <span id="storage-status" class="storage-status"><span class="storage-status-text">⚡ 检查连接中...</span></span>
                 <button id="refresh-messages" class="nes-btn is-success refresh-btn"><span class="refresh-text">🔄 刷新</span></button>
@@ -266,9 +238,7 @@
                 <h3 class="leave-message-label">✍️ 留下你的足迹</h3>
                 <div class="input-row">
                   <input type="text" id="guest-name" class="nes-input name-input" placeholder="昵称（匿名网友）">
-                  <label class="name-label hidden">昵称（匿名网友）</label>
                   <input type="text" id="guest-tag" class="nes-input tag-input" placeholder="标签（可选）">
-                  <label class="tag-label hidden">标签（可选）</label>
                 </div>
                 <textarea id="guest-message" class="nes-textarea message-input" placeholder="写下你的想法..."></textarea>
                 <div class="input-footer">
@@ -286,9 +256,40 @@
                 <p class="no-messages hidden">暂无留言，成为第一个留言的人吧！ 🌟</p>
               </div>
             </div>
-          <div class="dialog-footer">
-            <button id="close-guestbook-footer" class="nes-btn is-primary"><span class="close-guestbook-footer-text">关闭</span></button>
-          </div>
+          </section>
+
+          <!-- ===== 04 Blog ===== -->
+          <section id="sheet-blog" class="sheet-section">
+            <div class="sheet-section-head">
+              <h2 class="modal-title sheet-section-title">📝 赛博博客</h2>
+              <button id="blog-admin-toggle-btn" class="nes-btn is-warning admin-toggle-btn">⚙️</button>
+            </div>
+            <div class="blog-body">
+              <div class="blog-sidebar">
+                <div class="blog-sidebar-header">
+                  <h3 class="article-list-label">📌 文章列表</h3>
+                  <button id="add-blog-btn" class="nes-btn is-success admin-only" style="font-size: 0.6rem; padding: 0.3rem 0.5rem;"><span class="add-blog-text">➕ 新建</span></button>
+                </div>
+                <div id="blog-list" class="blog-list"></div>
+              </div>
+              <div class="blog-content">
+                <div id="blog-preview" class="blog-preview blog-content-loading">
+                  <p class="select-article-hint">请选择左侧文章进行预览...</p>
+                </div>
+                <div id="blog-editor" class="blog-editor hidden">
+                  <input type="text" id="blog-title-input" class="nes-input blog-title-input" placeholder="文章标题">
+                  <input type="text" id="blog-date-input" class="nes-input blog-date-input" placeholder="日期 (YYYY-MM-DD)">
+                  <textarea id="blog-content-textarea" class="nes-textarea blog-content-textarea" rows="12" placeholder="文章内容 (支持换行)"></textarea>
+                  <div class="blog-editor-controls">
+                    <button id="save-blog-btn" class="nes-btn is-success"><span class="save-blog-text">💾 保存</span></button>
+                    <button id="delete-blog-btn" class="nes-btn is-error admin-only"><span class="delete-blog-text">🗑️ 删除</span></button>
+                    <button id="cancel-blog-edit-btn" class="nes-btn is-primary"><span class="cancel-blog-text">❌ 取消</span></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
         </div>
       </div>
     </div>

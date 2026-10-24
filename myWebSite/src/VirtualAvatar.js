@@ -151,7 +151,7 @@ export default class VirtualAvatar {
       padding: 20px 24px;
       border-radius: 12px;
       color: #00FFFF;
-      font-family: 'Press Start 2P', cursive;
+      font-family: var(--font-main);
       font-size: 14px;
       max-width: 300px;
       text-align: center;

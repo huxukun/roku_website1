@@ -6,6 +6,7 @@
  *  L1  场景层    SCENE  z: 1        .webgl  Three.js 3D 画布（内含 VHS 后处理）
  *  L2  特效层    FX     z: 5~50     .crt-overlay 扫描线 / 暗角 / 噪点叠加
  *  L3  UI 层     UI     z: 100~200  .ui-container 顶栏 / 主按钮组 / 语言切换 / 音乐控制
+ *  L3.5 内容面板  SHEET  z: 150      .content-sheet 居中 3/4 半透明可滚动内容遮罩
  *  L4  浮层      HUD    z: 1000~1200 励志语录 / 正在播放 / 确认框 / 语言加载提示
  *  L5  弹窗层    MODAL  z: 2000     关于 / 博客 / 留言板 / 画廊 模态框
  *  L6  系统层    SYS    z: 9999~10000 加载屏幕 loading-screen
@@ -13,7 +14,22 @@
  * 注：VHS 复古电视效果在场景层由后处理着色器实现（src/VHSPass.js），
  *     仅作用于 WebGL 画布，不影响上层 HTML UI。
  * ========================================================================== */
+/* --------------------------------------------------------------------------
+ * 全局字体：中文像素字体（mplus_hzk_12，含完整简体中文）
+ * 文件放在 public/fonts/，由 Vite 直接作为静态资源提供；
+ * woff2 为压缩版（约 400KB），TTF 作为旧浏览器回退。
+ * -------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Pixel ZH';
+  src: url('/fonts/pixel-zh.woff2') format('woff2'),
+       url('/fonts/pixel-zh.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
+  --font-main: 'Pixel ZH', 'Microsoft YaHei', 'SimHei', 'Courier New', monospace;
   --neon-pink: #ff00ff;
   --neon-cyan: #00ffff;
   --neon-purple: #9933ff;
@@ -26,6 +42,16 @@
   --darker-bg: #050510;
   --semi-transparent-bg: rgba(5, 5, 16, 0.85);
   --semi-purple-bg: rgba(20, 5, 30, 0.85);
+}
+
+/* 表单控件默认不继承字体，显式统一为站点字体 */
+button,
+input,
+textarea,
+select,
+.nes-input,
+.nes-textarea {
+  font-family: var(--font-main);
 }
 
 textarea.hidden,
@@ -47,7 +73,9 @@ html, body {
   overflow: hidden;
   background-color: var(--darker-bg);
   letter-spacing: 0.05em;
-  font-family: 'Press Start 2P', 'Courier New', monospace, 'Microsoft YaHei', 'SimHei', 'Courier';
+  font-family: var(--font-main);
+  /* 全局字号基准：16px → 19px（整体 +3px） */
+  font-size: 19px;
   -webkit-font-smoothing: none;
   -moz-osx-font-smoothing: grayscale;
   font-smooth: never;
@@ -150,7 +178,7 @@ html, body {
   z-index: 100;
   pointer-events: none;
   padding: 1rem;
-  font-family: 'Press Start 2P', 'Courier New', monospace, 'Microsoft YaHei', 'SimHei', 'Courier';
+  font-family: var(--font-main);
 }
 
 .header-bar {
@@ -308,7 +336,7 @@ html, body {
 
 .header-bar h1 {
   font-size: 1.5rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   position: relative;
   letter-spacing: 0.05em;
   color: #fff;
@@ -336,7 +364,7 @@ html, body {
 }
 
 .upload-btn {
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -405,7 +433,7 @@ html, body {
   cursor: pointer;
   border-radius: 8px;
   transition: all 0.2s ease;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   font-size: 0.6rem;
 }
 
@@ -463,7 +491,7 @@ html, body {
 .language-loading-title {
   color: var(--neon-pink);
   text-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink);
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   font-size: 1rem;
   margin-bottom: 2rem;
 }
@@ -521,7 +549,7 @@ html, body {
 .language-loading-subtitle {
   color: var(--neon-cyan);
   text-shadow: 0 0 5px var(--neon-cyan);
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   font-size: 0.7rem;
   opacity: 0.8;
 }
@@ -539,9 +567,11 @@ html, body {
 
 #quote-trigger-btn {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
-  z-index: 100;
+  bottom: 94px;
+  right: 30px;
+  left: auto;
+  /* 高于内容面板（z:150），面板展开时仍可打开励志语句 */
+  z-index: 200;
   width: 50px;
   height: 50px;
   border-radius: 50%;
@@ -761,7 +791,7 @@ html, body {
 }
 
 .gallery-title {
-  font-family: 'Orbitron', 'Microsoft YaHei', 'Press Start 2P', sans-serif;
+  font-family: var(--font-main);
   font-size: 2rem;
   margin-top: 0;
   margin-bottom: 25px;
@@ -797,7 +827,7 @@ html, body {
   text-align: center;
   position: relative;
   padding: 0 30px;
-  font-family: 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-main);
 }
 
 .gallery-description p {
@@ -936,7 +966,7 @@ html, body {
   margin: 0 0 20px 0;
   text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 30px rgba(255, 255, 255, 0.4);
   word-wrap: break-word;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .quote-author {
@@ -946,7 +976,7 @@ html, body {
   opacity: 0.9;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
   font-style: italic;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .quote-refresh-container {
@@ -997,7 +1027,7 @@ html, body {
 
 .modal-loading-text {
   color: var(--neon-cyan);
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   font-size: 0.7rem;
   text-shadow: 0 0 5px var(--neon-cyan);
 }
@@ -1198,7 +1228,7 @@ html, body {
     transparent 2px
   ) !important;
   transition: all 0.3s ease;
-  font-family: 'Press Start 2P', 'Courier New', monospace, 'Microsoft YaHei', 'SimHei', 'Courier' !important;
+  font-family: var(--font-main) !important;
   letter-spacing: 0.05em;
 }
 
@@ -1415,7 +1445,7 @@ html, body {
   pointer-events: auto;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  font-family: 'Press Start 2P', 'Courier New', monospace, 'Microsoft YaHei', 'SimHei', 'Courier' !important;
+  font-family: var(--font-main) !important;
 }
 
 .nes-dialog::before,
@@ -1517,7 +1547,7 @@ html, body {
   text-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink);
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .nes-progress.is-success {
@@ -1541,7 +1571,7 @@ html, body {
   text-shadow: 0 0 5px var(--neon-cyan);
   font-size: 1rem;
   margin-top: 1rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .project-modal-content {
@@ -1573,7 +1603,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 10px var(--neon-pink);
   margin: 0;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .close-btn {
@@ -1680,7 +1710,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 10px var(--neon-pink);
   margin: 0;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .project-cards {
@@ -1734,7 +1764,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 5px var(--neon-pink);
   margin-bottom: 0.5rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .project-card-tags {
@@ -1870,7 +1900,7 @@ html, body {
   font-size: 1rem;
   color: var(--neon-pink);
   text-shadow: 0 0 10px var(--neon-pink);
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .admin-body {
@@ -1881,7 +1911,7 @@ html, body {
   color: var(--neon-cyan);
   font-size: 0.75rem;
   margin-bottom: 1rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   line-height: 1.6;
 }
 
@@ -1932,7 +1962,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 10px var(--neon-pink);
   margin: 0;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .about-body {
@@ -1990,7 +2020,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 5px var(--neon-pink);
   margin-bottom: 0.6rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .about-bio .bio-header {
@@ -2037,7 +2067,7 @@ html, body {
   justify-content: space-between;
   color: var(--neon-pink);
   font-size: 0.7rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .skill-bar {
@@ -2055,6 +2085,127 @@ html, body {
   width: 0;
   transition: width 1s ease-out;
   box-shadow: 0 0 8px var(--neon-cyan);
+}
+
+/* ===== 技能面板（可编辑） ===== */
+.skills-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.skills-panel-head .skills-label {
+  margin-bottom: 0;
+}
+
+.skills-add-btn {
+  font-size: 0.6rem !important;
+  padding: 0.15rem 0.4rem !important;
+  line-height: 1.2 !important;
+}
+
+.skill-editor {
+  display: none;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.8rem;
+  padding: 0.55rem;
+  border: 2px solid var(--neon-cyan);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
+}
+
+/* ID 优先级，确保 admin-only 的 display:flex 不会覆盖 hidden */
+#skill-editor.hidden {
+  display: none !important;
+}
+
+.admin-mode #skill-editor:not(.hidden) {
+  display: flex !important;
+}
+
+.skills-panel-head .skills-add-btn.admin-only {
+  display: none !important;
+}
+
+.admin-mode .skills-panel-head .skills-add-btn.admin-only {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.skill-name-input {
+  font-size: 0.65rem !important;
+  padding: 0.35rem 0.4rem !important;
+  width: 100%;
+}
+
+.skill-level-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6rem;
+  color: var(--neon-cyan);
+}
+
+.skill-level-range {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  accent-color: var(--neon-cyan);
+  cursor: pointer;
+}
+
+.skill-level-value {
+  min-width: 2.6em;
+  text-align: right;
+  font-size: 0.65rem;
+  color: var(--neon-pink);
+}
+
+.skill-editor-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.skill-editor-actions .nes-btn {
+  font-size: 0.55rem !important;
+  padding: 0.25rem 0.45rem !important;
+}
+
+.skill-label-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.skill-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.skill-actions button {
+  background: transparent;
+  border: none;
+  padding: 0 0.1rem;
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.skill-actions button:hover {
+  transform: scale(1.25);
+  filter: drop-shadow(0 0 4px var(--neon-cyan));
+}
+
+.skills-empty {
+  color: var(--neon-cyan);
+  font-size: 0.65rem;
+  opacity: 0.7;
 }
 
 .about-dialog .dialog-footer {
@@ -2100,7 +2251,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 10px var(--neon-pink);
   margin: 0;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .blog-body {
@@ -2122,7 +2273,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 5px var(--neon-pink);
   margin-bottom: 1rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .blog-list {
@@ -2142,7 +2293,7 @@ html, body {
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.75rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   position: relative;
   overflow: hidden;
   word-wrap: break-word;
@@ -2184,7 +2335,7 @@ html, body {
   color: var(--neon-cyan);
   text-align: center;
   font-size: 0.75rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   opacity: 0.6;
 }
 
@@ -2193,7 +2344,7 @@ html, body {
   color: var(--neon-pink);
   text-shadow: 0 0 5px var(--neon-pink);
   margin-bottom: 0.8rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .blog-meta {
@@ -2217,7 +2368,7 @@ html, body {
   color: var(--neon-pink);
   margin-top: 0.8rem;
   margin-bottom: 0.4rem;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .blog-markdown code {
@@ -2304,7 +2455,7 @@ html, body {
 .message-author {
   font-size: 0.8rem;
   color: var(--neon-pink);
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .message-tag {
@@ -2381,7 +2532,7 @@ html, body {
 .storage-status {
   font-size: 0.65rem;
   color: var(--neon-cyan);
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
 }
 
 .storage-status.online {
@@ -2430,6 +2581,13 @@ html, body {
   word-wrap: break-word;
 }
 
+/* 留言板的加载 / 错误 / 空态占位默认隐藏，只在需要时显示 */
+.loading-indicator.hidden,
+.error-message.hidden,
+.no-messages.hidden {
+  display: none;
+}
+
 .nes-btn.loading {
   opacity: 0.7;
   pointer-events: none;
@@ -2445,7 +2603,7 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   color: white;
   font-size: 1rem;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 0, 255, 0.6);
@@ -2483,7 +2641,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 15px;
-  z-index: 1001;
+  /* 低于内容面板（z:150），面板翻出时会盖住音乐控件 */
+  z-index: 120;
   align-items: center;
 }
 
@@ -2550,11 +2709,12 @@ html, body {
   position: fixed;
   top: 50px;
   right: 50px;
-  z-index: 1000;
+  /* 与音乐控制组一致，位于内容面板之下 */
+  z-index: 120;
 }
 
 .upload-btn {
-  font-family: 'Press Start 2P', cursive;
+  font-family: var(--font-main);
   font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -2563,4 +2723,825 @@ html, body {
 .upload-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 0 15px var(--neon-cyan);
+}
+
+/* ============================================
+   悬浮控制按钮统一（励志 / 音乐 / 语言）
+   与内容面板一致：半透明玻璃、细描边、圆角
+   ============================================ */
+#quote-trigger-btn,
+.lang-btn,
+.music-controls .control-btn.nes-btn {
+  width: 52px;
+  height: 52px;
+  min-width: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 255, 255, 0.22);
+  background: rgba(6, 8, 18, 0.6);
+  color: #8fdfe6;
+  font-size: 1.15rem;
+  line-height: 1;
+  text-shadow: none;
+  clip-path: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 1;
+  transform: none;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.music-controls .upload-btn.nes-btn {
+  padding: 0.55rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 255, 0.22);
+  background: rgba(6, 8, 18, 0.6);
+  color: #8fdfe6;
+  font-family: var(--font-main);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-shadow: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+/* 全局 .nes-btn 自带 !important，这里对音乐控件做局部覆盖 */
+.music-controls .control-btn.nes-btn {
+  border: 1px solid rgba(0, 255, 255, 0.22) !important;
+  border-radius: 14px !important;
+  background: rgba(6, 8, 18, 0.6) !important;
+  background-image: none !important;
+  color: #8fdfe6 !important;
+  text-shadow: none !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  font-size: 1.15rem !important;
+  padding: 0 !important;
+  clip-path: none !important;
+  animation: none !important;
+}
+
+.music-controls .upload-btn.nes-btn {
+  border: 1px solid rgba(0, 255, 255, 0.22) !important;
+  border-radius: 12px !important;
+  background: rgba(6, 8, 18, 0.6) !important;
+  background-image: none !important;
+  color: #8fdfe6 !important;
+  text-shadow: none !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  clip-path: none !important;
+  font-size: 0.62rem !important;
+  padding: 0.55rem 0.95rem !important;
+}
+
+/* 去掉 NES 按钮的扫光伪元素 */
+.music-controls .nes-btn::before {
+  content: none !important;
+}
+
+#quote-trigger-btn:hover,
+.lang-btn:hover,
+.music-controls .control-btn.nes-btn:hover,
+.music-controls .upload-btn.nes-btn:hover {
+  color: #f2eefa !important;
+  border-color: rgba(255, 0, 255, 0.4) !important;
+  background: rgba(10, 8, 22, 0.72) !important;
+  text-shadow: none !important;
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.45),
+    0 0 14px rgba(255, 0, 255, 0.18) !important;
+  transform: translateY(-2px) !important;
+}
+
+#quote-trigger-btn:active,
+.lang-btn:active,
+.music-controls .control-btn.nes-btn:active,
+.music-controls .upload-btn.nes-btn:active {
+  transform: translateY(0) scale(0.96) !important;
+}
+
+/* 内容面板翻上来时，音乐相关控件全部让位 */
+body.sheet-open .music-controls,
+body.sheet-open #now-playing {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transform: translateY(-8px) scale(0.96);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    visibility 0s linear 0.25s !important;
+}
+
+/* ==========================================================================
+ * L3.5 内容面板层 SHEET (z:150)
+ * 底部抽屉：默认只露出顶部 1/10，滚轮向下时整个面板一起向上翻出
+ * ========================================================================== */
+.content-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+}
+
+/* 面板翻出过程中叠加的黑色遮罩，透明度随进度线性 0 → 40% */
+.sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sheet-panel {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 75vw;
+  height: 100vh;
+  max-width: 1440px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(9, 9, 17, 0.8) 0%,
+    rgba(5, 5, 11, 0.78) 100%
+  );
+  border: 1px solid rgba(0, 255, 255, 0.18);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 18px rgba(0, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  isolation: isolate;
+  /* 初始只露出顶部 10vh（面板顶边在视口 90% 处），JS 会按滚动进度覆盖 */
+  transform: translate(-50%, 90vh);
+  will-change: transform;
+}
+
+/* 面板内的缓慢柔光 + 胶片颗粒：给半透明面板一点“材质感” */
+.sheet-panel::before {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(0, 255, 255, 0.07), transparent 42%),
+    radial-gradient(circle at 82% 92%, rgba(255, 0, 255, 0.06), transparent 45%),
+    radial-gradient(circle at 50% 55%, rgba(96, 64, 210, 0.05), transparent 62%);
+  animation: panelAurora 22s ease-in-out infinite alternate;
+}
+
+.sheet-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+  mix-blend-mode: soft-light;
+  animation: grainDrift 1s steps(5) infinite;
+}
+
+.sheet-header,
+.sheet-scroll {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes panelAurora {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.06);
+  }
+}
+
+@keyframes grainDrift {
+  0% { background-position: 0 0; }
+  20% { background-position: -28px 14px; }
+  40% { background-position: 21px -35px; }
+  60% { background-position: -14px 42px; }
+  80% { background-position: 35px 7px; }
+  100% { background-position: 0 0; }
+}
+
+/* 未完全展开前，内容区不响应内部滚动，整个面板跟随滚动一起翻出 */
+.content-sheet:not(.sheet-fully-open) .sheet-scroll {
+  overflow: hidden;
+}
+
+.sheet-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.2rem;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.16);
+  background: rgba(5, 5, 12, 0.55);
+}
+
+.sheet-title {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: #ff9ed8;
+  text-shadow: 0 0 6px rgba(255, 0, 255, 0.45);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* 标题末尾的终端光标，轻微的动态点缀 */
+.sheet-title::after {
+  content: '_';
+  margin-left: 0.25ch;
+  animation: titleBlink 1.4s steps(1, end) infinite;
+}
+
+@keyframes titleBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.sheet-nav {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sheet-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.sheet-nav-btn {
+  position: relative;
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 0.55rem 0.9rem 0.65rem;
+  color: rgba(198, 202, 214, 0.6);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+/* 用底部渐变细线 + 提亮文字来区分当前项，不再使用按钮边框 */
+.sheet-nav-btn::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 0;
+  height: 1px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: width 0.25s ease, opacity 0.25s ease;
+}
+
+.sheet-nav-btn:hover {
+  color: #9fe8ef;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.28);
+}
+
+.sheet-nav-btn:hover::after {
+  width: 40%;
+  opacity: 0.5;
+}
+
+.sheet-nav-btn.active {
+  color: #ece8f4;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.28);
+}
+
+.sheet-nav-btn.active::after {
+  width: 60%;
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
+}
+
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 150, 170, 0.45) rgba(0, 0, 0, 0.4);
+  counter-reset: sheet-section;
+  /* 面板正文色：降低饱和度，减轻长时间阅读的视觉疲劳 */
+  color: #c9cdd6;
+}
+
+.sheet-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sheet-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.sheet-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    rgba(120, 190, 200, 0.6),
+    rgba(180, 130, 200, 0.55)
+  );
+  border-radius: 4px;
+}
+
+.sheet-section {
+  position: relative;
+  counter-increment: sheet-section;
+  padding: 2.2rem clamp(1.4rem, 4vw, 3.4rem) 2.6rem;
+  border-bottom: 1px dashed rgba(0, 255, 255, 0.1);
+  scroll-margin-top: 0.5rem;
+}
+
+/* 脚本就绪后才启用入场动画，避免 JS 异常时内容不可见 */
+.sheet-reveal-ready .sheet-section {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.65s ease,
+    transform 0.65s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.sheet-reveal-ready .sheet-section.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.sheet-section:last-child {
+  border-bottom: none;
+}
+
+.sheet-section-head {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.6rem;
+  padding: 0 0 0.8rem 3.2rem;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.14);
+}
+
+/* 编辑式编号 01–05 */
+.sheet-section-head::before {
+  content: counter(sheet-section, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  bottom: 0.5rem;
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: transparent;
+  background: linear-gradient(160deg, rgba(120, 200, 210, 0.8), rgba(200, 120, 200, 0.55));
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.sheet-section-title {
+  margin: 0;
+  font-size: clamp(1.05rem, 1.9vw, 1.45rem);
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  color: #ffa3dc;
+  text-shadow: 0 0 10px rgba(255, 0, 255, 0.22);
+  font-family: inherit;
+}
+
+/* 面板内的列表不再各自滚动，统一交给面板滚动 */
+.sheet-section .blog-list,
+.sheet-section .blog-content,
+.sheet-section .messages-container {
+  max-height: none;
+  overflow: visible;
+}
+
+/* 作品传送门：点击回到 3D 场景进入作品检视 */
+.works-portal-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 150px;
+  padding: 1.5rem 2rem;
+  overflow: hidden;
+  cursor: pointer;
+  font-family: inherit;
+  color: #fff;
+  border: 2px solid rgba(0, 255, 255, 0.5);
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 255, 255, 0.09) 0%,
+    rgba(255, 0, 255, 0.08) 45%,
+    rgba(5, 5, 16, 0.92) 78%
+  );
+  box-shadow:
+    0 0 18px rgba(0, 255, 255, 0.18),
+    inset 0 0 34px rgba(255, 0, 255, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.works-portal-btn:hover {
+  transform: scale(1.012);
+  box-shadow:
+    0 0 30px rgba(0, 255, 255, 0.32),
+    inset 0 0 45px rgba(255, 0, 255, 0.16);
+}
+
+.works-portal-ring {
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  border: 2px dashed rgba(255, 0, 255, 0.28);
+  pointer-events: none;
+}
+
+.works-portal-ring-1 {
+  animation: portalRotate 14s linear infinite;
+}
+
+.works-portal-ring-2 {
+  inset: 18px;
+  border-style: dotted;
+  border-color: rgba(0, 255, 255, 0.25);
+  animation: portalRotate 9s linear infinite reverse;
+}
+
+.works-portal-core {
+  position: absolute;
+  width: 55%;
+  height: 150%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 255, 255, 0.16), transparent 70%);
+  filter: blur(22px);
+  animation: portalPulse 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.works-portal-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: center;
+}
+
+.works-portal-label {
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  color: #ffa3dc;
+  text-shadow: 0 0 8px rgba(255, 0, 255, 0.3);
+}
+
+.works-portal-sub {
+  font-size: 0.62rem;
+  color: #9fe8ef;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
+}
+
+@keyframes portalRotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes portalPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.96); }
+  50% { opacity: 0.75; transform: scale(1.06); }
+}
+
+/* 互联网图片收藏 */
+.collection-subtitle {
+  margin-bottom: 1rem;
+  font-size: 0.65rem;
+  color: var(--silver);
+}
+
+.collection-upload-btn {
+  font-size: 0.65rem !important;
+  padding: 0.5rem 0.8rem !important;
+  cursor: pointer;
+}
+
+.collection-upload-status {
+  margin-bottom: 0.9rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.6rem;
+  color: var(--neon-cyan);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  background: rgba(0, 255, 255, 0.05);
+}
+
+.collection-upload-status[data-type="error"] {
+  color: #ff6688;
+  border-color: rgba(255, 0, 255, 0.5);
+}
+
+.collection-upload-status[data-type="success"] {
+  color: #66ffcc;
+}
+
+.collection-upload-status.hidden {
+  display: none;
+}
+
+/* 收藏网格：bento 式错落排布，避免整齐划一的图片墙 */
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-auto-rows: 104px;
+  grid-auto-flow: dense;
+  gap: 0.9rem;
+}
+
+.collection-card {
+  position: relative;
+  margin: 0;
+  grid-row: span 2;
+  overflow: hidden;
+  cursor: zoom-in;
+  border: 1px solid rgba(0, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(5, 5, 16, 0.6);
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+/* 每 7 张里挑两张做跨列 / 跨行的大图，形成节奏 */
+.collection-card:nth-child(7n + 1) {
+  grid-column: span 2;
+  grid-row: span 3;
+}
+
+.collection-card:nth-child(7n + 4) {
+  grid-row: span 3;
+}
+
+.collection-card:hover {
+  border-color: rgba(255, 130, 210, 0.7);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), 0 0 16px rgba(255, 0, 255, 0.18);
+  transform: translateY(-3px);
+}
+
+.collection-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+}
+
+.collection-card:hover img {
+  transform: scale(1.06);
+}
+
+.collection-caption {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.5rem;
+  color: var(--silver-bright);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collection-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: var(--neon-pink);
+  background: rgba(5, 5, 16, 0.85);
+  border: 1px solid rgba(255, 0, 255, 0.6);
+  cursor: pointer;
+}
+
+.collection-delete:hover {
+  color: var(--darker-bg);
+  background: var(--neon-pink);
+}
+
+.collection-empty {
+  padding: 2rem 0;
+  font-size: 0.7rem;
+  color: var(--silver);
+  text-align: center;
+}
+
+.collection-empty.hidden {
+  display: none;
+}
+
+/* 图片灯箱 */
+.collection-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 3200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 4vh 4vw;
+  background: rgba(2, 2, 8, 0.94);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.collection-lightbox.hidden {
+  display: none;
+}
+
+.collection-lightbox img {
+  max-width: 92vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border: 2px solid rgba(0, 255, 255, 0.35);
+  box-shadow: 0 0 40px rgba(0, 255, 255, 0.2);
+}
+
+.collection-lightbox-caption {
+  font-size: 0.62rem;
+  color: var(--silver-bright);
+}
+
+.collection-lightbox-close {
+  position: absolute;
+  top: 2vh;
+  right: 3vw;
+  width: 42px;
+  height: 42px;
+  font-size: 1rem;
+  color: var(--neon-pink);
+  background: rgba(255, 0, 255, 0.08);
+  border: 1px solid rgba(255, 0, 255, 0.5);
+  cursor: pointer;
+}
+
+.collection-lightbox-close:hover {
+  color: var(--darker-bg);
+  background: var(--neon-pink);
+}
+
+/* 管理员/操作提示条 */
+.ui-notification {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  z-index: 4000;
+  padding: 0.65rem 1rem;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: var(--neon-cyan);
+  background: rgba(5, 5, 16, 0.95);
+  border: 2px solid rgba(0, 255, 255, 0.5);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.35);
+  white-space: nowrap;
+}
+
+.ui-notification.hidden {
+  display: none;
+}
+
+/* 手机端：面板接近全屏，关闭开销较大的实时模糊 */
+@media (max-width: 768px), (max-aspect-ratio: 1/1) {
+  .sheet-panel {
+    width: 94vw;
+    height: 100vh;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: linear-gradient(
+      180deg,
+      rgba(8, 8, 15, 0.88) 0%,
+      rgba(4, 4, 10, 0.86) 100%
+    );
+  }
+
+  .sheet-header {
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .sheet-title {
+    display: none;
+  }
+
+  /* 五个导航项等分一行，字号随屏宽缩放，避免换行或横向滚动 */
+  .sheet-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    flex: 1 1 100%;
+    gap: 0;
+    overflow: visible;
+  }
+
+  .sheet-nav-btn {
+    padding: 0.4rem 0.1rem 0.5rem;
+    font-size: clamp(0.5rem, 2.9vw, 0.65rem);
+    letter-spacing: 0;
+    text-align: center;
+  }
+
+  .sheet-nav-btn.active::after {
+    width: 72%;
+  }
+
+  .sheet-section {
+    padding: 1.4rem 1rem 1.8rem;
+  }
+
+  .sheet-section-head {
+    padding-left: 2.5rem;
+  }
+
+  .sheet-section-head::before {
+    font-size: 1rem;
+    bottom: 0.45rem;
+  }
+
+  .sheet-section-title {
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+  }
+
+  .works-portal-btn {
+    min-height: 120px;
+    padding: 1.1rem 1rem;
+  }
+
+  .works-portal-label {
+    font-size: 0.9rem;
+  }
+
+  .collection-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-auto-rows: 84px;
+    gap: 0.6rem;
+  }
+
+  /* 移动端关闭持续动画，只保留静态纹理 */
+  .sheet-panel::before,
+  .sheet-panel::after {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel::before,
+  .sheet-panel::after,
+  .sheet-title::after {
+    animation: none;
+  }
+
+  .sheet-reveal-ready .sheet-section {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
