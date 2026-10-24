@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 
 export default class MovingGridFloor {
   constructor(scene) {
@@ -45,28 +48,36 @@ export default class MovingGridFloor {
       colors.push(gridColor.r, gridColor.g, gridColor.b)
     }
 
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    // 使用 LineSegmentsGeometry + LineMaterial 实现真实像素级线宽
+    // （LineBasicMaterial 的 linewidth 在 WebGL 下恒为 1px，无法加粗）
+    const geometry = new LineSegmentsGeometry()
+    geometry.setPositions(vertices)
 
-    const material = new THREE.LineBasicMaterial({
-      color: gridColor,
+    const material = new LineMaterial({
+      color: 0xFF00FF,
+      linewidth: 3,          // 屏幕像素线宽（当前 4 的 0.75）
       transparent: true,
-      opacity: 1.0,
-      vertexColors: true,
-      linewidth: 5
+      opacity: 1.0
     })
+    material.resolution.set(window.innerWidth, window.innerHeight)
 
-    this.grid = new THREE.LineSegments(geometry, material)
+    this.grid = new LineSegments2(geometry, material)
     this.grid.position.y = -1.2
     this.scene.add(this.grid)
 
     // 第二个网格用于无限连续滚动
-    const geometry2 = geometry.clone()
-    this.grid2 = new THREE.LineSegments(geometry2, material.clone())
+    const material2 = material.clone()
+    material2.resolution.set(window.innerWidth, window.innerHeight)
+    this.grid2 = new LineSegments2(geometry.clone(), material2)
     this.grid2.position.y = -1.2
     this.grid2.position.z = -this.gridSize
     this.scene.add(this.grid2)
+  }
+
+  // 屏幕尺寸变化时同步线宽所需的分辨率
+  setResolution(width, height) {
+    if (this.grid) this.grid.material.resolution.set(width, height)
+    if (this.grid2) this.grid2.material.resolution.set(width, height)
   }
 
   update(delta) {

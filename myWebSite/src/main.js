@@ -3,6 +3,9 @@ import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
+import { VHSShader } from './VHSPass.js'
+import { bloomScale } from './perfConfig.js'
 
 import Scene from './Scene.js'
 import Camera from './Camera.js'
@@ -186,7 +189,7 @@ const musicVisualizer = new MusicVisualizer(scene.instance, camera.instance)
 let composer
 const renderScene = new RenderPass(scene.instance, camera.instance)
 const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(sizes.width, sizes.height),
+  new THREE.Vector2(sizes.width * bloomScale, sizes.height * bloomScale),
   1.2,
   0.5,
   0.05
@@ -198,6 +201,11 @@ bloomPass.radius = 0.4
 composer = new EffectComposer(renderer.instance)
 composer.addPass(renderScene)
 composer.addPass(bloomPass)
+
+// VHS 复古电视后处理（作用于场景层画布）
+const vhsPass = new ShaderPass(VHSShader)
+vhsPass.uniforms.resolution.value = new THREE.Vector2(sizes.width, sizes.height)
+composer.addPass(vhsPass)
 
 const loadingScreen = document.getElementById('loading-screen')
 const loadingProgress = document.getElementById('loading-progress')
@@ -973,10 +981,26 @@ const tick = (time) => {
   pinkOzoneFog.update(time)
   musicVisualizer.update(time)
   
+  // 更新 VHS 后处理时间（驱动扫描线/抖动/噪点动画）
+  vhsPass.uniforms.time.value = elapsedTime
+
   composer.render()
 }
 
 tick(0)
+
+// 页面切到后台时暂停渲染循环，回到前台再恢复：显著降低移动端耗电与 CPU 占用
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (animationId) {
+      cancelAnimationFrame(animationId)
+      animationId = null
+    }
+  } else if (!animationId && !isCleanedUp) {
+    prevTime = performance.now()
+    tick(prevTime)
+  }
+})
 
 window.addEventListener('resize', () => {
   sizes.width = window.innerWidth
@@ -986,7 +1010,9 @@ window.addEventListener('resize', () => {
   renderer.resize()
   
   composer.setSize(sizes.width, sizes.height)
-  bloomPass.setSize(sizes.width, sizes.height)
+  bloomPass.setSize(sizes.width * bloomScale, sizes.height * bloomScale)
+  vhsPass.uniforms.resolution.value.set(sizes.width, sizes.height)
+  if (gridFloor) gridFloor.setResolution(sizes.width, sizes.height)
 })
 
 function cleanup() {
