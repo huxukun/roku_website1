@@ -2621,7 +2621,7 @@ export default class UIManager {
         entry.target.classList.add('is-visible');
         observer.unobserve(entry.target);
       });
-    }, { root: this.sheetScroll, threshold: 0.08, rootMargin: '0px 0px -4% 0px' });
+    }, { root: this.sheetScroll, threshold: 0, rootMargin: '0px 0px -4% 0px' });
 
     sections.forEach((section) => observer.observe(section));
     this.sheetRevealObserver = observer;
