@@ -59,15 +59,6 @@
       <!-- 中央 3D 导航层（AR 全息显示区）：Three.js 在此渲染箭头 + 霓虹路线 -->
       <div class="center-display" data-comp-id="center-display"></div>
 
-      <!-- ★ 路线概览卡片（可折叠）★ -->
-      <div class="route-summary hidden" id="route-summary" data-comp-id="route-summary">
-        <div class="route-summary-header">
-          <span class="route-summary-title" data-comp-id="route-summary-title">路线概览</span>
-          <button class="route-summary-close" id="route-summary-close" data-comp-id="route-summary-close">×</button>
-        </div>
-        <div class="route-summary-content" id="route-summary-content" data-comp-id="route-summary-content"></div>
-      </div>
-
       <!-- ★ 顶部右侧操作按钮组（保存路线 / 历史路线）★ -->
       <div class="action-bar" data-comp-id="action-bar">
         <button class="action-btn" id="save-route-btn" data-comp-id="save-route-btn" title="保存当前路线到本地">💾 保存路线</button>
@@ -116,13 +107,6 @@
                 <div class="info-value" id="current-speed" data-comp-id="info-value-current-speed">-- km/h</div>
               </div>
             </div>
-            <div class="info-item" data-comp-id="info-next-turn">
-              <div class="info-icon" data-comp-id="info-icon-next-turn">🔄</div>
-              <div class="info-content">
-                <div class="info-label" data-comp-id="info-label-next-turn">下一个转弯</div>
-                <div class="info-value" id="next-turn" data-comp-id="info-value-next-turn">--</div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -153,11 +137,6 @@
           </div>
         </div>
 
-      </div>
-
-      <!-- ★ 语音提示浮动层 ★ -->
-      <div class="voice-hint" id="voice-hint" data-comp-id="voice-hint">
-        <span id="voice-text" data-comp-id="voice-text">🔊 准备出发</span>
       </div>
 
       <!-- ★ 传感器与定位状态指示 ★ -->

@@ -59,6 +59,9 @@ export class Scene3D {
     this._initParticles()
     this._initLight()
     this._initRouteLine()
+    this._initNearbyRoads()
+    this._initGroundGrid()
+    this._initSceneDetails()
 
     // ---- 状态 ----
     this.currentRotation = 0  // 当前箭头朝向（弧度）
@@ -193,6 +196,227 @@ export class Scene3D {
     this.routeLineGroup = new THREE.Group()
     this.routeLineGroup.visible = false
     this._uiRoot.add(this.routeLineGroup)
+  }
+
+  /* ========================================================
+     初始化：附近道路组（半透明灰色道路网）
+     - 挂到 _uiRoot，与路线共享浮动和变换
+     - 在 setRoute 后通过 setNearbyRoads 填充几何体
+     ======================================================== */
+  _initNearbyRoads() {
+    this.nearbyRoadsGroup = new THREE.Group()
+    this.nearbyRoadsGroup.visible = false
+    this._uiRoot.add(this.nearbyRoadsGroup)
+  }
+
+  /* ========================================================
+     初始化：地面网格（科技感蓝青色网格）
+     - 挂到 _uiRoot，与路线共享浮动和 heading 旋转
+     - 使用 GridHelper 生成等间距网格线
+     - 网格中心对齐用户位置（0,0）
+     ======================================================== */
+  _initGroundGrid() {
+    this.groundGridGroup = new THREE.Group()
+    this.groundGridGroup.visible = false
+    this._uiRoot.add(this.groundGridGroup)
+
+    // 主网格：大间距（5 单位），淡青色
+    const size = 80       // 网格总大小（世界单位）
+    const divisions = 32   // 分割数 → 每格 2.5 单位
+    const grid1 = new THREE.GridHelper(size, divisions, 0x00ffff, 0x004466)
+    grid1.material.transparent = true
+    grid1.material.opacity = 0.15
+    grid1.rotation.x = Math.PI / 2  // 从 XZ 平面旋转到 XY 平面（z=0）
+    this.groundGridGroup.add(grid1)
+
+    // 副网格：小间距（1 单位），更淡
+    const grid2 = new THREE.GridHelper(size, divisions * 5, 0x00aacc, 0x002233)
+    grid2.material.transparent = true
+    grid2.material.opacity = 0.06
+    grid2.rotation.x = Math.PI / 2
+    this.groundGridGroup.add(grid2)
+
+    // 中心十字线（更亮，标识用户位置）
+    const crossLen = size / 2
+    const crossMat = new THREE.LineBasicMaterial({
+      color: 0x00ffff, transparent: true, opacity: 0.3
+    })
+    // 水平线
+    const hGeom = new THREE.BufferGeometry()
+    hGeom.setAttribute('position', new THREE.Float32BufferAttribute(
+      [-crossLen, 0, 0, crossLen, 0, 0], 3))
+    this.groundGridGroup.add(new THREE.Line(hGeom, crossMat))
+    // 垂直线
+    const vGeom = new THREE.BufferGeometry()
+    vGeom.setAttribute('position', new THREE.Float32BufferAttribute(
+      [0, -crossLen, 0, 0, crossLen, 0], 3))
+    this.groundGridGroup.add(new THREE.Line(vGeom, crossMat))
+  }
+
+  /* ========================================================
+     初始化：场景细节（用户位置三角箭头）
+     - 朝向前方（屏幕上方）的青色三角箭头，标识"当前位置"
+     - 使用 depthTest:false + renderOrder 确保始终在最前显示
+     - 实心填充 + 亮白边框，保证三角形轮廓清晰可辨
+     ======================================================== */
+  _initSceneDetails() {
+    this.sceneDetailsGroup = new THREE.Group()
+    this.sceneDetailsGroup.visible = false
+    this._uiRoot.add(this.sceneDetailsGroup)
+
+    // 用户位置三角箭头（朝向前方 = +Y 方向）
+    // 形状：等腰三角形，尖端朝上，底部凹边增加箭头感
+    // 尺寸放大到 2 倍，确保在3D场景中清晰可见
+    const SCALE = 2.0
+    const arrowShape = new THREE.Shape()
+    arrowShape.moveTo(0, 0.6 * SCALE)         // 尖端（前方）
+    arrowShape.lineTo(-0.35 * SCALE, -0.4 * SCALE)  // 左下
+    arrowShape.lineTo(0, -0.2 * SCALE)        // 底部中点（凹边）
+    arrowShape.lineTo(0.35 * SCALE, -0.4 * SCALE)   // 右下
+    arrowShape.closePath()
+
+    // 实心填充（青色）
+    const arrowGeom = new THREE.ShapeGeometry(arrowShape)
+    const arrowMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+      depthTest: false,   // 禁用深度测试，始终显示在最前
+      depthWrite: false   // 不写入深度缓冲，避免影响其他透明对象
+    })
+    this._userArrow = new THREE.Mesh(arrowGeom, arrowMat)
+    this._userArrow.renderOrder = 999   // 最高渲染优先级
+    this._userArrow.position.z = 0.2    // 抬高，避免与路线/网格共面
+    this.sceneDetailsGroup.add(this._userArrow)
+
+    // 亮白色边框（增强三角形轮廓，让形状更清晰）
+    const edgePoints = [
+      0, 0.6 * SCALE,
+      -0.35 * SCALE, -0.4 * SCALE,
+      0, -0.2 * SCALE,
+      0.35 * SCALE, -0.4 * SCALE,
+      0, 0.6 * SCALE   // 闭合回到尖端
+    ]
+    const edgePositions = []
+    for (let i = 0; i < edgePoints.length; i += 2) {
+      edgePositions.push(edgePoints[i], edgePoints[i + 1], 0)
+    }
+    const edgeGeom = new THREE.BufferGeometry()
+    edgeGeom.setAttribute('position', new THREE.Float32BufferAttribute(edgePositions, 3))
+    const edgeMat = new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: false,
+      depthWrite: false
+    })
+    this._userArrowEdge = new THREE.Line(edgeGeom, edgeMat)
+    this._userArrowEdge.renderOrder = 1000  // 边框在最上层
+    this._userArrowEdge.position.z = 0.21
+    this.sceneDetailsGroup.add(this._userArrowEdge)
+  }
+
+  /* ========================================================
+     设置附近道路（半透明渲染，按道路等级差异化）
+     roads: [{ path: [[lng,lat],...], highway: 'primary'|'secondary'|... }, ...]
+     依赖 this._routeRef（必须先调用 setRoute）
+     ======================================================== */
+  setNearbyRoads(roads) {
+    this.clearNearbyRoads()
+    if (!roads || roads.length === 0) return
+    if (!this._routeRef) return
+
+    const ref = this._routeRef
+
+    // 按道路等级分类的材质（主干道更亮，小路更暗）
+    const matCache = {}
+    const getMat = (highway) => {
+      if (matCache[highway]) return matCache[highway]
+      let color, opacity
+      switch (highway) {
+        case 'motorway':
+        case 'trunk':
+          color = 0xddeeff; opacity = 0.85; break   // 主干道：亮蓝白
+        case 'primary':
+          color = 0xbbddee; opacity = 0.72; break   // 一级道路
+        case 'secondary':
+          color = 0xaaccdd; opacity = 0.62; break   // 二级道路
+        case 'tertiary':
+          color = 0x99bbcc; opacity = 0.52; break   // 三级道路
+        default:
+          color = 0x88aabb; opacity = 0.42; break   // 小路/住宅区道路
+      }
+      const mat = new THREE.LineBasicMaterial({
+        color, transparent: true, opacity
+      })
+      matCache[highway] = mat
+      return mat
+    }
+
+    for (const road of roads) {
+      const path = road.path
+      const highway = road.highway || 'residential'
+      if (!path || path.length < 2) continue
+
+      const positions = []
+      for (const pt of path) {
+        const lng = pt[0], lat = pt[1]
+        if (typeof lng !== 'number' || typeof lat !== 'number') continue
+        const x = (lng - ref.firstLng) * ref.lngToM * ref.scale
+        const y = (lat - ref.firstLat) * ref.latToM * ref.scale
+        positions.push(x, y, 0)
+      }
+      if (positions.length < 6) continue  // 至少 2 个点
+
+      const geom = new THREE.BufferGeometry()
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+      this.nearbyRoadsGroup.add(new THREE.Line(geom, getMat(highway)))
+
+      // 主干道（motorway/trunk/primary）叠加更亮的中心线，模拟粗线效果
+      if (['motorway', 'trunk', 'primary'].includes(highway)) {
+        const mat2 = new THREE.LineBasicMaterial({
+          color: 0xffffff, transparent: true, opacity: 0.9
+        })
+        this.nearbyRoadsGroup.add(new THREE.Line(geom.clone(), mat2))
+      } else if (['secondary', 'tertiary'].includes(highway)) {
+        // 次干道叠加中等亮度中心线
+        const mat2 = new THREE.LineBasicMaterial({
+          color: 0xddeeff, transparent: true, opacity: 0.7
+        })
+        this.nearbyRoadsGroup.add(new THREE.Line(geom.clone(), mat2))
+      }
+    }
+
+    this.nearbyRoadsGroup.visible = this.nearbyRoadsGroup.children.length > 0
+    // 同步当前变换（位置和旋转）
+    this.nearbyRoadsGroup.position.copy(this.routeLineGroup.position)
+    this.nearbyRoadsGroup.rotation.copy(this.routeLineGroup.rotation)
+  }
+
+  /* ========================================================
+     清除附近道路（释放几何体/材质）
+     ======================================================== */
+  clearNearbyRoads() {
+    if (!this.nearbyRoadsGroup) return
+    // 保留共享材质，只清理几何体和子节点
+    this.nearbyRoadsGroup.traverse(obj => {
+      if (obj.geometry) {
+        try { obj.geometry.dispose() } catch (e) {}
+      }
+    })
+    // 清理材质（每个 Line 可能引用同一材质，去重 dispose）
+    const disposedMats = new Set()
+    this.nearbyRoadsGroup.traverse(obj => {
+      if (obj.material && !disposedMats.has(obj.material)) {
+        disposedMats.add(obj.material)
+        try { obj.material.dispose() } catch (e) {}
+      }
+    })
+    while (this.nearbyRoadsGroup.children.length > 0) {
+      this.nearbyRoadsGroup.remove(this.nearbyRoadsGroup.children[0])
+    }
+    this.nearbyRoadsGroup.visible = false
   }
 
   /* ========================================================
@@ -549,6 +773,10 @@ export class Scene3D {
     // 6) 设置用户位置偏移 + heading 旋转（使路线以用户为中心，用户前方朝屏幕上方）
     this._updateRouteTransform()
     this.routeLineGroup.visible = true
+
+    // 显示地面网格和场景细节
+    if (this.groundGridGroup) this.groundGridGroup.visible = true
+    if (this.sceneDetailsGroup) this.sceneDetailsGroup.visible = true
   }
 
   /* ========================================================
@@ -720,6 +948,23 @@ export class Scene3D {
     this.routeLineGroup.position.x = -rotX
     this.routeLineGroup.position.y = -rotY
     this.routeLineGroup.rotation.z = ref.headingRad
+
+    // 附近道路组同步变换（与路线保持相同的位置和旋转）
+    if (this.nearbyRoadsGroup) {
+      this.nearbyRoadsGroup.position.x = -rotX
+      this.nearbyRoadsGroup.position.y = -rotY
+      this.nearbyRoadsGroup.rotation.z = ref.headingRad
+    }
+
+    // 地面网格同步变换（跟随用户位置和 heading 旋转）
+    if (this.groundGridGroup) {
+      this.groundGridGroup.position.x = -rotX
+      this.groundGridGroup.position.y = -rotY
+      this.groundGridGroup.rotation.z = ref.headingRad
+    }
+
+    // 场景细节（用户箭头 + 扫描线）位置始终在中心 (0,0)，不跟随 heading 旋转
+    // 箭头始终朝向屏幕上方（+Y 方向），代表"当前朝向"
   }
 
   /* ========================================================
@@ -745,6 +990,11 @@ export class Scene3D {
     this._routeEndRing = null
     this._routeRef = null
     this.routeLineGroup.visible = false
+    // 同步清理附近道路
+    this.clearNearbyRoads()
+    // 隐藏地面网格和场景细节
+    if (this.groundGridGroup) this.groundGridGroup.visible = false
+    if (this.sceneDetailsGroup) this.sceneDetailsGroup.visible = false
   }
 
   /* ========================================================
@@ -786,6 +1036,16 @@ export class Scene3D {
     }
     if (this._routeEndRing) {
       this._routeEndRing.rotation.z += 0.03
+    }
+
+    // 用户位置箭头呼吸动画（轻微缩放）
+    if (this._userArrow) {
+      const pulse = 1.0 + Math.sin(t * 2.0) * 0.06
+      this._userArrow.scale.set(pulse, pulse, 1)
+    }
+    if (this._userArrowEdge) {
+      // 边框透明度轻微波动，增强视觉提示
+      this._userArrowEdge.material.opacity = 0.85 + Math.sin(t * 2.0) * 0.15
     }
 
     this.renderer.render(this.scene, this.camera)

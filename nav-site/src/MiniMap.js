@@ -32,8 +32,6 @@ export class MiniMap {
     this.targetLngLat = null;     // [lng, lat]
     this.polyline = null;
     this.routePath = null;        // 真实道路规划路线：[[lng, lat], ...]
-    this.routeSteps = null;       // 转弯步骤列表
-    this.turnMarkers = [];        // 路口方向标记
 
     this.debugMode = false;
     this._isDragging = false;      // 鼠标是否按下中
@@ -489,7 +487,7 @@ export class MiniMap {
     }
   }
 
-  setRoutePath(pathArray, steps) {
+  setRoutePath(pathArray) {
     if (!pathArray || pathArray.length < 2) return;
     this.routePath = pathArray;
     this._updatePolyline();
@@ -512,75 +510,16 @@ export class MiniMap {
         try { this.map.setFitView(); } catch (e2) {}
       }
     }
-
-    // 清理旧的路口标记
-    this._clearTurnMarkers();
-
-    // 只在有 steps 信息时创建路口标记
-    if (steps && Array.isArray(steps) && steps.length > 0) {
-      for (let i = 0; i < steps.length - 1; i++) {
-        const step = steps[i];
-        if (!step.turnPoint || step.action === 'straight') continue;
-        this._createTurnMarker(step);
-      }
-    }
   }
 
-  setRouteSteps(steps) { this.routeSteps = steps; }
+  setRouteSteps(steps) { /* deprecated: 转弯标记功能已移除 */ }
 
   clearRoute() {
     this.routePath = null;
-    this.routeSteps = null;
     if (this.polyline) { this.polyline.setMap(null); this.polyline = null; }
-    this._clearTurnMarkers();
     this.hasTarget = false;
     this.targetLngLat = null;
     if (this.destMarker) { this.destMarker.setMap(null); this.destMarker = null; }
-  }
-
-  _createTurnMarker(step) {
-    if (!window.AMap || !this.map) return;
-    const [lng, lat] = step.turnPoint;
-    if (typeof lng !== 'number' || typeof lat !== 'number') return;
-
-    const iconMap = {
-      'left': '↰',
-      'left-slight': '↖',
-      'right': '↱',
-      'right-slight': '↗',
-      'uturn': '↺',
-      'arrive': '★'
-    };
-    const colorMap = {
-      'left': '#4dd0e1',
-      'left-slight': '#4dd0e1',
-      'right': '#ffb74d',
-      'right-slight': '#ffb74d',
-      'uturn': '#e57373',
-      'arrive': '#ffd54f'
-    };
-    const icon = iconMap[step.action] || '↑';
-    const color = colorMap[step.action] || '#00ffff';
-
-    try {
-      const marker = new window.AMap.Marker({
-        position: [lng, lat],
-        offset: new window.AMap.Pixel(-12, -12),
-        content: `<div style="width:24px;height:24px;background:rgba(0,0,0,0.7);border:2px solid ${color};border-radius:50%;color:${color};font-size:16px;font-weight:bold;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px ${color};">${icon}</div>`,
-        map: this.map,
-        zIndex: 120
-      });
-      this.turnMarkers.push(marker);
-    } catch (e) {}
-  }
-
-  _clearTurnMarkers() {
-    if (this.turnMarkers && this.turnMarkers.length > 0) {
-      for (const m of this.turnMarkers) {
-        try { m.setMap(null); } catch (e) {}
-      }
-      this.turnMarkers = [];
-    }
   }
 
   // 外部导航引擎传入当前进度（仅记录，不再参与绘制）
