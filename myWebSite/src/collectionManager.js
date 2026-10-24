@@ -105,7 +105,9 @@ async function uploadFile(file) {
   }
   if (file.size > MAX_FILE_SIZE) throw new Error('单张图片不能超过 30MB');
 
-  const optimized = await compressImage(file);
+  // GIF 交给 canvas 压缩会只剩第一帧，直接上传原文件以保留动画
+  const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+  const optimized = isGif ? file : await compressImage(file);
   const now = Date.now();
   const safeName = optimized.name.replace(/[^\w.-]+/g, '_').slice(-60);
   const path = `${now}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
