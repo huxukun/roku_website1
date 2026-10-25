@@ -14,6 +14,7 @@ import ModelLoader from './ModelLoader.js'
 import UIManager from './UIManager.js'
 import { initImageCollection } from './collectionManager.js'
 import { initSkillsManager } from './skillsManager.js'
+import { initDailySky } from './dailySky.js'
 import MovingGridFloor from './MovingGridFloor.js'
 import SynthwaveSun from './SynthwaveSun.js'
 import ElectronicDust from './ElectronicDust.js'
@@ -1184,6 +1185,9 @@ const init = async () => {
 
   // 初始化可编辑技能面板
   initSkillsManager();
+
+  // 初始化「今晚的天空」日更卡片（读取 public/daily/latest.json）
+  initDailySky();
   
   // 初始化励志语录
   initMotivationQuotes();

@@ -827,7 +827,7 @@ export default class UIManager {
     const worksBtn = document.querySelector('.works-btn-text');
     const guestbookBtn = document.querySelector('.guestbook-btn-text');
     const blogBtn = document.querySelector('.blog-btn-text');
-    // 站点名称固定为 "ROKU HERE"，不参与翻译
+    // 顶部标题固定为 "WELCOME"，不参与翻译
     
     if (aboutBtn) aboutBtn.textContent = t('about');
     if (worksBtn) worksBtn.textContent = t('works');

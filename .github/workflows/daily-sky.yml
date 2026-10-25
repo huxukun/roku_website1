@@ -1,0 +1,57 @@
+name: Daily Sky
+
+on:
+  schedule:
+    # UTC 22:00 = 北京时间次日 06:00
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-sky
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: myWebSite
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch daily sky data
+        env:
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+        run: node scripts/fetch-daily.mjs
+
+      - name: Commit and push
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add myWebSite/public/daily
+
+          # 没有数据变化时跳过提交
+          if git diff --staged --quiet; then
+            echo "No changes, skip commit."
+            exit 0
+          fi
+
+          COMMIT_DATE=$(TZ=Asia/Shanghai date +%F)
+          git commit -m "chore: daily sky ${COMMIT_DATE}"
+
+          # 与手动推送并发时先变基再重试一次
+          if ! git push; then
+            git pull --rebase origin main
+            git push
+          fi

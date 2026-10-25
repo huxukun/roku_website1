@@ -4,6 +4,7 @@ import { t } from './i18n.js';
 const TABLE = 'collection_items';
 const BUCKET = 'collection-images';
 const LOCAL_STORAGE_KEY = 'synthwave-collection-items';
+const LIKED_STORAGE_KEY = 'synthwave-liked-items';
 const LOCAL_BUDGET = 3 * 1024 * 1024;
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const MAX_EDGE = 2000;
@@ -12,6 +13,7 @@ const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i;
 let items = [];
 let initialized = false;
 let lightbox = null;
+let likedIds = readLikedIds();
 
 const el = (id) => document.getElementById(id);
 
@@ -38,6 +40,43 @@ function readLocalItems() {
   } catch (error) {
     return [];
   }
+}
+
+// 本设备已点过赞的图片，避免同一浏览器重复计数
+function readLikedIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LIKED_STORAGE_KEY) || '[]'));
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function saveLikedIds() {
+  try {
+    localStorage.setItem(LIKED_STORAGE_KEY, JSON.stringify([...likedIds]));
+  } catch (error) {
+    console.error('保存点赞记录失败:', error);
+  }
+}
+
+async function likeItem(item) {
+  if (!isSupabaseConfigured) {
+    const local = readLocalItems();
+    const target = local.find((entry) => String(entry.id) === String(item.id));
+    if (target) {
+      target.likes = (target.likes || 0) + 1;
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
+    }
+    item.likes = (item.likes || 0) + 1;
+    return item.likes;
+  }
+
+  const { data, error } = await supabase.rpc('like_collection_item', {
+    target_id: Number(item.id)
+  });
+  if (error) throw error;
+  item.likes = typeof data === 'number' ? data : (item.likes || 0) + 1;
+  return item.likes;
 }
 
 function blobToDataUrl(blob) {
@@ -242,7 +281,41 @@ function render() {
       }
     });
 
-    card.append(img, caption, del);
+    // 匿名点赞：每个浏览器每张图只能点一次
+    const likeBtn = document.createElement('button');
+    likeBtn.type = 'button';
+    likeBtn.className = 'collection-like';
+    likeBtn.title = '点赞';
+    likeBtn.setAttribute('aria-label', '点赞');
+    const liked = likedIds.has(String(item.id));
+    likeBtn.classList.toggle('is-liked', liked);
+    likeBtn.setAttribute('aria-pressed', String(liked));
+    likeBtn.innerHTML = `<span class="collection-like-heart">♥</span><span class="collection-like-count">${item.likes ?? 0}</span>`;
+    likeBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const key = String(item.id);
+      if (likedIds.has(key)) return;
+
+      const countEl = likeBtn.querySelector('.collection-like-count');
+      const previous = Number(countEl.textContent) || 0;
+      countEl.textContent = previous + 1;
+      likeBtn.classList.add('is-liked');
+
+      try {
+        const next = await likeItem(item);
+        countEl.textContent = next;
+        likedIds.add(key);
+        saveLikedIds();
+        likeBtn.setAttribute('aria-pressed', 'true');
+      } catch (error) {
+        countEl.textContent = previous;
+        likeBtn.classList.remove('is-liked');
+        setStatus(`点赞失败：${error.message}`, 'error');
+        console.error('点赞失败:', error);
+      }
+    });
+
+    card.append(img, caption, likeBtn, del);
     card.addEventListener('click', () => openLightbox(item));
     grid.appendChild(card);
   });

@@ -135,8 +135,12 @@ CREATE TABLE IF NOT EXISTS collection_items (
     title VARCHAR(300),
     image_url TEXT NOT NULL,
     storage_path VARCHAR(500),
+    likes INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 老库补列（已存在时忽略）
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS likes INTEGER NOT NULL DEFAULT 0;
 
 ALTER TABLE collection_items ENABLE ROW LEVEL SECURITY;
 
@@ -150,6 +154,26 @@ CREATE POLICY "Allow public write access to collection" ON collection_items
     FOR ALL USING (true) WITH CHECK (true);
 
 CREATE INDEX IF NOT EXISTS idx_collection_created_at ON collection_items(created_at DESC);
+
+-- 匿名点赞：原子自增，避免并发写覆盖
+CREATE OR REPLACE FUNCTION like_collection_item(target_id BIGINT)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    current_likes INTEGER;
+BEGIN
+    UPDATE collection_items
+       SET likes = COALESCE(likes, 0) + 1
+     WHERE id = target_id
+    RETURNING likes INTO current_likes;
+    RETURN current_likes;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION like_collection_item(BIGINT) TO anon, authenticated;
 
 -- Storage 桶：collection-images（公开读）
 INSERT INTO storage.buckets (id, name, public)

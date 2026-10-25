@@ -3471,6 +3471,64 @@ body.sheet-open #now-playing {
   background: var(--neon-pink);
 }
 
+/* 匿名点赞按钮 */
+.collection-like {
+  position: absolute;
+  right: 6px;
+  bottom: 30px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 36px;
+  height: 26px;
+  padding: 0 8px;
+  font-family: var(--font-main);
+  font-size: 0.5rem;
+  line-height: 1;
+  color: rgba(255, 175, 220, 0.9);
+  background: rgba(5, 5, 16, 0.72);
+  border: 1px solid rgba(255, 130, 210, 0.35);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.collection-like-heart {
+  font-size: 0.56rem;
+  color: inherit;
+}
+
+.collection-like:hover {
+  color: #ffd1ec;
+  border-color: rgba(255, 130, 210, 0.65);
+  transform: translateY(-1px);
+}
+
+.collection-like:focus-visible {
+  outline: 2px solid rgba(0, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+.collection-like.is-liked {
+  color: #ff5fb0;
+  background: rgba(255, 0, 128, 0.16);
+  border-color: rgba(255, 95, 176, 0.6);
+  cursor: default;
+  transform: none;
+}
+
+.collection-like.is-liked .collection-like-heart {
+  color: #ff3fa4;
+  text-shadow: 0 0 8px rgba(255, 0, 128, 0.7);
+}
+
 .collection-empty {
   padding: 2rem 0;
   font-size: 0.7rem;
@@ -3648,5 +3706,323 @@ body.sheet-open #now-playing {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+}
+
+/* ==========================================================================
+ * 今晚的天空（日更卡片）
+ * 数据来自 public/daily/latest.json（由 GitHub Actions 预生成）
+ * ========================================================================== */
+.daily-sky-date {
+  flex: 0 0 auto;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  color: rgba(159, 232, 239, 0.75);
+  white-space: nowrap;
+}
+
+.daily-sky-card {
+  width: 100%;
+  max-width: 720px;
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(6, 6, 14, 0.6);
+  box-shadow:
+    inset 0 0 24px rgba(0, 255, 255, 0.05),
+    0 0 18px rgba(0, 255, 255, 0.04);
+}
+
+.daily-sky-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    rgba(20, 8, 40, 0.9),
+    rgba(4, 10, 24, 0.95) 60%,
+    rgba(40, 4, 36, 0.9)
+  );
+}
+
+.daily-sky-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.daily-sky-img[hidden] {
+  display: none;
+}
+
+.daily-sky-media.is-video {
+  cursor: pointer;
+}
+
+.daily-sky-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  border-radius: 3px;
+  background: rgba(3, 6, 14, 0.72);
+  color: #9fe8ef;
+  font-size: 0.45rem;
+  letter-spacing: 0.08em;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.daily-sky-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(0, 255, 255, 0.55);
+  border-radius: 50%;
+  background: rgba(5, 5, 16, 0.62);
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.45);
+  color: #fff;
+  font-size: 1rem;
+  transform: translate(-50%, -50%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.daily-sky-media.is-video:hover .daily-sky-play {
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 0 26px rgba(0, 255, 255, 0.75);
+}
+
+.daily-sky-media-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: radial-gradient(circle at 50% 40%, rgba(60, 20, 90, 0.55), rgba(3, 4, 10, 0.9));
+  color: rgba(180, 200, 220, 0.5);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+}
+
+.daily-sky-media-fallback[hidden] {
+  display: none;
+}
+
+.daily-sky-media-fallback-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.daily-sky-body {
+  padding: 0.9rem 1rem 1.1rem;
+}
+
+.daily-sky-apod-title {
+  margin: 0;
+  color: #ece8f4;
+  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+.daily-sky-apod-meta {
+  margin: 0.25rem 0 0;
+  color: rgba(160, 190, 210, 0.55);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+}
+
+.daily-sky-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  font-size: 0.62rem;
+}
+
+.daily-sky-moon-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.daily-sky-moon-name {
+  color: #ffa3dc;
+  letter-spacing: 0.06em;
+}
+
+.daily-sky-moon-bar {
+  flex: 1 1 60px;
+  min-width: 40px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.daily-sky-moon-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+  box-shadow: 0 0 8px rgba(255, 0, 255, 0.4);
+}
+
+.daily-sky-moon-illum {
+  color: rgba(201, 205, 214, 0.75);
+}
+
+.daily-sky-sun {
+  gap: 0.9rem;
+  color: #9fe8ef;
+}
+
+.daily-sky-sun-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.daily-sky-sun-item b {
+  color: #ece8f4;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.daily-sky-muted {
+  color: rgba(201, 205, 214, 0.45);
+}
+
+.daily-sky-credit {
+  margin: 0.9rem 0 0;
+  padding-top: 0.55rem;
+  border-top: 1px dashed rgba(0, 255, 255, 0.12);
+  color: rgba(160, 180, 200, 0.55);
+  font-size: 0.45rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+.daily-sky-credit a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.daily-sky-credit a:hover {
+  color: #9fe8ef;
+}
+
+.daily-sky-expl {
+  margin-top: 0.7rem;
+}
+
+.daily-sky-expl summary {
+  cursor: pointer;
+  color: rgba(159, 232, 239, 0.75);
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+}
+
+.daily-sky-expl p {
+  margin: 0.5rem 0 0;
+  color: rgba(201, 205, 214, 0.72);
+  font-size: 0.55rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.daily-sky-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  border: 1px dashed rgba(0, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(6, 6, 14, 0.35);
+  color: rgba(201, 205, 214, 0.6);
+  font-size: 0.65rem;
+}
+
+/* 骨架屏 */
+.daily-sky-skeleton-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.daily-sky-skeleton-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 1.2rem;
+}
+
+.daily-sky-skeleton-line {
+  display: block;
+  height: 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.daily-sky-skeleton-media,
+.daily-sky-skeleton-line {
+  position: relative;
+  overflow: hidden;
+}
+
+.daily-sky-skeleton-media::after,
+.daily-sky-skeleton-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.12), transparent);
+  transform: translateX(-100%);
+  animation: dailySkyShimmer 1.4s infinite;
+}
+
+@keyframes dailySkyShimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-sky-skeleton-media::after,
+  .daily-sky-skeleton-line::after {
+    animation: none;
+  }
+}
+
+/* 手机端：6 个导航项改为 3×2，避免 375px 下挤压 */
+@media (max-width: 768px), (max-aspect-ratio: 1/1) {
+  .sheet-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 2px;
+  }
+
+  .daily-sky-body {
+    padding: 0.8rem 0.75rem 1rem;
+  }
+
+  .daily-sky-row {
+    gap: 0.4rem;
+    font-size: 0.58rem;
+  }
+
+  .daily-sky-moon-bar {
+    flex-basis: 44px;
   }
 }

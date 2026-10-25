@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "fetch:daily": "node scripts/fetch-daily.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.184.1",

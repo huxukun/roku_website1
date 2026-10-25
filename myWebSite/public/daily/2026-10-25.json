@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-25",
+  "generated_at": "2026-10-25T02:38:57Z",
+  "apod": {
+    "title": "",
+    "date": "",
+    "media_type": "image",
+    "url": "",
+    "hdurl": "",
+    "thumbnail_url": "",
+    "explanation": "",
+    "copyright": ""
+  },
+  "moon": {
+    "phase": 0.478,
+    "illumination": 0.995,
+    "name": "满月",
+    "emoji": "🌕"
+  },
+  "sun": {
+    "sunrise": "06:15",
+    "sunset": "17:22"
+  }
+}
