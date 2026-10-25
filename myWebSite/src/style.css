@@ -886,6 +886,51 @@ html, body {
     0 0 25px rgba(0, 150, 255, 0.15);
 }
 
+/* ===== 画廊 CRT 电视外壳 =====
+ * 边框 / 屏幕反光 / 暗角素材提取自 Wide_Template(Blue).psd，
+ * 扫描线改由 CSS 渐变绘制（PSD 的 COLOR_DODGE 扫描线整组叠加会把画面压灰）。
+ */
+.gallery-crt {
+  position: relative;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  aspect-ratio: 4 / 3;
+}
+
+/* 外发光贴着边框轮廓走（drop-shadow 跟随素材 alpha），不出现矩形底板 */
+.gallery-crt .crt-bezel {
+  filter: drop-shadow(0 0 18px rgba(0, 200, 255, 0.16));
+}
+
+/* 屏幕内的作品格：在 4:3 屏幕里等分排布，窄屏自动缩到屏幕内不换行 */
+.gallery-crt .crt-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-crt .gallery-images {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.8rem, 3.2%, 2rem);
+  gap: clamp(0.6rem, 2.2vw, 1.6rem);
+  flex-wrap: nowrap;
+  box-sizing: border-box;
+}
+
+.gallery-crt .placeholder-image {
+  flex: 1 1 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  max-width: 200px;
+  aspect-ratio: 1 / 1;
+  font-size: clamp(1.5rem, 4.6vw, 3.2rem);
+}
+
 /* 简约霓虹蓝滚动条 */
 .gallery-modal-content::-webkit-scrollbar {
   width: 8px;
@@ -1722,43 +1767,122 @@ html, body {
 }
 
 .project-card {
-  background-color: var(--semi-transparent-bg);
-  border: 3px solid var(--neon-cyan);
+  background-color: transparent;
+  border: none;
   padding: 0;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.18);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .project-card:hover {
   transform: translateY(-8px) scale(1.03);
-  border-color: var(--neon-pink);
-  box-shadow: 0 0 25px rgba(255, 0, 255, 0.5), 0 0 50px rgba(255, 0, 255, 0.3);
+  box-shadow: 0 0 25px rgba(255, 0, 255, 0.45), 0 0 50px rgba(255, 0, 255, 0.22);
 }
 
+/* ===== 作品卡片：CRT 电视外壳（素材提取自 PSD） ===== */
 .project-card-image {
+  position: relative;
   width: 100%;
-  aspect-ratio: 4/3;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
-  border-bottom: 3px solid var(--neon-cyan);
+  background: #070b11;
 }
 
-.project-card-image img {
+/* 屏幕窗口：与 PSD 中 Frame 层的透明洞对齐（左右各内缩 6.6%，上下各 9.8%） */
+.crt-screen {
+  position: absolute;
+  inset: 9.8% 6.6%;
+  overflow: hidden;
+  background: #04060a;
+  border-radius: 14px;
+}
+
+.crt-screen img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.3s ease;
+  transition: transform 0.4s ease;
 }
 
-.project-card:hover .project-card-image img {
+.project-card:hover .crt-screen img {
   transform: scale(1.05);
+}
+
+/* CRT 扫描线：极细横线缓慢下移，一个周期 3px 无缝循环 */
+.crt-scanlines {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.32) 0,
+    rgba(0, 0, 0, 0.32) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  background-size: 100% 3px;
+  animation: crt-scanlines-drift 6s linear infinite;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+@keyframes crt-scanlines-drift {
+  from { background-position: 0 0; }
+  to { background-position: 0 3px; }
+}
+
+/* 极轻的亮度波动，模拟老电视的荧光余晖 */
+.crt-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(130, 220, 255, 0.05);
+  animation: crt-flicker 7s steps(1) infinite;
+  pointer-events: none;
+}
+
+@keyframes crt-flicker {
+  0%, 46%, 48%, 100% { opacity: 0.2; }
+  47% { opacity: 0.55; }
+}
+
+/* 反光 / 暗角 / 边框三层：整幅图与 4:3 容器对齐，再叠加到屏幕上 */
+.crt-glass,
+.crt-vignette,
+.crt-bezel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+
+.crt-glass {
+  background-image: url('/assets/crt/crt-glass.webp');
+}
+
+.crt-vignette {
+  background-image: url('/assets/crt/crt-vignette.webp');
+}
+
+.crt-bezel {
+  background-image: url('/assets/crt/crt-frame.webp');
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-scanlines,
+  .crt-screen::after {
+    animation: none;
+  }
 }
 
 .project-card-content {
   padding: 1rem;
+  background-color: var(--semi-transparent-bg);
 }
 
 .project-card-title {
@@ -3294,45 +3418,68 @@ body.sheet-open #now-playing {
   overflow: visible;
 }
 
-/* 作品传送门：点击回到 3D 场景进入作品检视 */
+/* 作品传送门：CRT 电视外壳 + 蓝色像素辉光（边框素材提取自 PSD） */
 .works-portal-btn {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 150px;
-  padding: 1.5rem 2rem;
-  overflow: hidden;
+  display: block;
+  width: min(520px, 100%);
+  margin: 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
   font-family: inherit;
   color: #fff;
-  border: 2px solid rgba(0, 255, 255, 0.5);
-  border-radius: 999px;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(0, 255, 255, 0.09) 0%,
-    rgba(255, 0, 255, 0.08) 45%,
-    rgba(5, 5, 16, 0.92) 78%
-  );
-  box-shadow:
-    0 0 18px rgba(0, 255, 255, 0.18),
-    inset 0 0 34px rgba(255, 0, 255, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.works-portal-btn:hover {
-  transform: scale(1.012);
+.works-crt {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  /* CSS 兜底机壳：即使素材图未加载/过暗，电视外框形状也一定看得见 */
+  border-radius: 4.5%;
+  background: linear-gradient(155deg, #1b3a4a 0%, #0d1a24 52%, #163441 100%);
   box-shadow:
-    0 0 30px rgba(0, 255, 255, 0.32),
-    inset 0 0 45px rgba(255, 0, 255, 0.16);
+    inset 0 0 0 1px rgba(0, 230, 255, 0.28),
+    inset 0 0 24px rgba(0, 200, 255, 0.14),
+    0 0 22px rgba(0, 180, 255, 0.22);
+}
+
+/* 素材本身颜色偏暗，提亮 + 描边光晕，保证在深色面板上能看清电视外框 */
+.works-crt .crt-bezel {
+  filter:
+    brightness(1.6) saturate(1.4)
+    drop-shadow(0 0 2px rgba(0, 229, 255, 0.35))
+    drop-shadow(0 0 14px rgba(0, 160, 255, 0.25));
+  transition: filter 0.35s ease;
+}
+
+.works-portal-btn:hover .crt-bezel,
+.works-portal-btn:focus-visible .crt-bezel {
+  filter:
+    brightness(1.8) saturate(1.6)
+    drop-shadow(0 0 3px rgba(0, 240, 255, 0.6))
+    drop-shadow(0 0 26px rgba(0, 180, 255, 0.45));
+}
+
+.works-portal-btn:focus-visible {
+  outline: none;
+}
+
+/* 屏幕：深蓝底，让像素辉光有足够对比 */
+.works-portal-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #06131c 0%, #03060a 72%);
 }
 
 .works-portal-ring {
   position: absolute;
-  inset: 8px;
-  border-radius: 999px;
-  border: 2px dashed rgba(255, 0, 255, 0.28);
+  inset: 8% 12%;
+  border-radius: 50%;
+  border: 2px dashed rgba(0, 229, 255, 0.45);
   pointer-events: none;
 }
 
@@ -3341,20 +3488,43 @@ body.sheet-open #now-playing {
 }
 
 .works-portal-ring-2 {
-  inset: 18px;
+  inset: 16% 22%;
   border-style: dotted;
-  border-color: rgba(0, 255, 255, 0.25);
+  border-color: rgba(0, 180, 255, 0.4);
   animation: portalRotate 9s linear infinite reverse;
 }
 
 .works-portal-core {
   position: absolute;
-  width: 55%;
-  height: 150%;
+  width: 70%;
+  height: 88%;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(0, 255, 255, 0.16), transparent 70%);
-  filter: blur(22px);
+  background: radial-gradient(ellipse, rgba(0, 200, 255, 0.22), transparent 68%);
+  filter: blur(18px);
   animation: portalPulse 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* 蓝色像素点阵：1px 点阵向外渐隐，按台阶呼吸 */
+.works-portal-pixels {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(0, 229, 255, 0.7) 1px, transparent 1px);
+  background-size: 8px 8px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 20%, transparent 72%);
+  mask-image: radial-gradient(ellipse at center, #000 20%, transparent 72%);
+  animation: portalPixelGlow 3.6s steps(6, end) infinite;
+  pointer-events: none;
+}
+
+/* 横向扫光：缓慢扫过屏幕 */
+.works-portal-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 34%;
+  background: linear-gradient(to bottom, transparent, rgba(0, 229, 255, 0.22), transparent);
+  animation: portalSweep 4.6s linear infinite;
   pointer-events: none;
 }
 
@@ -3369,16 +3539,24 @@ body.sheet-open #now-playing {
 }
 
 .works-portal-label {
-  font-size: 1.1rem;
-  letter-spacing: 0.18em;
-  color: #ffa3dc;
-  text-shadow: 0 0 8px rgba(255, 0, 255, 0.3);
+  font-size: 1.05rem;
+  letter-spacing: 0.2em;
+  color: #eaffff;
+  /* 十字像素辉光：硬边叠影 + 轻光晕 */
+  text-shadow:
+    2px 0 0 rgba(0, 229, 255, 0.45),
+    -2px 0 0 rgba(0, 229, 255, 0.45),
+    0 2px 0 rgba(0, 229, 255, 0.45),
+    0 -2px 0 rgba(0, 229, 255, 0.45),
+    0 0 8px rgba(0, 190, 255, 0.85),
+    0 0 16px rgba(0, 140, 255, 0.45);
+  animation: portalLabelGlow 2.6s steps(1, end) infinite;
 }
 
 .works-portal-sub {
-  font-size: 0.62rem;
-  color: #9fe8ef;
-  text-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
+  font-size: 0.6rem;
+  color: #b8f4ff;
+  text-shadow: 0 0 6px rgba(0, 200, 255, 0.55);
 }
 
 @keyframes portalRotate {
@@ -3386,8 +3564,37 @@ body.sheet-open #now-playing {
 }
 
 @keyframes portalPulse {
-  0%, 100% { opacity: 0.4; transform: scale(0.96); }
-  50% { opacity: 0.75; transform: scale(1.06); }
+  0%, 100% { opacity: 0.45; transform: scale(0.97); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes portalPixelGlow {
+  0%, 100% { opacity: 0.25; }
+  45% { opacity: 0.55; }
+  55% { opacity: 0.4; }
+  70% { opacity: 0.65; }
+}
+
+@keyframes portalSweep {
+  0% { top: -34%; opacity: 0; }
+  12% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes portalLabelGlow {
+  0%, 38%, 42%, 100% { opacity: 1; }
+  40% { opacity: 0.82; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .works-portal-ring,
+  .works-portal-core,
+  .works-portal-pixels,
+  .works-portal-sweep,
+  .works-portal-label {
+    animation: none;
+  }
 }
 
 /* 互联网图片收藏 */
@@ -3721,12 +3928,16 @@ body.sheet-open #now-playing {
   }
 
   .works-portal-btn {
-    min-height: 120px;
-    padding: 1.1rem 1rem;
+    width: min(380px, 100%);
   }
 
   .works-portal-label {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.14em;
+  }
+
+  .works-portal-sub {
+    font-size: 0.52rem;
   }
 
   .collection-grid {

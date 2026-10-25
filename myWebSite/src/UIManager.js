@@ -1177,7 +1177,13 @@ export default class UIManager {
         card.style.animationDelay = `${index * 0.15}s`;
         card.innerHTML = `
           <div class="project-card-image">
-            <img src="${project.image}" alt="${project.title}">
+            <div class="crt-screen">
+              <img src="${project.image}" alt="${project.title}">
+              <span class="crt-scanlines" aria-hidden="true"></span>
+            </div>
+            <span class="crt-glass" aria-hidden="true"></span>
+            <span class="crt-vignette" aria-hidden="true"></span>
+            <span class="crt-bezel" aria-hidden="true"></span>
           </div>
           <div class="project-card-content">
             <h3 class="project-card-title">${project.title}</h3>

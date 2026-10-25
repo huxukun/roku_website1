@@ -730,6 +730,34 @@ function onMouseClick(event) {
   }
 }
 
+// 把画廊图片区包进 CRT 电视外壳（边框/反光/暗角素材提取自 PSD）
+function wrapGalleryWithCrt(modal) {
+  const images = modal.querySelector('.gallery-images')
+  if (!images || images.closest('.gallery-crt')) return
+
+  const tv = document.createElement('div')
+  tv.className = 'gallery-crt'
+
+  const screen = document.createElement('div')
+  screen.className = 'crt-screen'
+  tv.appendChild(screen)
+
+  images.replaceWith(tv)
+  screen.appendChild(images)
+
+  const scanlines = document.createElement('span')
+  scanlines.className = 'crt-scanlines'
+  scanlines.setAttribute('aria-hidden', 'true')
+  screen.appendChild(scanlines)
+
+  for (const cls of ['crt-glass', 'crt-vignette', 'crt-bezel']) {
+    const layer = document.createElement('span')
+    layer.className = cls
+    layer.setAttribute('aria-hidden', 'true')
+    tv.appendChild(layer)
+  }
+}
+
 // 初始化画廊模态框关闭按钮
 function initGalleryModals() {
   for (let i = 0; i < 4; i++) {
@@ -742,6 +770,7 @@ function initGalleryModals() {
     // 点击背景也能关闭
     const modal = document.getElementById(`gallery-modal-${i}`)
     if (modal) {
+      wrapGalleryWithCrt(modal)
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
           closeGalleryModal(i)

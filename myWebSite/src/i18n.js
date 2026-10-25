@@ -49,7 +49,7 @@ export const languages = {
       'project-close': '返回',
       
       // 博客
-      'blog-title': '📝 赛博博客',
+      'blog-title': '📝 Blog 博客',
       'article-list': '📌 文章列表',
       'select-article': '请选择左侧文章进行预览...',
       'add-blog': '➕ 新建',
@@ -62,7 +62,7 @@ export const languages = {
       'blog-delete-confirm': '确定要删除这篇文章吗？',
       
       // 留言板
-      'guestbook-title': '📜 赛博留言板',
+      'guestbook-title': '📜 数字留言板',
       'storage-status': '⚡ 检查连接中...',
       'online': '☁️ Supabase 在线',
       'offline': '💾 本地模式',
@@ -204,7 +204,7 @@ export const languages = {
       'project-close': 'Back',
       
       // Blog
-      'blog-title': '📝 Cyber Blog',
+      'blog-title': '📝 Blog',
       'article-list': '📌 Articles',
       'select-article': 'Please select an article on the left...',
       'add-blog': '➕ New',
@@ -217,7 +217,7 @@ export const languages = {
       'blog-delete-confirm': 'Are you sure you want to delete this article?',
       
       // Guestbook
-      'guestbook-title': '📜 Guestbook',
+      'guestbook-title': '📜 Digital Guestbook',
       'storage-status': '⚡ Checking connection...',
       'online': '☁️ Supabase Online',
       'offline': '💾 Local Mode',
@@ -359,7 +359,7 @@ export const languages = {
       'project-close': '戻る',
       
       // ブログ
-      'blog-title': '📝 サイバーブログ',
+      'blog-title': '📝 ブログ',
       'article-list': '📌 記事一覧',
       'select-article': '左の記事を選択してください...',
       'add-blog': '➕ 新規',
@@ -372,7 +372,7 @@ export const languages = {
       'blog-delete-confirm': 'この記事を削除してもよろしいですか？',
       
       // ゲストブック
-      'guestbook-title': '📜 ゲストブック',
+      'guestbook-title': '📜 デジタルゲストブック',
       'storage-status': '⚡ 接続確認中...',
       'online': '☁️ Supabase オンライン',
       'offline': '💾 ローカルモード',
