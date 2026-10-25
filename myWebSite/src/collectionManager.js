@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase.js';
-import { t } from './i18n.js';
+import { t, tf, getCurrentLang } from './i18n.js';
 
 const TABLE = 'collection_items';
 const BUCKET = 'collection-images';
@@ -71,12 +71,51 @@ async function likeItem(item) {
     return item.likes;
   }
 
+  const targetId = Number(item.id);
   const { data, error } = await supabase.rpc('like_collection_item', {
-    target_id: Number(item.id)
+    target_id: targetId
   });
-  if (error) throw error;
-  item.likes = typeof data === 'number' ? data : (item.likes || 0) + 1;
-  return item.likes;
+
+  if (!error) {
+    item.likes = typeof data === 'number' ? data : (item.likes || 0) + 1;
+    return item.likes;
+  }
+
+  // 数据库里还没执行 like_collection_item 函数时（schema cache 找不到），
+  // 降级为「读当前值 + 写回」，保证点赞仍然可用。
+  if (!isMissingRpc(error)) throw error;
+
+  console.warn(
+    'like_collection_item 函数不存在，已降级为读取+写回。' +
+    '建议在 Supabase SQL Editor 执行建函数语句后再刷新 schema cache。'
+  );
+
+  const { data: row, error: readError } = await supabase
+    .from(TABLE)
+    .select('likes')
+    .eq('id', targetId)
+    .single();
+  if (readError) throw readError;
+
+  const next = Number(row?.likes || 0) + 1;
+  const { error: updateError } = await supabase
+    .from(TABLE)
+    .update({ likes: next })
+    .eq('id', targetId);
+  if (updateError) throw updateError;
+
+  item.likes = next;
+  return next;
+}
+
+// Supabase 未找到 RPC 函数时的错误（未执行建表/函数 SQL）
+function isMissingRpc(error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  return code === 'PGRST202'
+    || code === '42883'
+    || /could not find the function/i.test(message)
+    || /function .* does not exist/i.test(message);
 }
 
 function blobToDataUrl(blob) {
@@ -274,10 +313,10 @@ function render() {
       try {
         await deleteItem(item);
         await refreshImageCollection();
-        setStatus('已删除', 'success');
+        setStatus(t('collection-deleted'), 'success');
       } catch (error) {
         console.error('删除图片失败:', error);
-        setStatus(`删除失败：${error.message}`, 'error');
+        setStatus(tf('collection-delete-failed', { msg: error.message }), 'error');
       }
     });
 
@@ -285,8 +324,8 @@ function render() {
     const likeBtn = document.createElement('button');
     likeBtn.type = 'button';
     likeBtn.className = 'collection-like';
-    likeBtn.title = '点赞';
-    likeBtn.setAttribute('aria-label', '点赞');
+    likeBtn.title = t('collection-like');
+    likeBtn.setAttribute('aria-label', t('collection-like'));
     const liked = likedIds.has(String(item.id));
     likeBtn.classList.toggle('is-liked', liked);
     likeBtn.setAttribute('aria-pressed', String(liked));
@@ -310,7 +349,7 @@ function render() {
       } catch (error) {
         countEl.textContent = previous;
         likeBtn.classList.remove('is-liked');
-        setStatus(`点赞失败：${error.message}`, 'error');
+        setStatus(tf('collection-like-failed', { msg: error.message }), 'error');
         console.error('点赞失败:', error);
       }
     });
@@ -321,15 +360,30 @@ function render() {
   });
 }
 
+// 只刷新文字（空状态、按钮提示），不重建卡片
+function applyTexts() {
+  const empty = el('collection-empty');
+  if (empty) empty.textContent = t('collection-empty');
+
+  document.querySelectorAll('.collection-like').forEach((btn) => {
+    btn.title = t('collection-like');
+    btn.setAttribute('aria-label', t('collection-like'));
+  });
+
+  document.querySelectorAll('.collection-delete').forEach((btn) => {
+    btn.title = t('collection-delete');
+  });
+}
+
 async function handleFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
   if (!isAdmin()) {
-    setStatus('请先登录管理员再上传', 'error');
+    setStatus(t('collection-upload-login'), 'error');
     return;
   }
 
-  setStatus(`正在上传 1/${files.length}…`);
+  setStatus(tf('collection-uploading', { i: 1, n: files.length }));
   let success = 0;
   let failed = 0;
   let lastError = '';
@@ -343,21 +397,24 @@ async function handleFiles(fileList) {
       lastError = error.message || String(error);
       console.error('上传图片失败:', error);
     }
-    setStatus(`正在上传 ${i + 1}/${files.length}…`);
+    setStatus(tf('collection-uploading', { i: i + 1, n: files.length }));
   }
 
   await refreshImageCollection();
 
   if (isSupabaseConfigured) {
-    const detail = failed && lastError ? `（${lastError}）` : '';
+    const isZh = getCurrentLang() === 'zh';
+    const detail = failed && lastError
+      ? (isZh ? `（${lastError}）` : ` (${lastError})`)
+      : '';
     setStatus(
       failed
-        ? `上传完成：成功 ${success} 张，失败 ${failed} 张${detail}`
-        : `已上传 ${success} 张`,
+        ? tf('collection-upload-partial', { ok: success, fail: failed, detail })
+        : tf('collection-upload-done', { n: success }),
       failed ? 'error' : 'success'
     );
   } else {
-    setStatus(`云端未配置，${success} 张已存入本地预览（仅本机可见）`, 'error');
+    setStatus(tf('collection-upload-local', { n: success }), 'error');
   }
 }
 
@@ -389,6 +446,9 @@ export function initImageCollection() {
   });
 
   refreshImageCollection();
+
+  // 切换语言时立即刷新文字，不重建卡片（避免图片重新加载闪烁）
+  document.addEventListener('languageChange', () => applyTexts());
 
   // 管理员模式切换时重绘，控制删除按钮显隐
   const observer = new MutationObserver(() => render());

@@ -249,7 +249,7 @@ function render() {
   if (!items.length) {
     const empty = document.createElement('p');
     empty.className = 'skills-empty';
-    empty.textContent = '还没有技能，登录管理员后添加。';
+    empty.textContent = t('skills-empty');
     container.appendChild(empty);
     return;
   }

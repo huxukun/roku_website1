@@ -1,6 +1,6 @@
 {
   "date": "2026-10-25",
-  "generated_at": "2026-10-25T03:27:22Z",
+  "generated_at": "2026-10-25T03:38:51Z",
   "apod": {
     "title": "Rosetta's Selfie",
     "date": "2026-10-24",
@@ -20,5 +20,31 @@
   "sun": {
     "sunrise": "06:15",
     "sunset": "17:22"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东",
+      "altitude": 59,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "22:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东",
+      "altitude": 52,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 23,
+    "zhr": 15
   }
 }

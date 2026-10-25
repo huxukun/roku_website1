@@ -15,6 +15,16 @@ export const languages = {
       'collection-subtitle': '这里是我从互联网上捡到的图片收藏。',
       'collection-empty': '还没有收藏，去互联网上捡点图吧。',
       'collection-delete': '删除',
+      'collection-like': '点赞',
+      'collection-title': '🖼️ 互联网收藏',
+      'collection-deleted': '已删除',
+      'collection-delete-failed': '删除失败：{msg}',
+      'collection-like-failed': '点赞失败：{msg}',
+      'collection-upload-login': '请先登录管理员再上传',
+      'collection-uploading': '正在上传 {i}/{n}…',
+      'collection-upload-done': '已上传 {n} 张',
+      'collection-upload-partial': '上传完成：成功 {ok} 张，失败 {fail} 张{detail}',
+      'collection-upload-local': '云端未配置，{n} 张已存入本地预览（仅本机可见）',
       'close': '关闭',
       'loading': '加载中...',
       'close-footer': '关闭',
@@ -31,6 +41,7 @@ export const languages = {
       'skills-name': '技能名称',
       'skills-level': '熟练度',
       'skills-edit': '编辑技能',
+      'skills-empty': '还没有技能，登录管理员后添加。',
       'default-bio': '欢迎来到赛博网格！\n\n我是一名数字艺术家和创意开发者，专注于3D视觉化、互动体验以及复古未来主义设计。\n\n凭借对像素艺术、霓虹灯和合成波美学的热爱，我将数字梦境变成现实。',
       
       // 作品展示
@@ -107,6 +118,33 @@ export const languages = {
       'box-title-2': '场景建模',
       'box-title-3': '游戏设计',
       'box-title-4': '视频剪辑',
+
+      // 作品展示传送门
+      'works-portal-sub': '点击穿过传送门 · 进入 3D 作品检视',
+
+      // 今晚的天空
+      'sky': '今晚的天空',
+      'sky-title': '🌌 今晚的天空',
+      'sky-empty': '今天的天空暂时看不到',
+      'sky-apod-missing': '今日天文图暂缺',
+      'sky-video-hint': '点击观看 NASA 视频',
+      'sky-image-failed': '图片加载失败',
+      'sky-explanation': 'NASA 原文说明（英文）',
+      'sky-sunrise': '日出',
+      'sky-sunset': '日落',
+      'sky-sun-missing': '日出日落数据暂缺',
+      'sky-moon-illum': '照亮 {n}%',
+      'sky-guide': '观星指南',
+      'sky-guide-sub': '日落后 – 05:00 · 南京',
+      'sky-no-planets': '今晚没有肉眼可见的行星',
+      'sky-next-event': '🌠 下一场：',
+      'sky-peak-tonight': '今晚极大',
+      'sky-peak-tomorrow': '明晚极大',
+      'sky-days-after': '{n} 天后',
+
+      // 确认对话框按钮
+      'confirm-yes': '确定',
+      'confirm-no': '取消',
     }
   },
   'en': {
@@ -124,6 +162,16 @@ export const languages = {
       'collection-subtitle': 'Images I collected around the internet.',
       'collection-empty': 'Nothing collected yet.',
       'collection-delete': 'Delete',
+      'collection-like': 'Like',
+      'collection-title': '🖼️ Web Finds',
+      'collection-deleted': 'Deleted',
+      'collection-delete-failed': 'Delete failed: {msg}',
+      'collection-like-failed': 'Like failed: {msg}',
+      'collection-upload-login': 'Log in as admin before uploading',
+      'collection-uploading': 'Uploading {i}/{n}…',
+      'collection-upload-done': 'Uploaded {n} image(s)',
+      'collection-upload-partial': 'Upload finished: {ok} succeeded, {fail} failed{detail}',
+      'collection-upload-local': 'Cloud not configured; {n} image(s) saved locally (this device only)',
       'close': 'Close',
       'loading': 'Loading...',
       'close-footer': 'Close',
@@ -140,6 +188,7 @@ export const languages = {
       'skills-name': 'Skill name',
       'skills-level': 'Proficiency',
       'skills-edit': 'Edit skill',
+      'skills-empty': 'No skills yet. Log in as admin to add some.',
       'default-bio': 'Welcome to Cyber Grid!\n\nI am a digital artist and creative developer, specializing in 3D visualization, interactive experiences, and retro-futuristic design.\n\nWith a passion for pixel art, neon lights, and synthwave aesthetics, I turn digital dreams into reality.',
       
       // Gallery
@@ -216,6 +265,33 @@ export const languages = {
       'box-title-2': 'Scene Modeling',
       'box-title-3': 'Game Design',
       'box-title-4': 'Video Editing',
+
+      // Works portal
+      'works-portal-sub': 'Click to pass the portal · 3D works viewer',
+
+      // Tonight's sky
+      'sky': "Tonight's Sky",
+      'sky-title': "🌌 Tonight's Sky",
+      'sky-empty': "Tonight's sky is unavailable",
+      'sky-apod-missing': 'No astronomy picture today',
+      'sky-video-hint': 'Watch the NASA video',
+      'sky-image-failed': 'Image failed to load',
+      'sky-explanation': 'NASA description (English)',
+      'sky-sunrise': 'Sunrise',
+      'sky-sunset': 'Sunset',
+      'sky-sun-missing': 'Sunrise/sunset data unavailable',
+      'sky-moon-illum': '{n}% illuminated',
+      'sky-guide': 'Stargazing Guide',
+      'sky-guide-sub': 'After sunset – 05:00 · Nanjing',
+      'sky-no-planets': 'No planets visible to the naked eye tonight',
+      'sky-next-event': '🌠 Next up: ',
+      'sky-peak-tonight': 'peaks tonight',
+      'sky-peak-tomorrow': 'peaks tomorrow night',
+      'sky-days-after': 'in {n} days',
+
+      // Confirm dialog
+      'confirm-yes': 'OK',
+      'confirm-no': 'Cancel',
     }
   },
   'ja': {
@@ -233,6 +309,16 @@ export const languages = {
       'collection-subtitle': 'インターネットで拾った画像コレクション。',
       'collection-empty': 'まだコレクションがありません。',
       'collection-delete': '削除',
+      'collection-like': 'いいね',
+      'collection-title': '🖼️ ウェブコレクション',
+      'collection-deleted': '削除しました',
+      'collection-delete-failed': '削除に失敗しました：{msg}',
+      'collection-like-failed': 'いいねに失敗しました：{msg}',
+      'collection-upload-login': 'アップロードするには管理者ログインが必要です',
+      'collection-uploading': 'アップロード中 {i}/{n}…',
+      'collection-upload-done': '{n} 枚アップロードしました',
+      'collection-upload-partial': 'アップロード完了：成功 {ok} 枚、失敗 {fail} 枚{detail}',
+      'collection-upload-local': 'クラウド未設定、{n} 枚をローカル保存（この端末のみ表示）',
       'close': '閉じる',
       'loading': '読み込み中...',
       'close-footer': '閉じる',
@@ -249,6 +335,7 @@ export const languages = {
       'skills-name': 'スキル名',
       'skills-level': '熟練度',
       'skills-edit': 'スキルを編集',
+      'skills-empty': 'スキルがまだありません。管理者ログイン後に追加できます。',
       'default-bio': 'サイバーグリッドへようこそ！\n\n私はデジタルアーティストであり、クリエイティブ開発者です。3Dビジュアライゼーション、インタラクティブ体験、レトロフューチャーデザインを専門としています。\n\nピクセルアート、ネオンライト、シンセウェーブ美学への情熱を持って、デジタルの夢を現実に変えています。',
       
       // 作品展示
@@ -325,6 +412,33 @@ export const languages = {
       'box-title-2': 'シーンモデリング',
       'box-title-3': 'ゲームデザイン',
       'box-title-4': '動画編集',
+
+      // 作品展示ポータル
+      'works-portal-sub': 'ポータルを抜けて 3D 作品ビューアへ',
+
+      // 今夜の空
+      'sky': '今夜の空',
+      'sky-title': '🌌 今夜の空',
+      'sky-empty': '今夜の空は表示できません',
+      'sky-apod-missing': '本日の天文画像はありません',
+      'sky-video-hint': 'NASA の動画を見る',
+      'sky-image-failed': '画像の読み込みに失敗しました',
+      'sky-explanation': 'NASA 原文説明（英語）',
+      'sky-sunrise': '日の出',
+      'sky-sunset': '日の入り',
+      'sky-sun-missing': '日の出・日の入りデータなし',
+      'sky-moon-illum': '照度 {n}%',
+      'sky-guide': '星空ガイド',
+      'sky-guide-sub': '日没後 – 05:00 · 南京',
+      'sky-no-planets': '今夜肉眼で見える惑星はありません',
+      'sky-next-event': '🌠 次回：',
+      'sky-peak-tonight': '今夜が極大',
+      'sky-peak-tomorrow': '明夜が極大',
+      'sky-days-after': '{n}日後',
+
+      // 確認ダイアログ
+      'confirm-yes': 'OK',
+      'confirm-no': 'キャンセル',
     }
   }
 };
@@ -332,8 +446,38 @@ export const languages = {
 // 当前语言
 let currentLang = 'zh';
 
-// 翻译缓存
-const translationCache = new Map();
+// 翻译缓存：内存 + localStorage 持久化，切回已翻译过的语言时即时生效
+const TRANSLATION_CACHE_KEY = 'synthwave-translation-cache-v1';
+const CACHE_MAX_ENTRIES = 300;
+const CACHE_MAX_TEXT_LENGTH = 2000;
+
+function loadTranslationCache() {
+  try {
+    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? new Map(Object.entries(parsed)) : new Map();
+  } catch (error) {
+    return new Map();
+  }
+}
+
+const translationCache = loadTranslationCache();
+let cachePersistTimer = null;
+
+function persistTranslationCache() {
+  clearTimeout(cachePersistTimer);
+  cachePersistTimer = setTimeout(() => {
+    try {
+      // 只持久化不太长的文本，避免占满 localStorage
+      const entries = [...translationCache.entries()]
+        .filter(([, value]) => typeof value === 'string' && value.length <= CACHE_MAX_TEXT_LENGTH)
+        .slice(-CACHE_MAX_ENTRIES);
+      localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch (error) {
+      // localStorage 满了就放弃持久化，不影响当前会话使用
+    }
+  }, 400);
+}
 
 // 获取当前语言
 export function getCurrentLang() {
@@ -360,6 +504,14 @@ export function loadSavedLang() {
 export function t(key) {
   const lang = languages[currentLang];
   return lang && lang.translations[key] ? lang.translations[key] : key;
+}
+
+// 带占位符的 UI 文案：tf('collection-like-failed', { msg: error.message })
+export function tf(key, vars = {}) {
+  return Object.entries(vars).reduce(
+    (text, [name, value]) => text.split(`{${name}}`).join(String(value)),
+    t(key)
+  )
 }
 
 // 获取语言列表
@@ -400,8 +552,9 @@ export async function translateContent(text, targetLang) {
   // 真实项目应该使用 DeepL, Google Translate 等API
   let translated = await doTranslate(text, targetLang);
   
-  // 缓存结果
+  // 缓存结果（内存 + localStorage，切回该语言时即时返回）
   translationCache.set(cacheKey, translated);
+  persistTranslationCache();
   
   return translated;
 }
@@ -694,6 +847,93 @@ function simpleTranslate(text, targetLang) {
   return text;
 }
 
+// =============================================
+// 固定词条翻译 —— 天文数据里的月相/行星/方位/流星雨名称
+// 这些词来自 public/daily/latest.json（脚本生成的中文），
+// 词表固定，本地字典直接映射，切换语言时无需任何网络请求。
+// =============================================
+
+const skyTerms = {
+  en: {
+    // 月相
+    '新月': 'New Moon',
+    '蛾眉月': 'Waxing Crescent',
+    '上弦': 'First Quarter',
+    '盈凸月': 'Waxing Gibbous',
+    '满月': 'Full Moon',
+    '亏凸月': 'Waning Gibbous',
+    '下弦': 'Last Quarter',
+    '残月': 'Waning Crescent',
+    // 行星
+    '水星': 'Mercury',
+    '金星': 'Venus',
+    '火星': 'Mars',
+    '木星': 'Jupiter',
+    '土星': 'Saturn',
+    // 方位
+    '北': 'N',
+    '东北': 'NE',
+    '东': 'E',
+    '东南': 'SE',
+    '南': 'S',
+    '西南': 'SW',
+    '西': 'W',
+    '西北': 'NW',
+    // 流星雨
+    '象限仪座流星雨': 'Quadrantids',
+    '天琴座流星雨': 'Lyrids',
+    '宝瓶座η流星雨': 'Eta Aquariids',
+    '英仙座流星雨': 'Perseids',
+    '猎户座流星雨': 'Orionids',
+    '狮子座流星雨': 'Leonids',
+    '双子座流星雨': 'Geminids',
+    '小熊座流星雨': 'Ursids'
+  },
+  ja: {
+    // 月相
+    '新月': '新月',
+    '蛾眉月': '三日月',
+    '上弦': '上弦',
+    '盈凸月': '十三夜月',
+    '满月': '満月',
+    '亏凸月': '寝待月',
+    '下弦': '下弦',
+    '残月': '有明の月',
+    // 行星
+    '水星': '水星',
+    '金星': '金星',
+    '火星': '火星',
+    '木星': '木星',
+    '土星': '土星',
+    // 方位
+    '北': '北',
+    '东北': '北東',
+    '东': '東',
+    '东南': '南東',
+    '南': '南',
+    '西南': '南西',
+    '西': '西',
+    '西北': '北西',
+    // 流星雨
+    '象限仪座流星雨': 'しぶんぎ座流星群',
+    '天琴座流星雨': 'こと座流星群',
+    '宝瓶座η流星雨': 'みずがめ座η流星群',
+    '英仙座流星雨': 'ペルセウス座流星群',
+    '猎户座流星雨': 'オリオン座流星群',
+    '狮子座流星雨': 'しし座流星群',
+    '双子座流星雨': 'ふたご座流星群',
+    '小熊座流星雨': 'こぐま座流星群'
+  }
+};
+
+// 同步翻译固定词条（无网络请求，可在同步渲染路径里直接调用）
+export function translateTerm(text) {
+  const value = String(text ?? '');
+  if (!value || currentLang === 'zh') return value;
+  const table = skyTerms[currentLang];
+  return (table && table[value]) || value;
+}
+
 // 翻译多个字段的辅助函数
 export async function translateObject(obj, fields, targetLang) {
   if (targetLang === 'zh') {
@@ -725,4 +965,9 @@ export async function translateArray(arr, fields, targetLang) {
 // 清空翻译缓存
 export function clearTranslationCache() {
   translationCache.clear();
+  try {
+    localStorage.removeItem(TRANSLATION_CACHE_KEY);
+  } catch (error) {
+    // 忽略
+  }
 }

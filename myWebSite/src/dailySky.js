@@ -5,7 +5,12 @@
  * 前端只 fetch 本地 JSON，不在浏览器里请求 NASA API。
  */
 
+import { t, translateTerm, getCurrentLang } from './i18n.js'
+
 const DATA_URL = '/daily/latest.json'
+
+// 缓存最近一次数据，切换语言时直接重绘（不重新请求）
+let lastData = null
 
 const SKELETON_HTML = `
   <div class="daily-sky-skeleton" aria-hidden="true">
@@ -33,7 +38,7 @@ function renderSkeleton(root) {
 }
 
 function renderUnavailable(root) {
-  root.innerHTML = '<div class="daily-sky-empty">今天的天空暂时看不到</div>'
+  root.innerHTML = `<div class="daily-sky-empty">${escapeHtml(t('sky-empty'))}</div>`
 }
 
 function renderMedia(apod) {
@@ -47,7 +52,7 @@ function renderMedia(apod) {
     const fallback = `
       <div class="daily-sky-media-fallback">
         <span class="daily-sky-media-fallback-icon">🌌</span>
-        <span>${isVideo ? '点击观看 NASA 视频' : '今日天文图暂缺'}</span>
+        <span>${escapeHtml(isVideo ? t('sky-video-hint') : t('sky-apod-missing'))}</span>
       </div>
     `
     if (isVideo && apod.url) {
@@ -68,7 +73,7 @@ function renderMedia(apod) {
          decoding="async" referrerpolicy="no-referrer">
     <div class="daily-sky-media-fallback" hidden>
       <span class="daily-sky-media-fallback-icon">🌌</span>
-      <span>图片加载失败</span>
+      <span>${escapeHtml(t('sky-image-failed'))}</span>
     </div>
     <span class="daily-sky-badge">${badge}</span>
   `
@@ -95,9 +100,9 @@ function renderMoon(moon) {
   return `
     <div class="daily-sky-row daily-sky-moon">
       <span class="daily-sky-moon-emoji" aria-hidden="true">${escapeHtml(moon.emoji || '🌙')}</span>
-      <span class="daily-sky-moon-name">${escapeHtml(moon.name || '月相未知')}</span>
+      <span class="daily-sky-moon-name">${escapeHtml(translateTerm(moon.name) || moon.name || '')}</span>
       <span class="daily-sky-moon-bar" aria-hidden="true"><i style="width: ${barWidth}%"></i></span>
-      <span class="daily-sky-moon-illum">照亮 ${illumination}%</span>
+      <span class="daily-sky-moon-illum">${escapeHtml(t('sky-moon-illum').replace('{n}', String(illumination)))}</span>
     </div>
   `
 }
@@ -109,14 +114,63 @@ function renderSun(sun) {
   return `
     <div class="daily-sky-row daily-sky-sun">
       <span class="daily-sky-sun-item">
-        <span class="daily-sky-sun-icon" aria-hidden="true">🌅</span>日出
+        <span class="daily-sky-sun-icon" aria-hidden="true">🌅</span>${escapeHtml(t('sky-sunrise'))}
         <b>${escapeHtml(sun.sunrise || '--:--')}</b>
       </span>
       <span class="daily-sky-sun-item">
-        <span class="daily-sky-sun-icon" aria-hidden="true">🌇</span>日落
+        <span class="daily-sky-sun-icon" aria-hidden="true">🌇</span>${escapeHtml(t('sky-sunset'))}
         <b>${escapeHtml(sun.sunset || '--:--')}</b>
       </span>
-      ${hasData ? '' : '<span class="daily-sky-muted">日出日落数据暂缺</span>'}
+      ${hasData ? '' : `<span class="daily-sky-muted">${escapeHtml(t('sky-sun-missing'))}</span>`}
+    </div>
+  `
+}
+
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function formatEventDate(month, day, lang) {
+  if (lang === 'en') return `${MONTHS_EN[month - 1] || month} ${day}`
+  if (lang === 'ja') return `${month}月${day}日`
+  return `${month} 月 ${day} 日`
+}
+
+function renderGuide(planets, event, lang) {
+  const list = Array.isArray(planets) ? planets : []
+
+  const planetItems = list.map((planet) => `
+    <li class="daily-sky-planet">
+      <b>${escapeHtml(translateTerm(planet.name) || planet.name || '')}</b>
+      <span class="daily-sky-planet-pos">${escapeHtml(translateTerm(planet.azimuth) || planet.azimuth || '')} ${escapeHtml(String(planet.altitude ?? ''))}°</span>
+      <span class="daily-sky-planet-time">${escapeHtml(planet.time || '')}</span>
+    </li>
+  `).join('')
+
+  let eventText = ''
+  if (event && event.name) {
+    const [, month, day] = String(event.date || '').split('-')
+    const when = event.days === 0
+      ? t('sky-peak-tonight')
+      : event.days === 1
+        ? t('sky-peak-tomorrow')
+        : t('sky-days-after').replace('{n}', String(event.days))
+    const dateText = formatEventDate(Number(month), Number(day), lang)
+    const isZh = lang === 'zh'
+    const pad = isZh ? '' : ' '
+    const open = isZh ? '（' : '('
+    const close = isZh ? '）' : ')'
+    eventText = `<p class="daily-sky-event">${escapeHtml(t('sky-next-event'))}${escapeHtml(translateTerm(event.name) || event.name)} · ${escapeHtml(dateText)}${pad}${open}${escapeHtml(when)}${close}</p>`
+  }
+
+  return `
+    <div class="daily-sky-guide">
+      <div class="daily-sky-guide-head">
+        <h4 class="daily-sky-guide-title">${escapeHtml(t('sky-guide'))}</h4>
+        <span class="daily-sky-guide-sub">${escapeHtml(t('sky-guide-sub'))}</span>
+      </div>
+      ${planetItems
+        ? `<ul class="daily-sky-planets">${planetItems}</ul>`
+        : `<p class="daily-sky-muted">${escapeHtml(t('sky-no-planets'))}</p>`}
+      ${eventText}
     </div>
   `
 }
@@ -128,38 +182,55 @@ function renderApodLink(apod) {
   return `https://apod.nasa.gov/apod/ap${year.slice(2)}${month}${day}.html`
 }
 
-function render(root, data) {
+// 卡片正文（会随语言切换重新生成）
+function buildBody(data) {
   const apod = data?.apod && typeof data.apod === 'object' ? data.apod : {}
   const hasApod = Boolean(apod.url || apod.hdurl || apod.thumbnail_url)
+  const lang = getCurrentLang()
+
+  const title = hasApod ? (apod.title || '') : t('sky-apod-missing')
+  const link = renderApodLink(apod)
+  const credit = `Image Credit: NASA APOD${apod.copyright ? ` · ${escapeHtml(apod.copyright)}` : ''}`
+
+  return `
+    <h3 class="daily-sky-apod-title">${escapeHtml(title)}</h3>
+    ${apod.date ? `<p class="daily-sky-apod-meta">APOD · ${escapeHtml(apod.date)}</p>` : ''}
+    ${renderMoon(data?.moon)}
+    ${renderSun(data?.sun)}
+    <p class="daily-sky-credit">
+      ${link
+        ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${credit}</a>`
+        : credit}
+    </p>
+    ${apod.explanation
+      ? `<details class="daily-sky-expl">
+           <summary>${escapeHtml(t('sky-explanation'))}</summary>
+           <p>${escapeHtml(apod.explanation)}</p>
+         </details>`
+      : ''}
+    ${renderGuide(data?.planets, data?.event, lang)}
+  `
+}
+
+function render(root, data) {
+  const apod = data?.apod && typeof data.apod === 'object' ? data.apod : {}
 
   const dateEl = document.getElementById('daily-sky-date')
   if (dateEl) {
     dateEl.textContent = data?.date || ''
   }
 
-  const title = hasApod ? (apod.title || 'NASA 天文图') : '今日天文图暂缺'
-  const link = renderApodLink(apod)
-  const credit = `Image Credit: NASA APOD${apod.copyright ? ` · ${escapeHtml(apod.copyright)}` : ''}`
+  // 已渲染过：只替换正文文字，保留图片元素，避免切语言时图片重新加载闪烁
+  const existingBody = root.querySelector('.daily-sky-body')
+  const existingMedia = root.querySelector('.daily-sky-media')
+  if (existingBody && existingMedia) {
+    existingBody.innerHTML = buildBody(data)
+    return
+  }
 
   root.innerHTML = `
     ${renderMedia(apod)}
-    <div class="daily-sky-body">
-      <h3 class="daily-sky-apod-title">${escapeHtml(title)}</h3>
-      ${apod.date ? `<p class="daily-sky-apod-meta">APOD · ${escapeHtml(apod.date)}</p>` : ''}
-      ${renderMoon(data?.moon)}
-      ${renderSun(data?.sun)}
-      <p class="daily-sky-credit">
-        ${link
-          ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${credit}</a>`
-          : credit}
-      </p>
-      ${apod.explanation
-        ? `<details class="daily-sky-expl">
-             <summary>NASA 原文说明（英文）</summary>
-             <p>${escapeHtml(apod.explanation)}</p>
-           </details>`
-        : ''}
-    </div>
+    <div class="daily-sky-body">${buildBody(data)}</div>
   `
 
   // 图片加载失败时保留占位底图，避免卡片塌掉
@@ -189,6 +260,7 @@ async function load(root) {
     const response = await fetch(DATA_URL, { cache: 'no-cache' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const data = await response.json()
+    lastData = data
     render(root, data)
   } catch (error) {
     console.warn('读取「今晚的天空」数据失败：', error)
@@ -201,4 +273,9 @@ export function initDailySky() {
   if (!root) return
   renderSkeleton(root)
   load(root)
+
+  // 切换语言时用缓存数据重绘文字（不重新请求网络）
+  document.addEventListener('languageChange', () => {
+    if (lastData) render(root, lastData)
+  })
 }

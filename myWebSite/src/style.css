@@ -2285,6 +2285,13 @@ html, body {
   overflow-x: hidden;
 }
 
+/* 切换语言时列表正在重新翻译：降低不透明度提示“处理中”，避免误以为没切换 */
+.blog-list.is-translating {
+  opacity: 0.45;
+  cursor: progress;
+  transition: opacity 0.2s ease;
+}
+
 .blog-item {
   padding: 0.6rem;
   background: var(--semi-transparent-bg);
@@ -3715,7 +3722,7 @@ body.sheet-open #now-playing {
  * ========================================================================== */
 .daily-sky-date {
   flex: 0 0 auto;
-  font-size: 0.55rem;
+  font-size: 0.66rem;
   letter-spacing: 0.12em;
   color: rgba(159, 232, 239, 0.75);
   white-space: nowrap;
@@ -3723,7 +3730,6 @@ body.sheet-open #now-playing {
 
 .daily-sky-card {
   width: 100%;
-  max-width: 720px;
   min-height: 220px;
   overflow: hidden;
   border: 1px solid rgba(0, 255, 255, 0.16);
@@ -3739,6 +3745,7 @@ body.sheet-open #now-playing {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
+  max-height: 400px;
   overflow: hidden;
   background: linear-gradient(
     160deg,
@@ -3772,7 +3779,7 @@ body.sheet-open #now-playing {
   border-radius: 3px;
   background: rgba(3, 6, 14, 0.72);
   color: #9fe8ef;
-  font-size: 0.45rem;
+  font-size: 0.55rem;
   letter-spacing: 0.08em;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -3832,7 +3839,7 @@ body.sheet-open #now-playing {
 .daily-sky-apod-title {
   margin: 0;
   color: #ece8f4;
-  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+  font-size: clamp(1rem, 2vw, 1.25rem);
   line-height: 1.35;
   letter-spacing: 0.04em;
   overflow-wrap: anywhere;
@@ -3841,7 +3848,7 @@ body.sheet-open #now-playing {
 .daily-sky-apod-meta {
   margin: 0.25rem 0 0;
   color: rgba(160, 190, 210, 0.55);
-  font-size: 0.5rem;
+  font-size: 0.62rem;
   letter-spacing: 0.1em;
 }
 
@@ -3851,11 +3858,11 @@ body.sheet-open #now-playing {
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.8rem;
-  font-size: 0.62rem;
+  font-size: 0.74rem;
 }
 
 .daily-sky-moon-emoji {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   line-height: 1;
 }
 
@@ -3910,7 +3917,7 @@ body.sheet-open #now-playing {
   padding-top: 0.55rem;
   border-top: 1px dashed rgba(0, 255, 255, 0.12);
   color: rgba(160, 180, 200, 0.55);
-  font-size: 0.45rem;
+  font-size: 0.56rem;
   line-height: 1.6;
   letter-spacing: 0.04em;
   overflow-wrap: anywhere;
@@ -3932,14 +3939,14 @@ body.sheet-open #now-playing {
 .daily-sky-expl summary {
   cursor: pointer;
   color: rgba(159, 232, 239, 0.75);
-  font-size: 0.55rem;
+  font-size: 0.66rem;
   letter-spacing: 0.04em;
 }
 
 .daily-sky-expl p {
   margin: 0.5rem 0 0;
   color: rgba(201, 205, 214, 0.72);
-  font-size: 0.55rem;
+  font-size: 0.66rem;
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
@@ -3953,7 +3960,73 @@ body.sheet-open #now-playing {
   border-radius: 10px;
   background: rgba(6, 6, 14, 0.35);
   color: rgba(201, 205, 214, 0.6);
-  font-size: 0.65rem;
+  font-size: 0.78rem;
+}
+
+/* 观星指南 */
+.daily-sky-guide {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed rgba(255, 0, 255, 0.18);
+}
+
+.daily-sky-guide-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.daily-sky-guide-title {
+  margin: 0;
+  color: #ffa3dc;
+  font-size: 0.74rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.daily-sky-guide-sub {
+  color: rgba(160, 180, 200, 0.5);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+}
+
+.daily-sky-planets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daily-sky-planet {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid rgba(0, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(4, 10, 20, 0.55);
+  color: rgba(201, 205, 214, 0.8);
+  font-size: 0.68rem;
+}
+
+.daily-sky-planet b {
+  color: #9fe8ef;
+  font-weight: 400;
+}
+
+.daily-sky-planet-time {
+  color: rgba(255, 163, 220, 0.75);
+  font-size: 0.62rem;
+}
+
+.daily-sky-event {
+  margin: 0.65rem 0 0;
+  color: rgba(201, 205, 214, 0.75);
+  font-size: 0.68rem;
+  line-height: 1.65;
 }
 
 /* 骨架屏 */
@@ -4019,7 +4092,7 @@ body.sheet-open #now-playing {
 
   .daily-sky-row {
     gap: 0.4rem;
-    font-size: 0.58rem;
+    font-size: 0.68rem;
   }
 
   .daily-sky-moon-bar {

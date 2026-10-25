@@ -8,6 +8,7 @@
  *   1. NASA APOD           —— 当天天文图（视频类型保留 thumbnail_url）
  *   2. 月相                —— 本地算法，不请求 API
  *   3. 日出 / 日落          —— sunrise-sunset.org（经纬度固定为南京）
+ *   4. 观星指南            —— 行星位置与流星雨均为本地计算（scripts/sky-guide.mjs）
  *
  * 兜底策略：
  *   - 任一块失败时读取上一次的 latest.json，把失败的那一块原样沿用；
@@ -22,6 +23,7 @@
 import { mkdir, readFile, writeFile, readdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildSkyGuide } from './sky-guide.mjs'
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DAILY_DIR = path.join(PROJECT_ROOT, 'public', 'daily')
@@ -330,6 +332,14 @@ async function main() {
   // 月相为本地计算，不会失败
   const moon = getMoonPhase(targetDate)
 
+  // 观星指南同样是本地计算；异常时沿用旧数据
+  const guide = buildSkyGuide(targetDate)
+  const planets = guide ? guide.planets : (Array.isArray(previous?.planets) ? previous.planets : [])
+  const event = guide ? guide.event : (previous?.event ?? null)
+  if (guide) {
+    console.log(`观星指南：今晚可见 ${planets.length} 颗行星，下一场天象 ${event?.name || '无'}`)
+  }
+
   // 全部数据源失败且没有历史文件：保留现状，正常退出
   if (apodFailed && sunFailed && !previous) {
     console.warn('所有数据源均不可用且没有历史数据，跳过写入')
@@ -341,7 +351,9 @@ async function main() {
     generated_at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     apod,
     moon,
-    sun
+    sun,
+    planets,
+    event
   }
 
   await mkdir(DAILY_DIR, { recursive: true })

@@ -79,8 +79,7 @@ import {
   getCurrentLang, 
   translateContent, 
   translateObject, 
-  translateArray,
-  clearTranslationCache
+  translateArray
 } from './i18n.js';
 
 // 留言板数据 - 使用数组存储从 Supabase 加载的数据
@@ -768,8 +767,8 @@ export default class UIManager {
     }
     
     try {
-      // 清空翻译缓存，确保切换语言时重新翻译
-      clearTranslationCache();
+      // 翻译缓存按语言分 key，切换语言时无需清空（切回旧语言可秒开）。
+      // 清空反而会让每次切换都重新请求翻译接口，容易触发限流。
       
       // 模拟一个小延迟，让用户看到加载动画
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -791,16 +790,14 @@ export default class UIManager {
       // 重新翻译数据库内容
       await this.renderProfile();
       
-      // 如果博客面板是打开的
-      if (this.isBlogModalOpen) {
-        // 重新翻译博客列表
-        await this.createBlogList();
-        
-        // 如果有正在预览的博客，也重新翻译
-        const activeBlogItem = document.querySelector('#sheet-blog .blog-item.active');
-        if (activeBlogItem && this.currentBlogPost) {
-          await this.renderBlogPost(this.currentBlogPost, null);
-        }
+      // 博客列表在内容面板里常驻，无论面板是否“打开”都要重绘，
+      // 否则切语言后小框标题仍停留在上一个语言
+      await this.createBlogList();
+      
+      // 如果有正在预览的博客，也重新翻译
+      const activeBlogItem = document.querySelector('#sheet-blog .blog-item.active');
+      if (this.currentBlogPost) {
+        await this.renderBlogPost(this.currentBlogPost, null, { keepActive: Boolean(activeBlogItem) });
       }
       
       // 重新翻译留言板
@@ -1277,7 +1274,7 @@ export default class UIManager {
     }
   }
 
-  async renderBlogPost(post, e) {
+  async renderBlogPost(post, e, options = {}) {
     if (!this.blogPreviewContainer) return;
     
     try {
@@ -1285,6 +1282,15 @@ export default class UIManager {
       allItems.forEach(el => el.classList.remove('active'));
       if (e && e.currentTarget) {
         e.currentTarget.classList.add('active');
+      } else if (options.keepActive && this.blogListContainer) {
+        // 语言切换重绘列表后，把选中态还给对应文章
+        const index = this.currentBlogs.findIndex(
+          blog => String(blog.id) === String(post.id)
+        );
+        const item = index >= 0
+          ? this.blogListContainer.querySelectorAll('.blog-item')[index]
+          : null;
+        if (item) item.classList.add('active');
       }
       
       // 保存当前博客引用，用于语言切换时重新翻译
@@ -2261,11 +2267,16 @@ export default class UIManager {
     if (!this.blogListContainer) return;
     
     try {
-      this.blogListContainer.innerHTML = '';
-      
       const currentLang = getCurrentLang();
+      // 翻译期间给列表一个「处理中」的视觉状态，避免看起来像卡在上一个语言
+      if (currentLang !== 'zh' && this.blogListContainer.children.length > 0) {
+        this.blogListContainer.classList.add('is-translating');
+      }
+
+      // 先翻译完再替换 DOM，避免列表在翻译过程中空白一片
       const translatedBlogs = await translateArray(this.currentBlogs, ['title'], currentLang);
       
+      this.blogListContainer.innerHTML = '';
       translatedBlogs.forEach((blog, index) => {
         const item = document.createElement('div');
         item.className = 'blog-item';
@@ -2289,6 +2300,8 @@ export default class UIManager {
       });
     } catch (error) {
       console.error('Error creating blog list:', error);
+    } finally {
+      this.blogListContainer.classList.remove('is-translating');
     }
   }
 
@@ -2414,7 +2427,7 @@ export default class UIManager {
     }
     
     // 使用自定义确认对话框
-    const confirmed = await this.showConfirm('确定要删除这篇博客吗？');
+    const confirmed = await this.showConfirm(t('blog-delete-confirm'));
     if (!confirmed) {
       return;
     }
@@ -2449,29 +2462,44 @@ export default class UIManager {
   // ========== 内容面板（SHEET 层）==========
 
   updateSheetTexts() {
+    const setText = (selector, text) => {
+      const el = document.querySelector(selector);
+      if (el) el.textContent = text;
+    };
+
+    // 顶部导航（6 项）
     const navMap = {
       '.sheet-nav-about-text': t('about'),
       '.sheet-nav-works-text': t('works'),
+      '.sheet-nav-blog-text': t('blog'),
+      '.sheet-nav-sky-text': t('sky'),
       '.sheet-nav-collection-text': t('collection'),
-      '.sheet-nav-guestbook-text': t('guestbook'),
-      '.sheet-nav-blog-text': t('blog')
+      '.sheet-nav-guestbook-text': t('guestbook')
     };
-    Object.entries(navMap).forEach(([selector, text]) => {
-      const el = document.querySelector(selector);
-      if (el) el.textContent = text;
-    });
+    Object.entries(navMap).forEach(([selector, text]) => setText(selector, text));
 
+    // 各分区大标题
     const titleMap = {
-      '#sheet-about .modal-title': t('about-title'),
-      '#sheet-works .modal-title': t('works'),
-      '#sheet-collection .modal-title': `🖼️ ${t('collection')}`,
-      '#sheet-guestbook .modal-title': t('guestbook'),
-      '#sheet-blog .modal-title': t('blog')
+      '#sheet-about .sheet-section-title': t('about-title'),
+      '#sheet-works .sheet-section-title': t('works'),
+      '#sheet-blog .sheet-section-title': t('blog-title'),
+      '#sheet-sky .sheet-section-title': t('sky-title'),
+      '#sheet-collection .sheet-section-title': t('collection-title'),
+      '#sheet-guestbook .sheet-section-title': t('guestbook-title')
     };
-    Object.entries(titleMap).forEach(([selector, text]) => {
-      const el = document.querySelector(selector);
-      if (el) el.textContent = text;
-    });
+    Object.entries(titleMap).forEach(([selector, text]) => setText(selector, text));
+
+    // 作品展示传送门
+    setText('.works-portal-sub', t('works-portal-sub'));
+
+    // 互联网收藏（卡片内文字由 collectionManager 自己重绘）
+    setText('#sheet-collection .collection-subtitle', t('collection-subtitle'));
+    setText('#sheet-collection .collection-upload-text', t('collection-upload'));
+    setText('#collection-empty', t('collection-empty'));
+
+    // 确认对话框按钮
+    setText('.confirm-yes-text', t('confirm-yes'));
+    setText('.confirm-no-text', t('confirm-no'));
   }
 
   // ========== SHEET 底部抽屉（整体上下翻出） ==========
