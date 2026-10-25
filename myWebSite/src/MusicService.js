@@ -9,6 +9,28 @@ class MusicService {
     this.lastPlayedIndices = [];
   }
 
+  /* 用 HEAD 探测音频链接：404/403/400 视为失效直接跳过；其余情况保留 */
+  async isUrlReachable(url) {
+    if (!url) return false
+    try {
+      const response = await fetch(url, { method: 'HEAD' })
+      return !(response.status === 400 || response.status === 403 || response.status === 404)
+    } catch (error) {
+      return true
+    }
+  }
+
+  /* 过滤掉链接失效的曲目，避免播放时出现「URL 无效或不可访问」 */
+  async filterReachable(songs, source) {
+    const checks = await Promise.all(songs.map(song => this.isUrlReachable(song.url)))
+    const valid = songs.filter((song, index) => checks[index])
+    const dropped = songs.length - valid.length
+    if (dropped > 0) {
+      console.warn(`MusicService: ${source} 中有 ${dropped} 首链接失效，已跳过`)
+    }
+    return valid
+  }
+
   async fetchSongs() {
     console.log('MusicService: fetchSongs called');
     try {
@@ -20,9 +42,13 @@ class MusicService {
         return false;
       }
       
-      this.songs = data || [];
+      const rows = (data || []).map(song => ({
+        ...song,
+        url: song.file_path,
+      }));
+      this.songs = await this.filterReachable(rows, 'songs 表');
+      this.songs = this.songs.map(({ url, ...song }) => song);
       console.log('MusicService: Fetched songs:', this.songs.length);
-      console.log('MusicService: Songs data:', this.songs);
       return true;
     } catch (error) {
       console.error('MusicService: Exception fetching songs:', error);
@@ -47,7 +73,8 @@ class MusicService {
       const list = (data || [])
         .filter(item => item.name && /\.(mp3|m4a|ogg|wav)$/i.test(item.name))
         .map(item => {
-          const path = `${folder}/${item.name}`
+          /* 文件名可能含空格/中文/# 等字符，必须编码后再拼公开 URL */
+          const path = `${folder}/${encodeURIComponent(item.name)}`
           const { data: urlData } = supabase.storage.from('music-files').getPublicUrl(path)
           return {
             title: item.name.replace(/\.[^.]+$/, ''),
@@ -56,8 +83,9 @@ class MusicService {
           }
         })
 
-      console.log(`MusicService: ${folder} songs:`, list.length)
-      return list
+      const valid = await this.filterReachable(list, `${folder} 文件夹`)
+      console.log(`MusicService: ${folder} songs:`, valid.length)
+      return valid
     } catch (error) {
       console.error(`MusicService: Exception listing ${folder} folder:`, error)
       return []

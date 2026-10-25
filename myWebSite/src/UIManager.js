@@ -332,6 +332,7 @@ export default class UIManager {
       console.log('UIManager: Loaded MainSynthBGM songs:', mainBgm.length);
       return mainBgm;
     }
+    console.warn('UIManager: MainSynthBGM 为空或读取失败，回退 songs 表');
     
     if (window.musicService) {
       const songCount = window.musicService.getSongsCount();
