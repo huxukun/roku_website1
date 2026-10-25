@@ -816,6 +816,8 @@ const animate = (timestamp) => {
 requestAnimationFrame(animate)
 
 const clock = new THREE.Clock();
+let racerUpdateFailed = false
+let musicVisualizerFailed = false
 let normalRotationY = 0;
 let normalRotationX = 0;
 let galleryRotationY = 0;
@@ -831,7 +833,18 @@ const tick = (time) => {
   const elapsedTime = clock.getElapsedTime()
 
   // 赛车模式直接复用主场景与主相机；返回 true 时由它接管相机
-  const racerCaptured = racerMode ? racerMode.update(delta / 1000, elapsedTime) : false
+  // 单帧异常不应中断整条后处理链，否则画布会一直黑屏
+  let racerCaptured = false
+  if (racerMode) {
+    try {
+      racerCaptured = racerMode.update(delta / 1000, elapsedTime)
+    } catch (error) {
+      if (!racerUpdateFailed) {
+        racerUpdateFailed = true
+        console.error('Racer update failed:', error)
+      }
+    }
+  }
 
   // 平滑缩放多面体
   // 进入展示模式时缩小更快（0.08），退出时恢复正常（0.02）
@@ -1021,7 +1034,15 @@ const tick = (time) => {
   rightMountain.update(time)
   virtualAvatar.update(time)
   pinkOzoneFog.update(time)
-  musicVisualizer.update(time)
+  /* 音乐可视化异常不应阻断 composer.render()，否则播放歌单时会出现整屏黑 */
+  try {
+    musicVisualizer.update(time)
+  } catch (error) {
+    if (!musicVisualizerFailed) {
+      musicVisualizerFailed = true
+      console.error('Music visualizer update failed:', error)
+    }
+  }
   
   // 更新 VHS 后处理时间（驱动扫描线/抖动/噪点动画）
   vhsPass.uniforms.time.value = elapsedTime
@@ -1269,8 +1290,14 @@ const init = async () => {
       bloomPass.strength = BLOOM_STRENGTH_GAME
       /* 进入游戏前再同步一次画布/后处理尺寸，避免窗口或缩放变化后留下黑块 */
       syncViewportSize()
-      /* 进入游戏自动播放游戏歌单（songs.playlist = 'game'） */
-      if (uiManager) uiManager.playGameMusic()
+      /* 进入游戏自动播放游戏歌单（GameSynthBGM）；音乐异常不影响游戏渲染 */
+      if (uiManager) {
+        try {
+          uiManager.playGameMusic()
+        } catch (error) {
+          console.warn('进入游戏时切换游戏歌单失败:', error)
+        }
+      }
     },
     onExit: () => {
       if (wireframeIcosahedron) wireframeIcosahedron.visible = true
@@ -1278,8 +1305,14 @@ const init = async () => {
       if (sun) sun.setBrightness(1)
       if (gridFloor) gridFloor.brightness = 1
       bloomPass.strength = BLOOM_STRENGTH
-      /* 退出游戏后后续随机播放回落到默认歌单 */
-      if (uiManager) uiManager.restoreDefaultPlaylist()
+      /* 退出游戏立刻切回 MainSynthBGM 歌单 */
+      if (uiManager) {
+        try {
+          uiManager.restoreDefaultPlaylist()
+        } catch (error) {
+          console.warn('退出游戏时恢复主歌单失败:', error)
+        }
+      }
     },
   })
   

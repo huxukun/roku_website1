@@ -85,127 +85,100 @@ export default class MusicVisualizer {
     this.analyser.smoothingTimeConstant = 0.0
     this.dataArray = new Uint8Array(this.analyser.frequencyBinCount)
     this.analyser.connect(this.audioContext.destination)
+
+    /* 全程复用同一个 <audio> 元素：切歌只换 src。
+       之前每首歌都新建 Audio + MediaElementSource，长时间播放歌单会不断堆积
+       媒体节点并触发无限重试，最终拖垮渲染（表现为整屏黑掉）。
+       元素复用后 ended 只绑定一次，交给 UIManager 的 onEnded 切下一首。 */
+    this.audioElement = new Audio()
+    this.audioElement.crossOrigin = 'anonymous'
+    this.audioElement.preload = 'auto'
+    this.audioElement.loop = false
+    this.audioElement.volume = 0.5
+    this.audioElement.addEventListener('ended', () => {
+      this.isPlaying = false
+      this.onEnded?.()
+    })
+    this.source = this.audioContext.createMediaElementSource(this.audioElement)
+    this.source.connect(this.analyser)
   }
 
+  /* loop=false：播完交给 UIManager 随机切下一首；本地文件 loop=true 单曲循环 */
   loadAudio(url) {
-    return new Promise((resolve, reject) => {
-      console.log('MusicVisualizer: Loading audio from URL:', url)
-      
-      if (this.audioElement) {
-        this.audioElement.pause()
-        this.audioElement = null
-      }
-      
-      this.audioElement = new Audio()
-      this.audioElement.crossOrigin = 'anonymous'
-      this.audioElement.src = url
-      /* 不单曲循环：播完交给 UIManager 随机切下一首 */
-      this.audioElement.loop = false
-      this.audioElement.volume = 0.5
-      
-      // 添加多个事件监听器用于调试
-      this.audioElement.addEventListener('loadstart', () => {
-        console.log('MusicVisualizer: Audio load started')
-      })
-      
-      this.audioElement.addEventListener('progress', (e) => {
-        if (this.isDebugMode) {
-          console.log('MusicVisualizer: Loading progress', e.loaded, e.total)
-        }
-      })
-      
-      this.audioElement.addEventListener('canplay', () => {
-        console.log('MusicVisualizer: Audio canplay event fired')
-        try {
-          if (this.audioContext.state === 'suspended') {
-            console.log('MusicVisualizer: Resuming suspended audio context')
-            this.audioContext.resume()
-          }
-          
-          if (this.source) this.source.disconnect()
-          this.source = this.audioContext.createMediaElementSource(this.audioElement)
-          this.source.connect(this.analyser)
-          this.hasAudioData = true
-          console.log('MusicVisualizer: Audio loaded successfully')
-          resolve()
-        } catch (error) {
-          console.error('MusicVisualizer: Error setting up audio source:', error)
-          reject(error)
-        }
-      }, { once: true })
-      
-      this.audioElement.addEventListener('error', (e) => {
-        console.error('MusicVisualizer: Audio load error - Event:', e)
-        console.error('MusicVisualizer: Audio element error:', this.audioElement.error)
-        
-        let errorMessage = 'Failed to load audio'
-        if (this.audioElement.error) {
-          switch (this.audioElement.error.code) {
-            case 1:
-              errorMessage = '加载被用户中止'
-              break
-            case 2:
-              errorMessage = '网络错误'
-              break
-            case 3:
-              errorMessage = '解码错误'
-              break
-            case 4:
-              errorMessage = 'URL 无效或不可访问'
-              break
-            default:
-              errorMessage = `未知错误 (代码: ${this.audioElement.error.code})`
-          }
-        }
-        console.error('MusicVisualizer:', errorMessage)
-        reject(new Error(errorMessage))
-      }, { once: true })
-      
-      this.audioElement.addEventListener('stalled', () => {
-        console.warn('MusicVisualizer: Audio loading stalled')
-      })
-      
-      console.log('MusicVisualizer: Starting audio load')
-      this.audioElement.load()
-    })
+    return this.loadSource(url, false)
   }
 
   loadLocalAudio(file) {
+    return this.loadSource(URL.createObjectURL(file), true)
+  }
+
+  loadSource(url, loop) {
     return new Promise((resolve, reject) => {
-      if (this.audioElement) {
-        this.audioElement.pause()
-        this.audioElement = null
+      const audio = this.audioElement
+      if (!audio) {
+        reject(new Error('No audio element'))
+        return
       }
-      
-      const url = URL.createObjectURL(file)
-      this.audioElement = new Audio(url)
-      this.audioElement.loop = true
-      this.audioElement.volume = 0.5
-      
-      this.audioElement.addEventListener('canplay', () => {
-        try {
-          // 确保音频上下文是运行状态
-          if (this.audioContext.state === 'suspended') {
-            this.audioContext.resume()
-          }
-          
-          if (this.source) this.source.disconnect()
-          this.source = this.audioContext.createMediaElementSource(this.audioElement)
-          this.source.connect(this.analyser)
-          this.hasAudioData = true
-          resolve()
-        } catch (error) {
-          reject(error)
-        }
-      }, { once: true })
-      
-      this.audioElement.addEventListener('error', (e) => {
-        console.error('Local audio load error:', e)
-        reject(new Error('Failed to load local audio'))
-      }, { once: true })
-      
-      this.audioElement.load()
+
+      /* 新的加载请求直接取消上一个未完成的请求，避免旧请求串台 */
+      if (this._cancelPendingLoad) this._cancelPendingLoad()
+      audio.pause()
+      this.isPlaying = false
+
+      let settled = false
+      let timer = 0
+      const onCanPlay = () => {
+        if (this.audioContext.state === 'suspended') this.audioContext.resume()
+        this.hasAudioData = true
+        finish()
+      }
+      const onError = () => finish(new Error(this.describeAudioError()))
+      const cleanup = () => {
+        window.clearTimeout(timer)
+        audio.removeEventListener('canplay', onCanPlay)
+        audio.removeEventListener('error', onError)
+        if (this._cancelPendingLoad === cancel) this._cancelPendingLoad = null
+      }
+      const finish = (error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        if (error) reject(error)
+        else resolve()
+      }
+      const cancel = () => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(false)
+      }
+      this._cancelPendingLoad = cancel
+
+      audio.loop = loop
+      audio.addEventListener('canplay', onCanPlay)
+      audio.addEventListener('error', onError)
+      /* 超时兜底：canplay 迟迟不触发时主动失败，防止 Promise 永久挂起 */
+      timer = window.setTimeout(() => finish(new Error('音频加载超时')), 8000)
+
+      audio.src = url
+      audio.load()
     })
+  }
+
+  describeAudioError() {
+    const code = this.audioElement?.error?.code
+    switch (code) {
+      case 1:
+        return '加载被用户中止'
+      case 2:
+        return '网络错误'
+      case 3:
+        return '解码错误'
+      case 4:
+        return 'URL 无效或不可访问'
+      default:
+        return `未知错误 (代码: ${code ?? 'none'})`
+    }
   }
 
   play() {

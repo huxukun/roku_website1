@@ -558,6 +558,11 @@ export default class UIManager {
     this.songs = mainSongs.length > 0 ? mainSongs : allSongs;
     // 当前激活的歌单：默认歌单 / 游戏歌单
     this.activeSongs = this.songs;
+    this.songRequestId = 0;
+    /* 播放器复用同一个 <audio>，播完事件只绑定一次，避免重复监听导致连续切歌 */
+    if (window.musicVisualizer) {
+      window.musicVisualizer.onEnded = () => this.playRandomNextSong();
+    }
     this.isAudioInitialized = false;
     // 播放队列：确保一轮内完全不重复（每轮都是全新随机顺序）
     this.playlist = [];
@@ -1741,15 +1746,18 @@ export default class UIManager {
 
   // 随机播放下一首
   playRandomNextSong() {
-    this.currentSongIndex = this.getNextSongIndex();
-    this.playCurrentSong();
+    const list = this.activeSongs || this.songs
+    if (!list || list.length === 0) return
+    this.currentSongIndex = this.getNextSongIndex()
+    this.playCurrentSong()
   }
 
   // 游戏开始自动播放：切换到 GameBGM 歌单随机选一首，之后继续随机循环
   playGameMusic() {
-    const list = this.gameSongs && this.gameSongs.length > 0 ? this.gameSongs : this.songs
-    if (!list || list.length === 0) return
-    /* 已经在播主场景 BGM 时也要切到游戏歌单 */
+    const list = this.gameSongs || []
+    /* 没有配置游戏歌单时不打断当前音乐 */
+    if (list.length === 0) return
+    /* 已经在播游戏歌单时不用重启当前歌曲 */
     if (this.activeSongs === list && this.isMusicPlaying) return
     this.activeSongs = list
     this.initPlaylist()
@@ -1757,11 +1765,15 @@ export default class UIManager {
     this.playCurrentSong()
   }
 
-  // 退出游戏后恢复默认歌单，后续随机循环回到主歌单
+  // 退出游戏后切回默认歌单；正在播游戏曲目时立刻换成主歌单
   restoreDefaultPlaylist() {
     if (this.activeSongs === this.songs) return
+    const wasPlaying = this.isMusicPlaying
     this.activeSongs = this.songs
     this.initPlaylist()
+    if (!wasPlaying || this.songs.length === 0) return
+    this.currentSongIndex = this.getNextSongIndex()
+    this.playCurrentSong()
   }
 
   // 验证并清理 URL
@@ -1785,8 +1797,17 @@ export default class UIManager {
 
   // 播放当前歌曲
   async playCurrentSong() {
-    const currentSong = (this.activeSongs || this.songs)[this.currentSongIndex];
+    const list = this.activeSongs || this.songs;
+    const currentSong = list[this.currentSongIndex];
     console.log('UIManager: playCurrentSong called, song:', currentSong);
+
+    if (!currentSong) {
+      console.warn('UIManager: 当前歌单没有可播放的歌曲');
+      return;
+    }
+
+    /* 每次播放请求递增编号：新一轮请求会让旧的加载/播放回调自动作废 */
+    const requestId = (this.songRequestId = (this.songRequestId || 0) + 1);
     
     // 检查 URL 是否为空
     if (!currentSong.url || currentSong.url.trim() === '') {
@@ -1814,13 +1835,11 @@ export default class UIManager {
         console.log('UIManager: Using musicVisualizer to play');
         this.showNowPlaying(currentSong.title + ' - 加载中...');
         
-        await window.musicVisualizer.loadAudio(cleanUrl);
-        const visualizerAudio = window.musicVisualizer.audioElement;
-        if (visualizerAudio) {
-          visualizerAudio.addEventListener('ended', () => this.playRandomNextSong());
-        }
+        const loaded = await window.musicVisualizer.loadAudio(cleanUrl);
+        if (loaded === false || requestId !== this.songRequestId) return;
         this.applyVolume();
         await window.musicVisualizer.play();
+        if (requestId !== this.songRequestId) return;
         
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
@@ -1859,6 +1878,8 @@ export default class UIManager {
         }
       }
     } catch (error) {
+      /* 已经被更新的播放请求取代时直接忽略，避免重复切歌 */
+      if (requestId !== this.songRequestId) return;
       console.error('UIManager: 播放失败:', error);
       const errorMessage = error.message || '加载失败';
       this.showNowPlaying(`${currentSong.title} - ${errorMessage}`);

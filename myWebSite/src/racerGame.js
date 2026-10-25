@@ -1932,7 +1932,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       16,
     )
     playerCar.rotation.y += (introYaw - playerCar.rotation.y) * 0.12
-    playerCar.rotation.z += (0 - playerCar.rotation.z) * 0.22
+    playerCar.rotation.z += (0 - playerCar.rotation.z) * 0.32
 
     /* ③ 镜头跟随与赛车入场同时进行：从赛车起步就一路贴到尾随机位 */
     const follow = easeInOutCubic(
@@ -2040,7 +2040,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     )
     const turn = Math.min(1, dt * 10)
     /* 侧倾比车头转向更跟手：转向时快速压低，松开后更快速回正 */
-    const rollTurn = Math.min(1, dt * (steer !== 0 ? 18 : 26))
+    const rollTurn = Math.min(1, dt * (steer !== 0 ? 30 : 44))
     playerCar.rotation.y += (roadYaw + yawOffset - playerCar.rotation.y) * turn
     playerCar.rotation.z +=
       (yawOffset * 0.3 + Math.atan(playerBank) - playerCar.rotation.z) * rollTurn
