@@ -85,6 +85,11 @@ export default class SynthwaveSun {
     this.scene.add(this.light.target)
   }
 
+  /* 整体亮度：通过透明度调节太阳的视觉强度（1 = 原始亮度） */
+  setBrightness(value) {
+    if (this.sun) this.sun.material.opacity = value
+  }
+
   update() {
     if (this.sun && this.camera) {
       this.sun.lookAt(this.camera.position)

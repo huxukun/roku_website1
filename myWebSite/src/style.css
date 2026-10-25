@@ -2103,6 +2103,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
+  width: 100px;
 }
 
 .profile-avatar-frame {
@@ -3150,13 +3151,13 @@ body.sheet-open #now-playing {
   border-radius: 20px;
   background: linear-gradient(
     180deg,
-    rgba(4, 4, 10, 0.78) 0%,
-    rgba(1, 1, 4, 0.76) 100%
+    rgba(0, 0, 2, 0.82) 0%,
+    rgba(0, 0, 0, 0.81) 100%
   );
-  border: 1px solid rgba(0, 255, 255, 0.18);
+  border: 1px solid rgba(0, 255, 255, 0.09);
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 18px rgba(0, 255, 255, 0.05);
+    0 12px 40px rgba(0, 0, 0, 0.62),
+    0 0 12px rgba(0, 255, 255, 0.015);
   backdrop-filter: blur(7.2px);
   -webkit-backdrop-filter: blur(7.2px);
   isolation: isolate;
@@ -3173,10 +3174,10 @@ body.sheet-open #now-playing {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 18% 8%, rgba(0, 255, 255, 0.07), transparent 42%),
-    radial-gradient(circle at 82% 92%, rgba(255, 0, 255, 0.06), transparent 45%),
-    radial-gradient(circle at 50% 55%, rgba(96, 64, 210, 0.05), transparent 62%);
-  animation: panelAurora 22s ease-in-out infinite alternate;
+    radial-gradient(circle at 18% 8%, rgba(0, 255, 255, 0.03), transparent 42%),
+    radial-gradient(circle at 82% 92%, rgba(255, 0, 255, 0.022), transparent 45%),
+    radial-gradient(circle at 50% 55%, rgba(96, 64, 210, 0.018), transparent 62%);
+  /* 锁定：明度固定，不再做呼吸变化 */
 }
 
 .sheet-panel::after {
@@ -3936,8 +3937,8 @@ img.crt-bezel {
     -webkit-backdrop-filter: none;
     background: linear-gradient(
       180deg,
-      rgba(8, 8, 15, 0.88) 0%,
-      rgba(4, 4, 10, 0.86) 100%
+      rgba(0, 0, 2, 0.82) 0%,
+      rgba(0, 0, 0, 0.81) 100%
     );
   }
 
@@ -4513,4 +4514,966 @@ img.crt-bezel {
   .daily-sky-moon-bar {
     flex-basis: 44px;
   }
+}
+
+/* ==========================================================================
+ * 复古电视：WELCOME 电源开关 + 电视弹窗（合成波赛车）
+ * ========================================================================== */
+
+/* 顶栏入口：保留 WELCOME 文字，右侧附可点电源键 */
+.tv-entry {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.1rem 0.2rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  /* 彩色霓虹边缘光：整体轮廓缓慢换色闪动 */
+  animation: tv-entry-edge-glow 4.2s linear infinite;
+}
+
+.tv-entry:focus-visible {
+  outline: none;
+}
+
+/* WELCOME：白色字 + 彩虹辉光（色相循环） */
+.tv-entry-label {
+  position: relative;
+  z-index: 1;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 9px rgba(0, 229, 255, 0.85))
+    drop-shadow(0 0 18px rgba(185, 103, 255, 0.55))
+    drop-shadow(0 0 28px rgba(255, 42, 109, 0.4));
+  animation: tv-welcome-rainbow 4.2s linear infinite;
+}
+
+@keyframes tv-welcome-rainbow {
+  0%,
+  100% {
+    filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 9px rgba(0, 229, 255, 0.85))
+      drop-shadow(0 0 18px rgba(0, 229, 255, 0.5))
+      drop-shadow(0 0 28px rgba(0, 140, 255, 0.38));
+  }
+  20% {
+    filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 9px rgba(122, 92, 255, 0.85))
+      drop-shadow(0 0 18px rgba(122, 92, 255, 0.5))
+      drop-shadow(0 0 28px rgba(0, 140, 255, 0.38));
+  }
+  40% {
+    filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 9px rgba(255, 42, 109, 0.85))
+      drop-shadow(0 0 18px rgba(255, 42, 109, 0.5))
+      drop-shadow(0 0 28px rgba(185, 103, 255, 0.4));
+  }
+  60% {
+    filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 9px rgba(255, 138, 61, 0.85))
+      drop-shadow(0 0 18px rgba(255, 138, 61, 0.5))
+      drop-shadow(0 0 28px rgba(255, 42, 109, 0.38));
+  }
+  78% {
+    filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 9px rgba(255, 224, 102, 0.8))
+      drop-shadow(0 0 18px rgba(255, 224, 102, 0.45))
+      drop-shadow(0 0 28px rgba(255, 138, 61, 0.36));
+  }
+  90% {
+    filter: brightness(1.16) drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 9px rgba(109, 255, 168, 0.8))
+      drop-shadow(0 0 18px rgba(109, 255, 168, 0.45))
+      drop-shadow(0 0 28px rgba(0, 229, 255, 0.36));
+  }
+}
+
+@keyframes tv-entry-edge-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.8))
+      drop-shadow(0 0 15px rgba(0, 229, 255, 0.45));
+  }
+  33% {
+    filter: drop-shadow(0 0 7px rgba(122, 92, 255, 0.75))
+      drop-shadow(0 0 16px rgba(185, 103, 255, 0.45));
+  }
+  66% {
+    filter: drop-shadow(0 0 7px rgba(255, 138, 61, 0.75))
+      drop-shadow(0 0 16px rgba(255, 42, 109, 0.42));
+  }
+}
+
+.tv-entry-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid rgba(0, 255, 255, 0.45);
+  border-radius: 50%;
+  color: #7ff6ff;
+  background: radial-gradient(circle at 50% 38%, rgba(0, 255, 255, 0.18), rgba(2, 6, 14, 0.65));
+  box-shadow:
+    0 0 8px rgba(0, 255, 255, 0.35),
+    inset 0 0 6px rgba(0, 255, 255, 0.18);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.2s ease;
+}
+
+.tv-entry:hover .tv-entry-switch,
+.tv-entry:focus-visible .tv-entry-switch {
+  color: #d9fcff;
+  border-color: rgba(0, 255, 255, 0.9);
+  box-shadow:
+    0 0 16px rgba(0, 255, 255, 0.65),
+    inset 0 0 8px rgba(0, 255, 255, 0.35);
+  transform: scale(1.06);
+}
+
+.tv-entry.is-on .tv-entry-switch {
+  color: #8dffb8;
+  border-color: rgba(109, 255, 168, 0.85);
+  box-shadow:
+    0 0 16px rgba(109, 255, 168, 0.6),
+    inset 0 0 8px rgba(109, 255, 168, 0.35);
+}
+
+/* 全屏游戏 HUD：直接覆盖在主 3D 场景上 */
+.racer-hud {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.9rem 2.4rem 1.4rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.racer-hud.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.racer-hud-top,
+.racer-hud-bottom {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+  color: rgba(159, 232, 239, 0.72);
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+}
+
+.racer-hud-tag {
+  color: #ffd6ee;
+  white-space: nowrap;
+  text-shadow: 0 0 10px rgba(255, 42, 109, 0.65);
+}
+
+.racer-hud-status {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  border-radius: 3px;
+  background: rgba(4, 10, 20, 0.55);
+  color: #9fe8ef;
+  font-size: 0.9rem;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+}
+
+.racer-hud-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6em;
+  margin-left: auto;
+  color: #7ff6ff;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.75);
+}
+
+.racer-hud-label {
+  color: rgba(127, 246, 255, 0.55);
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+}
+
+.racer-hud-value {
+  font-size: 1.6rem;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.racer-hud-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: 0.35rem;
+  padding: 0;
+  border: 1px solid rgba(255, 0, 255, 0.45);
+  background: rgba(255, 0, 255, 0.08);
+  color: #ff8fe0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.racer-hud-close:hover,
+.racer-hud-close:focus-visible {
+  background: var(--neon-pink);
+  color: var(--darker-bg);
+  box-shadow: 0 0 14px rgba(255, 0, 255, 0.6);
+  outline: none;
+}
+
+.racer-hud-bottom {
+  justify-content: space-between;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+}
+
+.racer-hud-brand {
+  white-space: nowrap;
+}
+
+/* 复古速度线：从画面中心向外辐射的细线，随车速淡入 */
+.racer-speedlines {
+  position: absolute;
+  inset: -25%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    repeating-conic-gradient(
+      from 0deg at 50% 55%,
+      rgba(190, 245, 255, 0.2) 0deg 0.22deg,
+      transparent 0.45deg 2.6deg
+    );
+  -webkit-mask-image: radial-gradient(
+    ellipse 60% 56% at 50% 55%,
+    transparent 0 32%,
+    #000 70%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 60% 56% at 50% 55%,
+    transparent 0 32%,
+    #000 70%,
+    transparent 100%
+  );
+  mix-blend-mode: screen;
+  transition: opacity 0.25s linear;
+  animation: racer-speedline-breathe 0.72s ease-in-out infinite alternate;
+  will-change: opacity, transform;
+}
+
+.racer-speedlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-conic-gradient(
+      from 1.3deg at 50% 55%,
+      rgba(255, 120, 200, 0.16) 0deg 0.18deg,
+      transparent 0.4deg 3.6deg
+    );
+  -webkit-mask-image: radial-gradient(
+    ellipse 60% 56% at 50% 55%,
+    transparent 0 32%,
+    #000 70%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 60% 56% at 50% 55%,
+    transparent 0 32%,
+    #000 70%,
+    transparent 100%
+  );
+  animation: racer-speedline-breathe 0.58s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes racer-speedline-breathe {
+  from {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.72;
+  }
+  to {
+    transform: scale(1.055) rotate(0.7deg);
+    opacity: 1;
+  }
+}
+
+.racer-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 4%;
+  text-align: center;
+  background: radial-gradient(circle at 50% 46%, rgba(6, 2, 16, 0.28), rgba(3, 1, 8, 0.72) 78%);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  transition: opacity 0.28s ease, visibility 0.28s ease;
+}
+
+.racer-overlay.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.racer-overlay-title {
+  font-size: clamp(1.5rem, 4.6vw, 3.2rem);
+  letter-spacing: 0.14em;
+  color: #ffe6ff;
+  text-shadow:
+    0 0 12px #ff2a6d,
+    0 0 34px rgba(255, 42, 109, 0.7);
+}
+
+.racer-overlay-text {
+  font-size: clamp(0.58rem, 1.35vw, 0.9rem);
+  letter-spacing: 0.08em;
+  color: rgba(206, 239, 255, 0.82);
+}
+
+.racer-overlay-start {
+  margin-top: 0.5rem;
+  padding: 0.55rem 1.35rem;
+  border: 1px solid rgba(0, 255, 255, 0.7);
+  background: rgba(0, 255, 255, 0.08);
+  color: #aefaff;
+  font-family: inherit;
+  font-size: clamp(0.58rem, 1.35vw, 0.88rem);
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow:
+    0 0 14px rgba(0, 255, 255, 0.35),
+    inset 0 0 12px rgba(0, 255, 255, 0.12);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+.racer-overlay-start:hover,
+.racer-overlay-start:focus-visible {
+  background: #00e5ff;
+  color: #030610;
+  box-shadow: 0 0 26px rgba(0, 229, 255, 0.75);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+/* 撞车红闪 */
+.tv-racer-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #ff205c;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.tv-racer-flash.is-active {
+  opacity: 0.45;
+}
+
+/* 超车连击徽标 */
+.racer-combo {
+  position: absolute;
+  top: 11%;
+  left: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.38rem 0.95rem;
+  border: 1px solid rgba(255, 42, 109, 0.5);
+  background: rgba(22, 2, 18, 0.6);
+  color: #ffd1e6;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  opacity: 0;
+  transform: translate(-50%, -6px) scale(0.94);
+  text-shadow: 0 0 12px rgba(255, 42, 109, 0.8);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.racer-combo.is-active {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.racer-combo.is-fading {
+  opacity: 0.4;
+}
+
+/* 满 3 倍连击：护盾点亮状态，青色脉冲 */
+.racer-combo.is-max {
+  border-color: rgba(127, 246, 255, 0.85);
+  background: rgba(6, 22, 30, 0.68);
+  color: #eaffff;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.9);
+  animation: racer-combo-max 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes racer-combo-max {
+  from {
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+    transform: translate(-50%, 0) scale(1);
+  }
+  to {
+    box-shadow: 0 0 22px rgba(0, 229, 255, 0.75);
+    transform: translate(-50%, 0) scale(1.03);
+  }
+}
+
+.racer-combo.is-max .racer-combo-value {
+  color: #9ff8ff;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.9);
+}
+
+.racer-combo-value {
+  color: #ff6fae;
+  font-size: 1.5rem;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 加分 / 倍率悬浮数字 */
+.racer-popups {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.racer-popup {
+  position: absolute;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  white-space: nowrap;
+  color: #7ff6ff;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-shadow:
+    0 0 12px rgba(0, 229, 255, 0.9),
+    0 0 26px rgba(0, 229, 255, 0.45);
+  animation: racer-pop-float 1s ease-out forwards;
+}
+
+.racer-popup b {
+  font-weight: 400;
+  font-size: 1.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.racer-popup i {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: rgba(200, 240, 255, 0.82);
+  font-variant-numeric: tabular-nums;
+}
+
+.racer-popup.is-hot {
+  color: #ff6fae;
+  text-shadow:
+    0 0 14px rgba(255, 42, 109, 0.95),
+    0 0 30px rgba(255, 42, 109, 0.5);
+}
+
+.racer-popup.is-hot i {
+  color: #ffd1e6;
+}
+
+@keyframes racer-pop-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.78);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(-50%, -2px) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -54px) scale(1);
+  }
+}
+
+/* 火箭加速按钮：左下角圆形按钮 + 环形进度 + 点火尾焰 */
+.racer-boost {
+  position: absolute;
+  left: 2.4rem;
+  bottom: 3.4rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  width: 86px;
+  height: 86px;
+  padding: 0;
+  border: 1px solid rgba(127, 246, 255, 0.35);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(127, 246, 255, 0.16), transparent 62%),
+    rgba(4, 10, 20, 0.72);
+  color: #7ff6ff;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.9);
+  pointer-events: none;
+  box-shadow:
+    0 0 18px rgba(0, 229, 255, 0.26),
+    inset 0 0 14px rgba(0, 229, 255, 0.12);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    visibility 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.racer-hud.is-driving .racer-boost {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* 环形进度：加速时消耗、冷却时回充 */
+.racer-boost::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -90deg,
+    currentColor calc(var(--boost-progress, 1) * 1turn),
+    rgba(127, 246, 255, 0.1) 0
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 4px),
+    #000 calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 4px),
+    #000 calc(100% - 3px)
+  );
+  pointer-events: none;
+}
+
+.racer-boost-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 0 6px rgba(127, 246, 255, 0.55));
+}
+
+.racer-boost-body {
+  fill: #7ff6ff;
+}
+
+.racer-boost-window {
+  fill: rgba(5, 12, 24, 0.92);
+}
+
+.racer-boost-fin {
+  fill: rgba(255, 42, 109, 0.85);
+}
+
+.racer-boost-flame {
+  fill: #ff8a3d;
+  opacity: 0.45;
+  transform-origin: 24px 34px;
+}
+
+.racer-boost-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+  color: rgba(159, 232, 239, 0.82);
+}
+
+.racer-boost-timer {
+  position: absolute;
+  top: -0.62rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: #ffd6ee;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(255, 42, 109, 0.85);
+}
+
+.racer-boost.is-ready::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid rgba(127, 246, 255, 0.4);
+  animation: racer-boost-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.racer-boost.is-boosting {
+  color: #ff2a6d;
+  border-color: rgba(255, 42, 109, 0.7);
+  box-shadow:
+    0 0 26px rgba(255, 42, 109, 0.5),
+    inset 0 0 18px rgba(255, 42, 109, 0.2);
+}
+
+.racer-boost.is-boosting .racer-boost-body {
+  fill: #ffd6ee;
+}
+
+.racer-boost.is-boosting .racer-boost-flame {
+  opacity: 1;
+  animation: racer-boost-burn 0.18s ease-in-out infinite alternate;
+}
+
+.racer-boost.is-cooling {
+  color: rgba(127, 246, 255, 0.34);
+  border-color: rgba(127, 246, 255, 0.14);
+  cursor: default;
+}
+
+.racer-boost:hover {
+  box-shadow:
+    0 0 24px rgba(0, 229, 255, 0.42),
+    inset 0 0 18px rgba(0, 229, 255, 0.18);
+}
+
+.racer-hud.is-driving .racer-boost:active {
+  transform: scale(0.94);
+}
+
+@keyframes racer-boost-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.09);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes racer-boost-burn {
+  from {
+    transform: scaleY(0.88) translateY(-1px);
+  }
+  to {
+    transform: scaleY(1.16) translateY(1px);
+  }
+}
+
+/* 速度表：右下角像素风直方图（左矮右高）+ 数字读数，无边框 */
+.racer-speedo {
+  position: absolute;
+  right: 2.4rem;
+  bottom: 3rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  width: 152px;
+  padding: 0.6rem 0.55rem 0.45rem;
+  border: none;
+  border-radius: 0;
+  background: rgba(4, 8, 16, 0.74);
+  /* 像素切角：四角各削掉一小格 */
+  clip-path: polygon(
+    0 6px,
+    6px 6px,
+    6px 0,
+    calc(100% - 6px) 0,
+    calc(100% - 6px) 6px,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    6px calc(100% - 6px),
+    0 calc(100% - 6px)
+  );
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease,
+    visibility 0.3s ease;
+}
+
+.racer-hud.is-driving .racer-speedo {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* 并排像素柱：高度从左到右递增，柱身切成小方块 */
+.racer-speedo-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 46px;
+}
+
+.racer-speedo-bars i {
+  flex: 1 1 0;
+  min-width: 0;
+  display: block;
+  color: rgba(127, 246, 255, 0.16);
+  background-image: repeating-linear-gradient(
+    to top,
+    currentColor 0 4px,
+    transparent 4px 7px
+  );
+  transition: color 0.09s linear;
+}
+
+.racer-speedo-bars i.is-on {
+  color: #7ff6ff;
+  filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.8));
+}
+
+.racer-speedo.is-boosting .racer-speedo-bars i.is-on {
+  color: #ff2a6d;
+  filter: drop-shadow(0 0 5px rgba(255, 42, 109, 0.85));
+}
+
+.racer-speedo-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.racer-speedo-readout b {
+  color: #e6fdff;
+  font-size: 1.55rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.75);
+}
+
+.racer-speedo-readout span {
+  color: rgba(159, 232, 239, 0.65);
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+}
+
+.racer-speedo.is-boosting .racer-speedo-readout b {
+  color: #ffd6ee;
+  text-shadow: 0 0 12px rgba(255, 42, 109, 0.85);
+}
+
+
+/* 进入游戏时收起作品集界面，只留下 3D 场景与游戏 HUD */
+body.racer-active #content-sheet,
+body.racer-active #app,
+body.racer-active .ui-container,
+body.racer-active .left-button-group,
+body.racer-active .upload-section,
+body.racer-active #now-playing,
+body.racer-active .lang-switcher,
+body.racer-active #quote-trigger-btn,
+body.racer-active #back-to-top-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 768px), (max-aspect-ratio: 1/1) {
+  .racer-hud {
+    padding: 1rem 0.9rem 0.8rem;
+  }
+
+  .racer-hud-top,
+  .racer-hud-bottom {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+  }
+
+  .racer-hud-tag,
+  .racer-hud-brand {
+    display: none;
+  }
+
+  .racer-hud-score {
+    margin-left: auto;
+  }
+
+  .racer-hud-value {
+    font-size: 1.15rem;
+  }
+
+  .racer-hud-label {
+    font-size: 0.62rem;
+  }
+
+  .racer-hud-close {
+    width: 34px;
+    height: 34px;
+  }
+
+  .racer-hud-bottom {
+    justify-content: center;
+  }
+
+  .racer-hud-hint {
+    font-size: 0.58rem;
+    letter-spacing: 0.03em;
+  }
+
+  .racer-boost {
+    left: 0.8rem;
+    bottom: 2.6rem;
+    width: 64px;
+    height: 64px;
+  }
+
+  .racer-boost-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .racer-boost-label {
+    font-size: 0.42rem;
+    letter-spacing: 0.12em;
+  }
+
+  .racer-boost-timer {
+    top: -0.5rem;
+    font-size: 0.55rem;
+  }
+
+  .racer-speedo {
+    right: 0.8rem;
+    bottom: 2.4rem;
+    width: 112px;
+    padding: 0.35rem 0.4rem 0.3rem;
+  }
+
+  .racer-speedo-bars {
+    height: 34px;
+    gap: 1px;
+  }
+
+  .racer-speedo-bars i {
+    background-image: repeating-linear-gradient(
+      to top,
+      currentColor 0 3px,
+      transparent 3px 5px
+    );
+  }
+
+  .racer-speedo-readout b {
+    font-size: 1.15rem;
+  }
+
+  .racer-speedo-readout span {
+    font-size: 0.46rem;
+  }
+
+  .tv-entry {
+    gap: 0.45rem;
+  }
+
+  .tv-entry-switch {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .tv-entry-switch svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .racer-hud {
+    transition: none;
+  }
+
+  .racer-overlay {
+    transition: none;
+  }
+
+  .tv-entry,
+  .tv-entry-label,
+  .racer-boost.is-ready::after,
+  .racer-boost.is-boosting .racer-boost-flame {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+ * 整体 UI 明度统一下调一点（只作用于界面层，不动 3D 画布）
+ * ========================================================================== */
+.left-button-group,
+.music-controls,
+#now-playing,
+.sheet-panel,
+.modal-overlay,
+.gallery-modal,
+.quote-modal-overlay,
+.confirm-modal,
+.lang-switcher,
+#quote-trigger-btn,
+#back-to-top-btn,
+.ui-notification {
+  filter: brightness(0.95);
 }

@@ -88,7 +88,8 @@ export default class MusicVisualizer {
       this.audioElement = new Audio()
       this.audioElement.crossOrigin = 'anonymous'
       this.audioElement.src = url
-      this.audioElement.loop = true
+      /* 不单曲循环：播完交给 UIManager 随机切下一首 */
+      this.audioElement.loop = false
       this.audioElement.volume = 0.5
       
       // 添加多个事件监听器用于调试

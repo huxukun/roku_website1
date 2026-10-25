@@ -15,6 +15,7 @@ import UIManager from './UIManager.js'
 import { initImageCollection } from './collectionManager.js'
 import { initSkillsManager } from './skillsManager.js'
 import { initDailySky } from './dailySky.js'
+import { initRacerMode } from './racerGame.js'
 import MovingGridFloor from './MovingGridFloor.js'
 import SynthwaveSun from './SynthwaveSun.js'
 import ElectronicDust from './ElectronicDust.js'
@@ -217,6 +218,7 @@ const loadingText = document.getElementById('loading-text')
 let animationId = null
 let isCleanedUp = false
 let prevTime = 0
+let racerMode = null
 
 const mouse = new THREE.Vector2(0, 0)
 const targetRotation = new THREE.Vector2(0, 0)
@@ -825,6 +827,9 @@ const tick = (time) => {
   prevTime = time
   const elapsedTime = clock.getElapsedTime()
 
+  // 赛车模式直接复用主场景与主相机；返回 true 时由它接管相机
+  const racerCaptured = racerMode ? racerMode.update(delta / 1000, elapsedTime) : false
+
   // 平滑缩放多面体
   // 进入展示模式时缩小更快（0.08），退出时恢复正常（0.02）
   if (wireframeIcosahedron) {
@@ -994,14 +999,16 @@ const tick = (time) => {
     }
   }
 
-  targetRotation.x = mouse.y * rotationAmplitude
-  targetRotation.y = -mouse.x * rotationAmplitude
+  if (!racerCaptured) {
+    targetRotation.x = mouse.y * rotationAmplitude
+    targetRotation.y = -mouse.x * rotationAmplitude
 
-  currentRotation.x += (targetRotation.x - currentRotation.x) * rotationSmoothness
-  currentRotation.y += (targetRotation.y - currentRotation.y) * rotationSmoothness
+    currentRotation.x += (targetRotation.x - currentRotation.x) * rotationSmoothness
+    currentRotation.y += (targetRotation.y - currentRotation.y) * rotationSmoothness
 
-  camera.instance.rotation.x = currentRotation.x
-  camera.instance.rotation.y = currentRotation.y
+    camera.instance.rotation.x = currentRotation.x
+    camera.instance.rotation.y = currentRotation.y
+  }
 
   gridFloor.update(delta)
   sun.update()
@@ -1105,26 +1112,49 @@ window.addEventListener('unload', cleanup);
 // 全局颜色变化控制
 let isColorChangingEnabled = false;
 
-// 画廊模式控制
-window.toggleGalleryMode = function() {
-  isGalleryMode = !isGalleryMode;
-  targetScale = isGalleryMode ? 0.4 : 1;
-  
+// 画廊模式控制：集中执行所有联动，便于进场/退场时强制切回普通模式
+function applyGalleryMode(enabled) {
+  isGalleryMode = enabled;
+  targetScale = enabled ? 0.4 : 1;
+
   // 控制各个元素的画廊模式效果
   if (electronicDust) {
-    electronicDust.setGalleryMode(isGalleryMode);
+    electronicDust.setGalleryMode(enabled);
   }
   if (gridFloor) {
-    gridFloor.setGalleryMode(isGalleryMode);
+    gridFloor.setGalleryMode(enabled);
   }
   if (leftMountain) {
-    leftMountain.setGalleryMode(isGalleryMode);
+    leftMountain.setGalleryMode(enabled);
   }
   if (rightMountain) {
-    rightMountain.setGalleryMode(isGalleryMode);
+    rightMountain.setGalleryMode(enabled);
   }
-  
+
+  if (!enabled) {
+    /* 立刻清理画廊的 3D 叠层，避免与赛车场景重叠 */
+    if (galleryOverlayPlane) {
+      galleryOverlayPlane.material.opacity = 0
+    }
+    for (let i = 0; i < displayBoxes.length; i += 1) {
+      displayBoxes[i].group.visible = false
+      displayBoxes[i].isHovered = false
+    }
+    hoveredBoxIndex = -1
+    clickedBoxIndex = -1
+    document.body.style.cursor = 'default'
+  }
+
   return isGalleryMode;
+}
+
+window.toggleGalleryMode = function() {
+  return applyGalleryMode(!isGalleryMode);
+};
+
+// 供赛车进场时强制退出画廊模式
+window.exitGalleryMode = function() {
+  return applyGalleryMode(false);
 };
 
 // 获取当前画廊模式状态
@@ -1203,8 +1233,43 @@ const init = async () => {
   
   loadSavedLang();
   setupLanguageSwitcher();
+
+  // 合成波赛车直接跑在主 3D 场景上：不依赖远端数据，尽早绑定 WELCOME 入口
+  racerMode = initRacerMode({
+    scene: scene.instance,
+    camera: camera.instance,
+    gridFloor,
+    onEnter: () => {
+      /* 若之前停在作品检视（画廊模式），先彻底退出，避免两套 3D 场景叠加 */
+      if (isGalleryMode) applyGalleryMode(false)
+      if (isAnyGalleryModalOpen) {
+        document.querySelectorAll('.gallery-modal').forEach((modal) => {
+          modal.classList.add('hidden')
+          modal.style.display = 'none'
+        })
+        isAnyGalleryModalOpen = false
+      }
+      if (wireframeIcosahedron) wireframeIcosahedron.visible = false
+      if (virtualAvatar) virtualAvatar.group.visible = false
+      /* 游戏期间太阳与地面网格亮度各降 10% */
+      if (sun) sun.setBrightness(0.9)
+      if (gridFloor) gridFloor.brightness = 0.9
+      /* 进入游戏自动播放游戏歌单（songs.playlist = 'game'） */
+      if (uiManager) uiManager.playGameMusic()
+    },
+    onExit: () => {
+      if (wireframeIcosahedron) wireframeIcosahedron.visible = true
+      if (virtualAvatar) virtualAvatar.group.visible = true
+      if (sun) sun.setBrightness(1)
+      if (gridFloor) gridFloor.brightness = 1
+      /* 退出游戏后后续随机播放回落到默认歌单 */
+      if (uiManager) uiManager.restoreDefaultPlaylist()
+    },
+  })
   
   await musicService.fetchSongs();
+  /* BGM 歌单：MainSynthBGM = 3D 主场景，GameSynthBGM = 赛车游戏（MyFavor 暂不播放） */
+  await musicService.fetchBgmSongs();
   
   console.log('Initializing UIManager...');
   uiManager = new UIManager();

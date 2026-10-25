@@ -89,6 +89,7 @@ let guestbookMessages = [];
 const LOCAL_STORAGE_KEY = 'synthwave-guestbook-messages';
 const VOLUME_STORAGE_KEY = 'synthwave-music-volume';
 const DEFAULT_VOLUME = 0.5;
+
 // 留言板默认只展示最近 4 条，其余折叠
 const MESSAGE_COLLAPSE_LIMIT = 4;
 
@@ -324,6 +325,13 @@ export default class UIManager {
   loadSongsFromService() {
     console.log('UIManager: loadSongsFromService called');
     console.log('UIManager: window.musicService exists:', !!window.musicService);
+
+    /* 主场景歌单优先读取 storage 的 MainSynthBGM 文件夹 */
+    const mainBgm = window.musicService?.getMainBgmSongs?.() || [];
+    if (mainBgm.length > 0) {
+      console.log('UIManager: Loaded MainSynthBGM songs:', mainBgm.length);
+      return mainBgm;
+    }
     
     if (window.musicService) {
       const songCount = window.musicService.getSongsCount();
@@ -335,7 +343,9 @@ export default class UIManager {
         
         const result = dbSongs.map(song => ({
           title: song.title,
-          url: song.file_path
+          url: song.file_path,
+          /* 歌单归属：数据库 playlist 列，缺省归入主歌单 */
+          playlist: String(song.playlist || 'main').toLowerCase(),
         }));
         
         console.log('UIManager: Processed songs:', result);
@@ -350,11 +360,11 @@ export default class UIManager {
     
     console.warn('UIManager: No songs from database, using placeholder songs - please upload local files');
     return [
-      { title: '🎵 请上传音乐文件 1', url: '' },
-      { title: '🎵 请上传音乐文件 2', url: '' },
-      { title: '🎵 请上传音乐文件 3', url: '' },
-      { title: '🎵 请上传音乐文件 4', url: '' },
-      { title: '🎵 请上传音乐文件 5', url: '' }
+      { title: '🎵 请上传音乐文件 1', url: '', playlist: 'main' },
+      { title: '🎵 请上传音乐文件 2', url: '', playlist: 'main' },
+      { title: '🎵 请上传音乐文件 3', url: '', playlist: 'main' },
+      { title: '🎵 请上传音乐文件 4', url: '', playlist: 'main' },
+      { title: '🎵 请上传音乐文件 5', url: '', playlist: 'main' }
     ];
   }
 
@@ -538,7 +548,15 @@ export default class UIManager {
     this.audio = null;
     this.currentSongIndex = 0;
     // 优先使用云端数据库的歌曲，没有则使用默认歌曲
-    this.songs = this.loadSongsFromService();
+    const allSongs = this.loadSongsFromService();
+    const mainSongs = allSongs.filter(song => song.playlist !== 'game');
+    const dbGameSongs = allSongs.filter(song => song.playlist === 'game');
+    /* 游戏歌单优先读取 storage 的 GameBGM 文件夹，未配置时回退到数据库 playlist = game */
+    const bgmSongs = window.musicService?.getGameBgmSongs?.() || [];
+    this.gameSongs = bgmSongs.length > 0 ? bgmSongs : dbGameSongs;
+    this.songs = mainSongs.length > 0 ? mainSongs : allSongs;
+    // 当前激活的歌单：默认歌单 / 游戏歌单
+    this.activeSongs = this.songs;
     this.isAudioInitialized = false;
     // 播放队列：确保一轮内完全不重复（每轮都是全新随机顺序）
     this.playlist = [];
@@ -1595,7 +1613,8 @@ export default class UIManager {
   // 初始化播放队列（Fisher-Yates 洗牌算法 + crypto 随机种子）
   initPlaylist() {
     this.playlist = [];
-    for (let i = 0; i < this.songs.length; i++) {
+    const list = this.activeSongs || this.songs;
+    for (let i = 0; i < list.length; i++) {
       this.playlist.push(i);
     }
     // 使用 crypto.getRandomValues 增强随机性，防止 Math.random 规律性导致固定首曲
@@ -1725,6 +1744,25 @@ export default class UIManager {
     this.playCurrentSong();
   }
 
+  // 游戏开始自动播放：切换到 GameBGM 歌单随机选一首，之后继续随机循环
+  playGameMusic() {
+    const list = this.gameSongs && this.gameSongs.length > 0 ? this.gameSongs : this.songs
+    if (!list || list.length === 0) return
+    /* 已经在播主场景 BGM 时也要切到游戏歌单 */
+    if (this.activeSongs === list && this.isMusicPlaying) return
+    this.activeSongs = list
+    this.initPlaylist()
+    this.currentSongIndex = this.getNextSongIndex()
+    this.playCurrentSong()
+  }
+
+  // 退出游戏后恢复默认歌单，后续随机循环回到主歌单
+  restoreDefaultPlaylist() {
+    if (this.activeSongs === this.songs) return
+    this.activeSongs = this.songs
+    this.initPlaylist()
+  }
+
   // 验证并清理 URL
   validateAndCleanUrl(url) {
     if (!url || url.trim() === '') {
@@ -1746,7 +1784,7 @@ export default class UIManager {
 
   // 播放当前歌曲
   async playCurrentSong() {
-    const currentSong = this.songs[this.currentSongIndex];
+    const currentSong = (this.activeSongs || this.songs)[this.currentSongIndex];
     console.log('UIManager: playCurrentSong called, song:', currentSong);
     
     // 检查 URL 是否为空
@@ -1776,6 +1814,10 @@ export default class UIManager {
         this.showNowPlaying(currentSong.title + ' - 加载中...');
         
         await window.musicVisualizer.loadAudio(cleanUrl);
+        const visualizerAudio = window.musicVisualizer.audioElement;
+        if (visualizerAudio) {
+          visualizerAudio.addEventListener('ended', () => this.playRandomNextSong());
+        }
         this.applyVolume();
         await window.musicVisualizer.play();
         
@@ -1892,7 +1934,7 @@ export default class UIManager {
   handleNextSong() {
     try {
       console.log('handleNextSong called');
-      console.log('Songs count:', this.songs.length);
+      console.log('Songs count:', this.activeSongs.length);
       console.log('Current song index:', this.currentSongIndex);
       console.log('Playlist length:', this.playlist.length);
       
@@ -1901,7 +1943,7 @@ export default class UIManager {
         this.initAudioPlayer();
       }
       
-      if (this.songs.length === 0) {
+      if (this.activeSongs.length === 0) {
         console.error('No songs available!');
         return;
       }

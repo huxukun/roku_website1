@@ -198,6 +198,8 @@ export default class VirtualAvatar {
   }
 
   onClick(event) {
+    /* 游戏期间机器人被隐藏，点击不应触发彩蛋 */
+    if (!this.group.visible) return
     console.log('VirtualAvatar onClick triggered!')
     console.log('Target:', event.target.tagName, event.target.id)
     

@@ -110,8 +110,12 @@ CREATE TABLE IF NOT EXISTS songs (
     artist VARCHAR(100),
     file_path VARCHAR(500) NOT NULL,
     duration INTEGER,
+    playlist VARCHAR(20) NOT NULL DEFAULT 'main',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 老库补列：歌单归属（main = 默认歌单，game = 游戏歌单）
+ALTER TABLE songs ADD COLUMN IF NOT EXISTS playlist VARCHAR(20) NOT NULL DEFAULT 'main';
 
 -- 启用 RLS
 ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
@@ -126,6 +130,7 @@ CREATE POLICY "Allow authenticated insert songs" ON songs
 
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_songs_created_at ON songs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_songs_playlist ON songs(playlist);
 
 -- =============================================
 -- 互联网图片收藏：数据表 + Storage 桶

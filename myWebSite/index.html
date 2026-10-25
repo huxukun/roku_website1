@@ -90,7 +90,17 @@
     
     <div class="ui-container">
       <header class="header-bar">
-        <h1 class="welcome-text">WELCOME</h1>
+        <h1 class="welcome-text">
+          <button id="tv-power-btn" class="tv-entry" type="button" aria-expanded="false" aria-controls="tv-portal">
+            <span class="tv-entry-label">WELCOME</span>
+            <span class="tv-entry-switch" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M12 3.5v8" />
+                <path d="M7.3 6.4a7 7 0 1 0 9.4 0" />
+              </svg>
+            </span>
+          </button>
+        </h1>
       </header>
     </div>
 
@@ -154,8 +164,8 @@
                 <div class="profile-avatar-frame">
                   <img id="profile-avatar" src="https://images.unsplash.com/photo-1561948955-570b270e7c36?w=200&h=200&fit=crop" alt="Profile" class="profile-avatar">
                   <input type="file" id="avatar-upload" accept="image/*" class="avatar-input">
-                  <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only"><span class="change-avatar-text">📷 更换头像</span></button>
                 </div>
+                <button id="avatar-upload-btn" class="nes-btn is-primary avatar-upload-btn admin-only"><span class="change-avatar-text">📷 更换头像</span></button>
               </div>
               <div class="about-sections">
                 <div class="about-bio">
@@ -443,6 +453,32 @@
           <span class="flag">🇯🇵</span>
           <span>日本語</span>
         </div>
+      </div>
+    </div>
+
+    <!-- 合成波赛车：直接运行在主 3D 场景上，点击 WELCOME 进入 -->
+    <div id="tv-portal" class="racer-hud" aria-hidden="true">
+      <div class="racer-hud-top">
+        <span class="racer-hud-tag" aria-hidden="true">CH 03 // SYNTHWAVE RACER</span>
+        <span id="racer-status" class="racer-hud-status">STANDBY</span>
+        <span class="racer-hud-score">
+          <span class="racer-hud-label">SCORE</span>
+          <span id="racer-score" class="racer-hud-value">000000</span>
+          <span class="racer-hud-label">HI</span>
+          <span id="racer-hiscore" class="racer-hud-value">000000</span>
+        </span>
+        <button id="tv-portal-close" class="racer-hud-close" type="button" aria-label="退出游戏">✕</button>
+      </div>
+
+      <span id="racer-overlay" class="racer-overlay">
+        <span id="racer-overlay-title" class="racer-overlay-title">SYNTHWAVE RACER</span>
+        <span id="racer-overlay-text" class="racer-overlay-text">← → / A D 转向 · 避开前方来车</span>
+        <button id="racer-start-btn" class="racer-overlay-start" type="button">PRESS START</button>
+      </span>
+
+      <div class="racer-hud-bottom">
+        <span class="racer-hud-hint">← → / A D 转向 · W / ↑ 加速 · 点击屏幕左右半区 · ESC 退出</span>
+        <span class="racer-hud-brand" aria-hidden="true">CRT-2000 · SYNTHWAVE RACER</span>
       </div>
     </div>
     
