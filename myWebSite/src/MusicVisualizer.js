@@ -257,7 +257,10 @@ export default class MusicVisualizer {
         const bar = this.bars[i]
         
         // 减少缓降效果，响应更快
-        bar.currentScale = bar.currentScale * 0.6 + targetScale * 0.4
+        // 必须钳制下限：静音段 analyser 输出全 0，scale 会一路衰减到 1e-181
+        // 这种次正规数会让矩阵接近奇异（法线 NaN），经 Bloom 扩散后整屏全黑
+        const nextScale = bar.currentScale * 0.6 + targetScale * 0.4
+        bar.currentScale = Number.isFinite(nextScale) ? Math.max(0.04, nextScale) : 0.04
         
         bar.mesh.scale.y = bar.currentScale
         bar.mesh.position.y = bar.currentScale * 0.05
@@ -282,7 +285,8 @@ export default class MusicVisualizer {
         
         // 全部轻微波动
         const idleScale = 0.1 + Math.sin(time * 0.002 + i * 0.1) * 0.05
-        bar.currentScale = bar.currentScale * 0.8 + idleScale * 0.2
+        const nextScale = bar.currentScale * 0.8 + idleScale * 0.2
+        bar.currentScale = Number.isFinite(nextScale) ? Math.max(0.04, nextScale) : 0.04
         
         bar.mesh.scale.y = bar.currentScale
         bar.mesh.position.y = bar.currentScale * 0.05

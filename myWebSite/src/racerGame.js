@@ -574,6 +574,66 @@ function buildCarModel(index) {
     })
   }
 
+  /* NOVA：发光尾翼 + 向后拉出的拖尾光束 */
+  if (index === 3) {
+    const wingTop = shape.wing.y + shape.wing.h * 0.5
+    /* 拖尾不能太长：追逐机位就在车尾后方，过长会跑到画面下缘之外 */
+    const streakLength = 2.2
+    /* 顶点色从尾翼端高亮过渡到远端熄灭，叠加混合下远端自然消失；
+       用细长方体的光束而不是平面，保证从车后追逐视角也能看见拖尾 */
+    const streakGeo = new THREE.BoxGeometry(0.12, 0.12, streakLength)
+    streakGeo.translate(0, 0, streakLength / 2)
+    const baseColor = new THREE.Color(style.tailColor)
+    const positions = streakGeo.attributes.position
+    const colors = new Float32Array(positions.count * 3)
+    for (let i = 0; i < positions.count; i += 1) {
+      const t = 1 - Math.min(1, positions.getZ(i) / streakLength)
+      const fade = t * t * (0.35 + t * 0.65)
+      colors[i * 3] = baseColor.r * fade
+      colors[i * 3 + 1] = baseColor.g * fade
+      colors[i * 3 + 2] = baseColor.b * fade
+    }
+    streakGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    const streakMat = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    ;[-1.0, 0, 1.0].forEach((x) => {
+      const streak = new THREE.Mesh(streakGeo, streakMat)
+      streak.position.set(x, wingTop - 0.02, shape.wing.z + shape.wing.d * 0.5)
+      /* 两侧光束向外张开，正面追击视角也能看到拖尾 */
+      streak.rotation.y = x * 0.2
+      car.add(streak)
+    })
+
+    /* 尾翼上表面的一层薄辉光，让翼面整体发光而不糊成一片 */
+    const wingLight = new THREE.Mesh(
+      new THREE.PlaneGeometry(shape.wing.w, shape.wing.d),
+      new THREE.MeshBasicMaterial({
+        color: style.tailColor,
+        transparent: true,
+        opacity: 0.28,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    )
+    wingLight.rotation.x = -Math.PI / 2
+    wingLight.position.set(0, wingTop + 0.005, shape.wing.z)
+    car.add(wingLight)
+
+    /* 尾翼后缘的高亮灯条：让尾翼自己发光 */
+    const wingBar = new THREE.Mesh(
+      new THREE.BoxGeometry(shape.wing.w + 0.18, 0.06, 0.08),
+      new THREE.MeshBasicMaterial({ color: style.tailColor }),
+    )
+    wingBar.position.set(0, wingTop, shape.wing.z + shape.wing.d * 0.5 + 0.02)
+    car.add(wingBar)
+  }
+
   /* 头灯：翻灯（AE86 / RX-7）或固定方灯（GTR / NOVA） */
   if (shape.popups) {
     const hood = shape.body[1]
@@ -594,12 +654,38 @@ function buildCarModel(index) {
     })
   }
 
-  /* 尾灯 */
-  ;[-0.55, 0.55].forEach((x) => {
-    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.13, 0.07), tailMat)
-    lamp.position.set(x, 0.64, tail.z - 0.02)
-    car.add(lamp)
-  })
+  /* 尾灯：PHANTOM 用一条贯穿车尾的连体灯带，其余车为左右两段 */
+  if (index === 2) {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.12, 0.06), tailMat)
+    strip.position.set(0, 0.64, tail.z - 0.01)
+    car.add(strip)
+    /* 两端包角，让灯带贴着车尾轮廓转折 */
+    ;[-1, 1].forEach((side) => {
+      const wrap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.34), tailMat)
+      wrap.position.set(side * 0.92, 0.64, tail.z - 0.2)
+      car.add(wrap)
+    })
+    /* 灯带外层的霓虹辉光 */
+    const tailGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.1, 0.5),
+      new THREE.MeshBasicMaterial({
+        map: getGlowTexture(),
+        color: style.tailColor,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    tailGlow.position.set(0, 0.64, tail.z + 0.03)
+    car.add(tailGlow)
+  } else {
+    ;[-0.55, 0.55].forEach((x) => {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.13, 0.07), tailMat)
+      lamp.position.set(x, 0.64, tail.z - 0.02)
+      car.add(lamp)
+    })
+  }
 
   /* 轮子 */
   const wheelGeo = new THREE.CylinderGeometry(0.37, 0.37, 0.32, 12)
@@ -1320,6 +1406,31 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   let boostCooldown = 0
   let boostBlend = 0 // 0→1 的平滑加速权重，用于渐变进退
 
+  /* 加速音效：命中 BOOST 时播放一次，加速结束 / 暂停 / 退出时停止 */
+  const boostAudio = new Audio('/audio/boost.mp3')
+  boostAudio.preload = 'auto'
+  boostAudio.volume = 0.55
+
+  const playBoostSound = () => {
+    try {
+      boostAudio.pause()
+      boostAudio.currentTime = 0
+      const promise = boostAudio.play()
+      if (promise && typeof promise.catch === 'function') promise.catch(() => {})
+    } catch (error) {
+      /* 浏览器拦截自动播放时静默忽略 */
+    }
+  }
+
+  const stopBoostSound = () => {
+    try {
+      boostAudio.pause()
+      boostAudio.currentTime = 0
+    } catch (error) {
+      /* 忽略 */
+    }
+  }
+
   const boostBtn = document.createElement('button')
   boostBtn.className = 'racer-boost is-ready'
   boostBtn.type = 'button'
@@ -1410,6 +1521,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     boostTime = 0
     boostCooldown = 0
     boostBlend = 0
+    stopBoostSound()
     refreshBoostUI()
     refreshSpeedo(0, false)
   }
@@ -1418,6 +1530,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     if (phase !== 'running') return
     if (boostTime > 0 || boostCooldown > 0) return
     boostTime = currentStats().boostDuration
+    playBoostSound()
     refreshBoostUI()
   }
 
@@ -1894,6 +2007,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     input.left = false
     input.right = false
     input.touch = 0
+    stopBoostSound()
     setStatus('PAUSED')
     showOverlay('PAUSED', '游戏暂停中 · 按 SPACE 继续', 'RESUME')
   }
@@ -1982,7 +2096,10 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     const stats = currentStats()
     if (boostTime > 0) {
       boostTime = Math.max(0, boostTime - dt)
-      if (boostTime === 0) boostCooldown = stats.boostCooldown
+      if (boostTime === 0) {
+        boostCooldown = stats.boostCooldown
+        stopBoostSound()
+      }
       refreshBoostUI()
     } else if (boostCooldown > 0) {
       boostCooldown = Math.max(0, boostCooldown - dt)
