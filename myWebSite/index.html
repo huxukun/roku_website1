@@ -473,12 +473,63 @@
       <span id="racer-overlay" class="racer-overlay">
         <span id="racer-overlay-title" class="racer-overlay-title">SYNTHWAVE RACER</span>
         <span id="racer-overlay-text" class="racer-overlay-text">← → / A D 转向 · 避开前方来车</span>
-        <button id="racer-start-btn" class="racer-overlay-start" type="button">PRESS START</button>
+        <span class="racer-overlay-actions">
+          <button id="racer-start-btn" class="racer-overlay-start" type="button">PRESS START</button>
+          <button id="racer-garage-btn" class="racer-overlay-start is-ghost" type="button">车库</button>
+        </span>
       </span>
 
       <div class="racer-hud-bottom">
+        <span class="racer-hud-total">TOTAL <b id="racer-total">000000</b></span>
         <span class="racer-hud-hint">← → / A D 转向 · W / ↑ 加速 · 点击屏幕左右半区 · ESC 退出</span>
         <span class="racer-hud-brand" aria-hidden="true">CRT-2000 · SYNTHWAVE RACER</span>
+      </div>
+    </div>
+
+    <!-- 车库 / 解锁新车：一局结束后自动弹出，外面套上 CRT 电视框素材 -->
+    <div id="racer-garage" class="racer-garage" aria-hidden="true">
+      <div class="racer-garage-crt">
+        <div class="racer-garage-frame">
+          <div class="racer-garage-head">
+            <span class="racer-garage-title">GARAGE // 车辆解锁</span>
+            <span class="racer-garage-total">TOTAL <b id="racer-garage-total">000000</b></span>
+            <button id="racer-garage-close" class="racer-hud-close" type="button" aria-label="关闭车库">✕</button>
+          </div>
+          <div class="racer-garage-stage">
+            <canvas id="racer-garage-canvas" class="racer-garage-canvas"></canvas>
+            <div class="racer-garage-grid">
+              <div class="garage-cell">
+                <div class="garage-cell-info">
+                  <span class="garage-cell-name">STARTER</span>
+                  <span class="garage-cell-stats" data-stats="0"></span>
+                  <button class="garage-action" type="button" data-car="0">使用中</button>
+                </div>
+              </div>
+              <div class="garage-cell">
+                <div class="garage-cell-info">
+                  <span class="garage-cell-name">AERO-X</span>
+                  <span class="garage-cell-stats" data-stats="1"></span>
+                  <button class="garage-action" type="button" data-car="1">🔒</button>
+                </div>
+              </div>
+              <div class="garage-cell">
+                <div class="garage-cell-info">
+                  <span class="garage-cell-name">PHANTOM</span>
+                  <span class="garage-cell-stats" data-stats="2"></span>
+                  <button class="garage-action" type="button" data-car="2">🔒</button>
+                </div>
+              </div>
+              <div class="garage-cell">
+                <div class="garage-cell-info">
+                  <span class="garage-cell-name">NOVA</span>
+                  <span class="garage-cell-stats" data-stats="3"></span>
+                  <button class="garage-action" type="button" data-car="3">🔒</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <img class="crt-bezel racer-garage-bezel" src="/assets/crt/crt-frame.webp" alt="" aria-hidden="true">
       </div>
     </div>
     

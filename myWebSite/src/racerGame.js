@@ -15,8 +15,9 @@ const HISCORE_KEY = 'synthwave-racer-hiscore'
 const ROAD_HALF = 8
 const ROAD_LENGTH = 130
 const ROAD_FAR_Z = -96
-const DASH_COUNT = 18
-const DASH_SPACING = 7.5
+/* 白色虚线：加大每段虚线之间的前后间距（段长仍为 3.4） */
+const DASH_COUNT = 13
+const DASH_SPACING = 10.5
 const DASH_START_LOCAL = 126
 const PLAYER_Z = 0
 const ROAD_ROWS = 65
@@ -70,10 +71,14 @@ const COMBO_MAX = 5
 const OVERTAKE_BONUS = 40
 const CLOSE_OVERTAKE_BONUS = 90
 const CLOSE_OVERTAKE_GAP = 2.6
+/* 超车判定：横向范围放宽到约 1.5 个车身宽 */
+const OVERTAKE_MAX_LATERAL = 3.6
+/* 玩家碰撞箱：比车身实际尺寸收一圈，擦身而过不再直接判定撞车 */
+const PLAYER_HIT_HALF_Z = 2.9
+const PLAYER_HIT_HALF_X = 1.5
 
-/* 火箭加速：持续 3 秒，期间得分翻倍，冷却 5 秒 */
-const BOOST_DURATION = 3
-const BOOST_COOLDOWN = 5
+/* 火箭加速：持续时间与冷却按所选车辆属性取值；每次超车冷却缩短 0.5 秒 */
+const OVERTAKE_BOOST_CD_REWARD = 0.5
 const BOOST_MULT = 1.7
 const BOOST_FOV = 18
 
@@ -261,6 +266,399 @@ function buildCar({ bodyColor, trimColor, tailColor, glowColor }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 车辆外观：0 = 初始车，1~3 = 车库解锁车                                      */
+/* -------------------------------------------------------------------------- */
+const CAR_STYLES = [
+  { bodyColor: 0x18d8ff, trimColor: 0x9ef6ff, tailColor: 0xff3f86, glowColor: 0xff2a6d },
+  { bodyColor: 0x2effa6, trimColor: 0xd6ffe9, tailColor: 0xffb03a, glowColor: 0x22ff9a },
+  { bodyColor: 0x9a5cff, trimColor: 0xeed9ff, tailColor: 0xff49d2, glowColor: 0x8a3bff },
+  { bodyColor: 0xff8f2e, trimColor: 0xffe3b0, tailColor: 0xfff05a, glowColor: 0xff5f1f },
+]
+
+/* 车辆属性：解锁难度越高，极速 / 转向 / 加速越强 */
+const CAR_STATS = [
+  { topSpeed: 64, baseSpeed: 26, accelTime: 1.5, turn: 1.0, boostDuration: 3.0, boostCooldown: 5.0, boostRamp: 2.0 },
+  { topSpeed: 72, baseSpeed: 27, accelTime: 1.25, turn: 1.1, boostDuration: 3.2, boostCooldown: 4.6, boostRamp: 2.2 },
+  { topSpeed: 80, baseSpeed: 28, accelTime: 1.0, turn: 1.2, boostDuration: 3.4, boostCooldown: 4.2, boostRamp: 2.4 },
+  { topSpeed: 90, baseSpeed: 30, accelTime: 0.8, turn: 1.32, boostDuration: 3.7, boostCooldown: 3.8, boostRamp: 2.7 },
+]
+
+/* 车身放样：每站 8 个截面点（右半 → 顶部 → 左半），相邻两站间铺三角面，
+ * 截面自带 shoulder 折点，所以车侧 / 引擎盖 / 车顶都是斜面而不是方块。 */
+const BODY_RING = 8
+
+const makeLoftGeometry = (stations) => {
+  const positions = []
+  const indices = []
+  stations.forEach((s) => {
+    const ring = [
+      [0, s.yb],
+      [s.wb, s.yb],
+      [s.wm, s.ys],
+      [s.wt, s.yt],
+      [0, s.yt],
+      [-s.wt, s.yt],
+      [-s.wm, s.ys],
+      [-s.wb, s.yb],
+    ]
+    ring.forEach(([x, y]) => positions.push(x, y, s.z))
+  })
+  for (let i = 0; i < stations.length - 1; i += 1) {
+    const a = i * BODY_RING
+    const b = (i + 1) * BODY_RING
+    for (let j = 0; j < BODY_RING; j += 1) {
+      const j2 = (j + 1) % BODY_RING
+      indices.push(a + j, a + j2, b + j2)
+      indices.push(a + j, b + j2, b + j)
+    }
+  }
+  const cap = (stationIndex, isFront) => {
+    const s = stations[stationIndex]
+    const ringStart = stationIndex * BODY_RING
+    const centerIndex = positions.length / 3
+    positions.push(0, (s.yb + s.yt) / 2, s.z)
+    for (let j = 0; j < BODY_RING; j += 1) {
+      const j2 = (j + 1) % BODY_RING
+      if (isFront) indices.push(centerIndex, ringStart + j2, ringStart + j)
+      else indices.push(centerIndex, ringStart + j, ringStart + j2)
+    }
+  }
+  cap(0, true)
+  cap(stations.length - 1, false)
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+const makeQuadGeometry = (p0, p1, p2, p3) => {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute([...p0, ...p1, ...p2, ...p3], 3),
+  )
+  geometry.setIndex([0, 1, 2, 0, 2, 3])
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+/* 四辆车的中古跑车轮廓（车头在 -z） */
+const CAR_SHAPES = [
+  {
+    /* STARTER — AE86 风格：方正紧凑的后掀背 */
+    track: 0.94,
+    lipWidth: 1.88,
+    skirtLength: 2.5,
+    popups: true,
+    wing: { w: 1.9, d: 0.3, h: 0.06, y: 0.86, z: 2.0, supports: false },
+    body: [
+      { z: -2.35, yb: 0.3, ys: 0.44, yt: 0.56, wb: 0.62, wm: 0.8, wt: 0.7 },
+      { z: -1.95, yb: 0.24, ys: 0.5, yt: 0.66, wb: 0.8, wm: 0.96, wt: 0.88 },
+      { z: -1.2, yb: 0.22, ys: 0.5, yt: 0.72, wb: 0.84, wm: 1.0, wt: 0.92 },
+      { z: -0.35, yb: 0.22, ys: 0.52, yt: 0.78, wb: 0.84, wm: 1.0, wt: 0.9 },
+      { z: 1.25, yb: 0.24, ys: 0.52, yt: 0.82, wb: 0.84, wm: 1.0, wt: 0.9 },
+      { z: 2.05, yb: 0.26, ys: 0.5, yt: 0.8, wb: 0.82, wm: 0.98, wt: 0.86 },
+      { z: 2.38, yb: 0.3, ys: 0.48, yt: 0.72, wb: 0.72, wm: 0.88, wt: 0.78 },
+    ],
+    cabin: [
+      { z: -0.62, yb: 0.62, ys: 0.86, yt: 0.88, wb: 0.78, wm: 0.7, wt: 0.58 },
+      { z: 0.52, yb: 0.62, ys: 1.1, yt: 1.22, wb: 0.76, wm: 0.68, wt: 0.54 },
+      { z: 1.62, yb: 0.62, ys: 1.1, yt: 1.22, wb: 0.76, wm: 0.68, wt: 0.52 },
+      { z: 2.24, yb: 0.62, ys: 0.88, yt: 0.9, wb: 0.74, wm: 0.66, wt: 0.56 },
+    ],
+  },
+  {
+    /* AERO-X — RX-7 风格：长车头、楔形低趴 */
+    track: 0.96,
+    lipWidth: 2.0,
+    skirtLength: 2.6,
+    popups: true,
+    wing: { w: 2.0, d: 0.36, h: 0.06, y: 1.06, z: 2.0, supports: true },
+    body: [
+      { z: -2.48, yb: 0.3, ys: 0.42, yt: 0.48, wb: 0.52, wm: 0.68, wt: 0.56 },
+      { z: -2.05, yb: 0.24, ys: 0.44, yt: 0.56, wb: 0.74, wm: 0.92, wt: 0.82 },
+      { z: -1.15, yb: 0.22, ys: 0.46, yt: 0.66, wb: 0.84, wm: 1.02, wt: 0.94 },
+      { z: -0.25, yb: 0.22, ys: 0.48, yt: 0.74, wb: 0.86, wm: 1.04, wt: 0.96 },
+      { z: 1.15, yb: 0.24, ys: 0.48, yt: 0.8, wb: 0.86, wm: 1.04, wt: 0.96 },
+      { z: 2.05, yb: 0.26, ys: 0.46, yt: 0.78, wb: 0.82, wm: 1.0, wt: 0.88 },
+      { z: 2.42, yb: 0.3, ys: 0.44, yt: 0.7, wb: 0.68, wm: 0.86, wt: 0.74 },
+    ],
+    cabin: [
+      { z: -0.7, yb: 0.58, ys: 0.82, yt: 0.84, wb: 0.78, wm: 0.7, wt: 0.56 },
+      { z: 0.3, yb: 0.58, ys: 1.04, yt: 1.16, wb: 0.74, wm: 0.66, wt: 0.52 },
+      { z: 1.35, yb: 0.58, ys: 1.04, yt: 1.16, wb: 0.74, wm: 0.66, wt: 0.5 },
+      { z: 2.1, yb: 0.58, ys: 0.8, yt: 0.82, wb: 0.72, wm: 0.64, wt: 0.54 },
+    ],
+  },
+  {
+    /* PHANTOM — GTR 风格：宽扁、方正、平直车顶 */
+    track: 1.0,
+    lipWidth: 2.1,
+    skirtLength: 2.5,
+    popups: false,
+    wing: { w: 2.2, d: 0.44, h: 0.07, y: 1.34, z: 1.98, supports: true },
+    body: [
+      { z: -2.32, yb: 0.3, ys: 0.48, yt: 0.58, wb: 0.78, wm: 0.94, wt: 0.86 },
+      { z: -1.95, yb: 0.26, ys: 0.5, yt: 0.68, wb: 0.86, wm: 1.04, wt: 0.96 },
+      { z: -1.15, yb: 0.24, ys: 0.52, yt: 0.72, wb: 0.92, wm: 1.08, wt: 1.0 },
+      { z: -0.3, yb: 0.24, ys: 0.54, yt: 0.78, wb: 0.92, wm: 1.08, wt: 1.0 },
+      { z: 1.2, yb: 0.26, ys: 0.54, yt: 0.82, wb: 0.92, wm: 1.08, wt: 1.0 },
+      { z: 2.02, yb: 0.28, ys: 0.52, yt: 0.8, wb: 0.88, wm: 1.04, wt: 0.94 },
+      { z: 2.34, yb: 0.32, ys: 0.5, yt: 0.74, wb: 0.8, wm: 0.96, wt: 0.84 },
+    ],
+    cabin: [
+      { z: -0.58, yb: 0.6, ys: 0.88, yt: 0.9, wb: 0.84, wm: 0.76, wt: 0.62 },
+      { z: 0.42, yb: 0.6, ys: 1.14, yt: 1.26, wb: 0.82, wm: 0.74, wt: 0.58 },
+      { z: 1.68, yb: 0.6, ys: 1.14, yt: 1.26, wb: 0.82, wm: 0.74, wt: 0.56 },
+      { z: 2.22, yb: 0.6, ys: 0.88, yt: 0.9, wb: 0.8, wm: 0.72, wt: 0.6 },
+    ],
+  },
+  {
+    /* NOVA — 终极宽体 */
+    track: 1.06,
+    lipWidth: 2.3,
+    skirtLength: 2.6,
+    popups: false,
+    wing: { w: 2.5, d: 0.5, h: 0.08, y: 1.42, z: 2.02, supports: true },
+    body: [
+      { z: -2.4, yb: 0.32, ys: 0.5, yt: 0.6, wb: 0.82, wm: 1.0, wt: 0.9 },
+      { z: -2.0, yb: 0.26, ys: 0.52, yt: 0.7, wb: 0.96, wm: 1.14, wt: 1.04 },
+      { z: -1.2, yb: 0.24, ys: 0.54, yt: 0.74, wb: 1.0, wm: 1.18, wt: 1.08 },
+      { z: -0.3, yb: 0.24, ys: 0.56, yt: 0.8, wb: 1.0, wm: 1.18, wt: 1.08 },
+      { z: 1.2, yb: 0.26, ys: 0.56, yt: 0.84, wb: 1.0, wm: 1.18, wt: 1.08 },
+      { z: 2.06, yb: 0.28, ys: 0.54, yt: 0.82, wb: 0.94, wm: 1.12, wt: 1.0 },
+      { z: 2.4, yb: 0.32, ys: 0.52, yt: 0.76, wb: 0.84, wm: 1.02, wt: 0.88 },
+    ],
+    cabin: [
+      { z: -0.62, yb: 0.62, ys: 0.92, yt: 0.94, wb: 0.92, wm: 0.84, wt: 0.68 },
+      { z: 0.38, yb: 0.62, ys: 1.2, yt: 1.34, wb: 0.9, wm: 0.82, wt: 0.66 },
+      { z: 1.66, yb: 0.62, ys: 1.2, yt: 1.34, wb: 0.9, wm: 0.82, wt: 0.64 },
+      { z: 2.22, yb: 0.62, ys: 0.92, yt: 0.94, wb: 0.88, wm: 0.8, wt: 0.68 },
+    ],
+  },
+]
+
+
+function buildCarModel(index) {
+  const style = CAR_STYLES[index] || CAR_STYLES[0]
+  const shape = CAR_SHAPES[index] || CAR_SHAPES[0]
+  const car = new THREE.Group()
+
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: style.bodyColor,
+    metalness: 0.5,
+    roughness: 0.32,
+    emissive: new THREE.Color(style.bodyColor).multiplyScalar(0.14),
+    flatShading: true,
+  })
+  const darkMat = new THREE.MeshStandardMaterial({
+    color: 0x08080f,
+    metalness: 0.3,
+    roughness: 0.8,
+    flatShading: true,
+  })
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x0a1d30,
+    metalness: 0.9,
+    roughness: 0.16,
+    emissive: 0x001a2a,
+    side: THREE.DoubleSide,
+    flatShading: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  })
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: style.trimColor,
+    metalness: 0.6,
+    roughness: 0.28,
+    emissive: new THREE.Color(style.trimColor).multiplyScalar(0.35),
+    flatShading: true,
+  })
+  const lineMat = new THREE.MeshBasicMaterial({ color: style.trimColor })
+  const tailMat = new THREE.MeshBasicMaterial({ color: style.tailColor })
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xe6fbff })
+
+  /* 车身外壳：手工三角面放样，带引擎盖 / 车侧 / 车顶斜面 */
+  const bodyGeo = makeLoftGeometry(shape.body)
+  car.add(new THREE.Mesh(bodyGeo, bodyMat))
+  car.add(
+    new THREE.LineSegments(
+      new THREE.EdgesGeometry(bodyGeo, 26),
+      new THREE.LineBasicMaterial({
+        color: style.trimColor,
+        transparent: true,
+        opacity: 0.5,
+      }),
+    ),
+  )
+
+  /* 座舱：同样放样，顶部形成前后风挡斜面 */
+  const cabinGeo = makeLoftGeometry(shape.cabin)
+  car.add(new THREE.Mesh(cabinGeo, bodyMat))
+  car.add(
+    new THREE.LineSegments(
+      new THREE.EdgesGeometry(cabinGeo, 32),
+      new THREE.LineBasicMaterial({
+        color: style.trimColor,
+        transparent: true,
+        opacity: 0.3,
+      }),
+    ),
+  )
+
+  /* 车窗：前风挡 / 后窗 / 两侧，贴合座舱斜面 */
+  const c0 = shape.cabin[0]
+  const c1 = shape.cabin[1]
+  const c2 = shape.cabin[2]
+  const c3 = shape.cabin[shape.cabin.length - 1]
+  const addGlass = (p0, p1, p2, p3) =>
+    car.add(new THREE.Mesh(makeQuadGeometry(p0, p1, p2, p3), glassMat))
+  addGlass(
+    [-c0.wt, c0.yt, c0.z],
+    [c0.wt, c0.yt, c0.z],
+    [c1.wt, c1.yt, c1.z],
+    [-c1.wt, c1.yt, c1.z],
+  )
+  addGlass(
+    [-c2.wt, c2.yt, c2.z],
+    [c2.wt, c2.yt, c2.z],
+    [c3.wt, c3.yt, c3.z],
+    [-c3.wt, c3.yt, c3.z],
+  )
+  ;[1, -1].forEach((side) => {
+    addGlass(
+      [side * c1.wm, c1.ys, c1.z],
+      [side * c2.wm, c2.ys, c2.z],
+      [side * c2.wb, c2.yb, c2.z],
+      [side * c1.wb, c1.yb, c1.z],
+    )
+  })
+
+  const nose = shape.body[0]
+  const tail = shape.body[shape.body.length - 1]
+
+  /* 前唇与侧裙 */
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(shape.lipWidth, 0.09, 0.5), accentMat)
+  lip.position.set(0, 0.26, nose.z + 0.3)
+  car.add(lip)
+  ;[-1, 1].forEach((side) => {
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, shape.skirtLength), darkMat)
+    skirt.position.set(side * shape.track, 0.3, 0.1)
+    car.add(skirt)
+  })
+
+  /* 尾翼 */
+  const wing = new THREE.Mesh(
+    new THREE.BoxGeometry(shape.wing.w, shape.wing.h, shape.wing.d),
+    darkMat,
+  )
+  wing.position.set(0, shape.wing.y, shape.wing.z)
+  car.add(wing)
+  const wingEdge = new THREE.Mesh(new THREE.BoxGeometry(shape.wing.w, 0.03, 0.05), lineMat)
+  wingEdge.position.set(
+    0,
+    shape.wing.y + shape.wing.h / 2,
+    shape.wing.z + shape.wing.d / 2,
+  )
+  car.add(wingEdge)
+  if (shape.wing.supports) {
+    const deck = 0.8
+    const height = Math.max(0.18, shape.wing.y - deck)
+    ;[-0.68, 0.68].forEach((x) => {
+      const support = new THREE.Mesh(new THREE.BoxGeometry(0.09, height, 0.16), darkMat)
+      support.position.set(x, deck + height / 2, shape.wing.z - 0.02)
+      car.add(support)
+    })
+  }
+
+  /* 头灯：翻灯（AE86 / RX-7）或固定方灯（GTR / NOVA） */
+  if (shape.popups) {
+    const hood = shape.body[1]
+    ;[-0.52, 0.52].forEach((x) => {
+      const pod = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.34), bodyMat)
+      pod.position.set(x, hood.yt - 0.02, nose.z + 0.62)
+      pod.rotation.x = -0.06
+      car.add(pod)
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.06), headMat)
+      lamp.position.set(x, hood.yt + 0.03, nose.z + 0.45)
+      car.add(lamp)
+    })
+  } else {
+    ;[-0.5, 0.5].forEach((x) => {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.08), headMat)
+      lamp.position.set(x, 0.56, nose.z + 0.02)
+      car.add(lamp)
+    })
+  }
+
+  /* 尾灯 */
+  ;[-0.55, 0.55].forEach((x) => {
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.13, 0.07), tailMat)
+    lamp.position.set(x, 0.64, tail.z - 0.02)
+    car.add(lamp)
+  })
+
+  /* 轮子 */
+  const wheelGeo = new THREE.CylinderGeometry(0.37, 0.37, 0.32, 12)
+  const rimGeo = new THREE.TorusGeometry(0.2, 0.045, 6, 14)
+  const hubGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.34, 8)
+  ;[
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ].forEach(([sx, sz]) => {
+    const x = sx * shape.track
+    const z = sz * 1.38
+    const wheel = new THREE.Mesh(wheelGeo, darkMat)
+    wheel.rotation.z = Math.PI / 2
+    wheel.position.set(x, 0.37, z)
+    car.add(wheel)
+    const rim = new THREE.Mesh(rimGeo, accentMat)
+    rim.rotation.y = Math.PI / 2
+    rim.position.set(x, 0.37, z)
+    car.add(rim)
+    const hub = new THREE.Mesh(hubGeo, lineMat)
+    hub.rotation.z = Math.PI / 2
+    hub.position.set(x, 0.37, z)
+    car.add(hub)
+  })
+
+  /* 底光 */
+  const underglow = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.4, 7.4),
+    new THREE.MeshBasicMaterial({
+      map: getGlowTexture(),
+      color: style.glowColor,
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  )
+  underglow.rotation.x = -Math.PI / 2
+  underglow.position.y = 0.05
+  car.add(underglow)
+
+  return car
+}
+
+
+/* 换车时释放旧模型（贴图是共享的，不在这里释放） */
+function disposeObject(root) {
+  root.traverse((child) => {
+    if (child.geometry) child.geometry.dispose()
+    if (child.material) {
+      const list = Array.isArray(child.material) ? child.material : [child.material]
+      list.forEach((mat) => mat.dispose())
+    }
+  })
+}
+
+/* -------------------------------------------------------------------------- */
 /* 主场景插件                                                                  */
 /* -------------------------------------------------------------------------- */
 export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
@@ -271,11 +669,23 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   const closeBtn = document.getElementById('tv-portal-close')
   const scoreEl = document.getElementById('racer-score')
   const hiEl = document.getElementById('racer-hiscore')
+  const totalEl = document.getElementById('racer-total')
   const overlay = document.getElementById('racer-overlay')
   const overlayTitle = document.getElementById('racer-overlay-title')
   const overlayText = document.getElementById('racer-overlay-text')
   const startBtn = document.getElementById('racer-start-btn')
   const statusEl = document.getElementById('racer-status')
+  const garageEl = document.getElementById('racer-garage')
+  const garageCanvas = document.getElementById('racer-garage-canvas')
+  const garageTotalEl = document.getElementById('racer-garage-total')
+  const garageBtn = document.getElementById('racer-garage-btn')
+  const garageCloseBtn = document.getElementById('racer-garage-close')
+  const garageActions = garageEl
+    ? Array.from(garageEl.querySelectorAll('.garage-action'))
+    : []
+  const garageStats = garageEl
+    ? Array.from(garageEl.querySelectorAll('.garage-cell-stats'))
+    : []
 
   const flashEl = document.createElement('span')
   flashEl.className = 'tv-racer-flash'
@@ -322,6 +732,75 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     hiScore = 0
   }
 
+  /* 本机累计总分：这台设备上所有对局最终得分之和（localStorage 缓存） */
+  const TOTAL_KEY = 'synthwave-racer-total'
+  let totalScore = 0
+  try {
+    totalScore = parseInt(window.localStorage.getItem(TOTAL_KEY) || '0', 10) || 0
+  } catch (error) {
+    totalScore = 0
+  }
+  const updateTotalUI = () => {
+    if (totalEl) totalEl.textContent = formatScore(totalScore)
+  }
+
+  /* 车库：总分不扣除，累计达到门槛即可解锁（同时也作为选车进度） */
+  const GARAGE_KEY = 'synthwave-racer-unlocked'
+  const SELECTED_KEY = 'synthwave-racer-car'
+  const GARAGE_DEFS = [
+    { id: 0, name: 'STARTER', cost: 0 },
+    { id: 1, name: 'AERO-X', cost: 3000 },
+    { id: 2, name: 'PHANTOM', cost: 10000 },
+    { id: 3, name: 'NOVA', cost: 30000 },
+  ]
+  const unlockedCars = new Set([0])
+  let selectedCar = 0
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(GARAGE_KEY) || '[]')
+    if (Array.isArray(stored)) {
+      stored.forEach((id) => {
+        if (Number.isInteger(id) && id > 0 && id < GARAGE_DEFS.length) unlockedCars.add(id)
+      })
+    }
+  } catch (error) {
+    /* localStorage 不可用时忽略 */
+  }
+  try {
+    const storedCar = parseInt(window.localStorage.getItem(SELECTED_KEY) || '0', 10) || 0
+    if (unlockedCars.has(storedCar)) selectedCar = storedCar
+  } catch (error) {
+    /* localStorage 不可用时忽略 */
+  }
+  const saveGarage = () => {
+    try {
+      window.localStorage.setItem(GARAGE_KEY, JSON.stringify([...unlockedCars]))
+      window.localStorage.setItem(SELECTED_KEY, String(selectedCar))
+    } catch (error) {
+      /* localStorage 不可用时忽略 */
+    }
+  }
+
+  const refreshGarageUI = () => {
+    if (garageTotalEl) garageTotalEl.textContent = formatScore(totalScore)
+    garageStats.forEach((el) => {
+      const stats = CAR_STATS[parseInt(el.dataset.stats, 10)] || CAR_STATS[0]
+      el.textContent = `SPD ${stats.topSpeed} · TRN ${stats.turn.toFixed(2)} · ACC ${stats.accelTime.toFixed(2)}s · BST ${stats.boostDuration.toFixed(1)}s`
+    })
+    garageActions.forEach((btn) => {
+      const id = parseInt(btn.dataset.car, 10)
+      const def = GARAGE_DEFS[id]
+      if (!def) return
+      const unlocked = unlockedCars.has(id)
+      btn.classList.toggle('is-selected', id === selectedCar)
+      btn.classList.toggle('is-locked', !unlocked)
+      btn.disabled = id === selectedCar
+      if (id === selectedCar) btn.textContent = '使用中'
+      else if (unlocked) btn.textContent = '使用'
+      else if (totalScore >= def.cost) btn.textContent = `解锁 ${formatScore(def.cost)}`
+      else btn.textContent = `🔒 ${formatScore(def.cost)}`
+    })
+  }
+
   /* ---------------- 场景内容 ---------------- */
   const racerGroup = new THREE.Group()
   racerGroup.visible = false
@@ -349,6 +828,16 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   const centerAtLocal = (localZ) => curveAt(localZ * runway.scale.z - roadScroll)
   const centerAtWorld = (worldZ) => centerAtLocal(worldZ - ROAD_FAR_Z)
+
+  /* 弯道倾斜（bank）：按曲线横向变化率给路面加横向坡度，
+     右转时左缘抬高、左转时右缘抬高，车头/路面一起向弯内倾 */
+  const BANK_STRENGTH = 1.6
+  const BANK_LIMIT = 0.11
+  const bankAt = (s) => {
+    const slope = (curveAt(s + 6) - curveAt(s - 6)) / 12
+    return Math.max(-BANK_LIMIT, Math.min(BANK_LIMIT, slope * BANK_STRENGTH))
+  }
+  const bankAtWorld = (worldZ) => bankAt(worldZ - ROAD_FAR_Z - roadScroll)
 
   /* 路面用可变形条带（ribbon）构建，每帧按曲线重写顶点 */
   const ribbons = []
@@ -521,10 +1010,11 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       for (let i = 0; i < DASH_COUNT; i += 1) {
         const localZ = dashZ[i]
         const x = centerAtLocal(localZ) + lineOffset
-        dashDummy.position.set(x, 0.04, localZ)
+        const bank = bankAt(localZ * runway.scale.z - roadScroll)
+        dashDummy.position.set(x, 0.04 + lineOffset * bank, localZ)
         dashDummy.updateMatrix()
         dashCore.setMatrixAt(index, dashDummy.matrix)
-        dashDummy.position.y = 0.035
+        dashDummy.position.y = 0.035 + lineOffset * bank
         dashDummy.updateMatrix()
         dashGlowMesh.setMatrixAt(index, dashDummy.matrix)
         index += 1
@@ -543,13 +1033,16 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       const half = ribbon.width / 2
       for (let i = 0; i < ROAD_ROWS; i += 1) {
         const localZ = i * SEG_LEN
-        const x = curveAt(localZ * scale - roadScroll) + ribbon.offset
+        const s = localZ * scale - roadScroll
+        const x = curveAt(s) + ribbon.offset
+        const bank = bankAt(s)
         const base = i * 6
+        /* 横向坡度：左右顶点按相对路心的偏移量抬高/压低 */
         arr[base] = x - half
-        arr[base + 1] = ribbon.y
+        arr[base + 1] = ribbon.y + (ribbon.offset - half) * bank
         arr[base + 2] = localZ
         arr[base + 3] = x + half
-        arr[base + 4] = ribbon.y
+        arr[base + 4] = ribbon.y + (ribbon.offset + half) * bank
         arr[base + 5] = localZ
       }
       ribbon.attr.needsUpdate = true
@@ -559,13 +1052,16 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       const arr = rail.attr.array
       for (let i = 0; i < ROAD_ROWS; i += 1) {
         const localZ = i * SEG_LEN
-        const x = curveAt(localZ * scale - roadScroll) + rail.offset
+        const s = localZ * scale - roadScroll
+        const x = curveAt(s) + rail.offset
+        const bank = bankAt(s)
         const base = i * 6
+        /* 光墙底边贴合倾斜路面，顶边保持相对高度 */
         arr[base] = x
-        arr[base + 1] = 0
+        arr[base + 1] = rail.offset * bank
         arr[base + 2] = localZ
         arr[base + 3] = x
-        arr[base + 4] = rail.height
+        arr[base + 4] = rail.height + rail.offset * bank
         arr[base + 5] = localZ
       }
       rail.attr.needsUpdate = true
@@ -589,16 +1085,22 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   }
   updateRoad()
 
-  /* 车辆 */
-  const playerCar = buildCar({
-    bodyColor: 0x18d8ff,
-    trimColor: 0x9ef6ff,
-    tailColor: 0xff3f86,
-    glowColor: 0xff2a6d,
-  })
+  /* 车辆：容器保持位置/朝向，内部模型可随车库选车替换 */
+  const playerCar = new THREE.Group()
   playerCar.position.set(START_X, 0, PLAYER_Z)
   playerCar.visible = false
   racerGroup.add(playerCar)
+
+  let playerModel = null
+  const applyPlayerModel = (index) => {
+    if (playerModel) {
+      playerCar.remove(playerModel)
+      disposeObject(playerModel)
+    }
+    playerModel = buildCarModel(index)
+    playerCar.add(playerModel)
+  }
+  applyPlayerModel(selectedCar)
 
   /* 轻微甩尾特效：车尾扬起一点粉色尾迹 */
   const driftGlowMat = new THREE.MeshBasicMaterial({
@@ -646,8 +1148,16 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   })
   playerCar.add(tailTrail)
 
-  /* 加速时向镜头方向掠过的速度粒子 */
-  const PARTICLE_COUNT = 48
+  /* 拖尾 / 甩尾光带的颜色跟随所选车型的尾灯色 */
+  const syncTrailColor = (index) => {
+    const color = CAR_STYLES[index] ? CAR_STYLES[index].tailColor : CAR_STYLES[0].tailColor
+    tailTrailMat.color.setHex(color)
+    driftGlowMat.color.setHex(color)
+  }
+  syncTrailColor(selectedCar)
+
+  /* 加速时从路面往上升腾的像素代码粒子 */
+  const PARTICLE_COUNT = 96
   const particlePositions = new Float32Array(PARTICLE_COUNT * 3)
   const particleDrops = new Float32Array(PARTICLE_COUNT)
   const particleSides = new Float32Array(PARTICLE_COUNT)
@@ -657,7 +1167,8 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     /* sqrt 分布让粒子更靠近路缘，中间稀疏 */
     particleSpread[i] = 1.5 + 6.5 * Math.sqrt(Math.random())
     particlePositions[i * 3] = particleSides[i] * particleSpread[i]
-    particlePositions[i * 3 + 1] = Math.random() * 4.2
+    /* 高度错开，保证一开始就是持续上升的字符流 */
+    particlePositions[i * 3 + 1] = Math.random() * 9
     particlePositions[i * 3 + 2] = -26 + Math.random() * 40
     particleDrops[i] = 0.6 + Math.random() * 0.9
   }
@@ -747,7 +1258,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   let introTime = 0
   let exitTime = 0
   let score = 0
-  let speed = 26
+  let speed = CAR_STATS[0].baseSpeed
   let playerX = START_X
   let playerVX = 0
   let tailYaw = 0
@@ -779,7 +1290,13 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     camera.updateProjectionMatrix()
   }
 
-  const maxSpeed = () => Math.min(64, 26 + score * 0.02)
+  /* 当前选车的性能参数：极速 / 加速时间 / 转向灵敏度 / 加速持续与冷却 */
+  const currentStats = () => CAR_STATS[selectedCar] || CAR_STATS[0]
+
+  const maxSpeed = () => {
+    const stats = currentStats()
+    return Math.min(stats.topSpeed, stats.baseSpeed + score * 0.02)
+  }
 
   /* ---------------- HUD ---------------- */
   const updateScoreUI = () => {
@@ -843,20 +1360,21 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   const speedValueEl = speedoEl.querySelector('.racer-speedo-readout b')
 
-  /* 速度表标定：常规极速 64 → 约 288 km/h，加速时顶满 297 km/h */
-  const SPEEDO_MAX = 66
+  /* 速度表标定：按当前车的极速换算，常规极速 → 约 288~400 km/h */
+  const speedoMax = () => Math.max(66, currentStats().topSpeed + 2)
   const SPEEDO_KMH = 4.5
 
   const refreshBoostUI = () => {
+    const stats = currentStats()
     const cooling = boostTime <= 0 && boostCooldown > 0
     boostBtn.classList.toggle('is-boosting', boostTime > 0)
     boostBtn.classList.toggle('is-cooling', cooling)
     boostBtn.classList.toggle('is-ready', boostTime <= 0 && boostCooldown <= 0)
     const progress =
       boostTime > 0
-        ? boostTime / BOOST_DURATION
+        ? boostTime / stats.boostDuration
         : cooling
-          ? 1 - boostCooldown / BOOST_COOLDOWN
+          ? 1 - boostCooldown / stats.boostCooldown
           : 1
     boostBtn.style.setProperty('--boost-progress', progress.toFixed(3))
     boostTimerEl.textContent =
@@ -868,8 +1386,8 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   let shownKmh = ''
 
   const refreshSpeedo = (value, boosting) => {
-    const clamped = Math.max(0, Math.min(SPEEDO_MAX, value))
-    const ratio = clamped / SPEEDO_MAX
+    const clamped = Math.max(0, Math.min(speedoMax(), value))
+    const ratio = clamped / speedoMax()
     const lit = Math.round(ratio * SPEEDO_BARS)
     if (lit !== shownLit) {
       shownLit = lit
@@ -899,7 +1417,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   const triggerBoost = () => {
     if (phase !== 'running') return
     if (boostTime > 0 || boostCooldown > 0) return
-    boostTime = BOOST_DURATION
+    boostTime = currentStats().boostDuration
     refreshBoostUI()
   }
 
@@ -950,6 +1468,11 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     score += gain
     popScore(gain, multiplier)
     refreshComboUI()
+    /* 每次成功超车，火箭加速的剩余冷却缩短 0.5 秒 */
+    if (boostCooldown > 0) {
+      boostCooldown = Math.max(0, boostCooldown - OVERTAKE_BOOST_CD_REWARD)
+      refreshBoostUI()
+    }
   }
 
   /* 5 倍满连击时的护盾：撞车不结束游戏，只把倍率打回 1 倍 */
@@ -984,6 +1507,148 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     overlay?.classList.remove('is-hidden')
   }
 
+  /* ---------------- 车库：单画布四象限 3D 展示 ---------------- */
+  let garageRenderer = null
+  let garageScene = null
+  let garageCamera = null
+  let garageCars = []
+  let garageOpen = false
+  let garageRaf = 0
+  let garageLastTime = 0
+  let garageWidth = 0
+  let garageHeight = 0
+  let garagePopupTimer = 0
+
+  const initGarageScene = () => {
+    if (garageRenderer || !garageCanvas) return
+
+    garageRenderer = new THREE.WebGLRenderer({
+      canvas: garageCanvas,
+      alpha: true,
+      antialias: true,
+    })
+    garageRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    garageRenderer.setClearColor(0x000000, 0)
+
+    garageScene = new THREE.Scene()
+    garageCamera = new THREE.PerspectiveCamera(34, 1.7, 0.1, 60)
+    garageCamera.position.set(0, 2.7, 6.4)
+    garageCamera.lookAt(0, 0.55, 0)
+
+    const hemi = new THREE.HemisphereLight(0xbfe9ff, 0x1a0726, 1.5)
+    const key = new THREE.DirectionalLight(0xffffff, 1.6)
+    key.position.set(4, 8, 5)
+    const rim = new THREE.DirectionalLight(0xff2a6d, 0.9)
+    rim.position.set(-5, 3, -6)
+    const cyan = new THREE.PointLight(0x00e5ff, 18, 18, 2)
+    cyan.position.set(0, 2.4, 4)
+    garageScene.add(hemi, key, rim, cyan)
+
+    /* 车位地台光晕 */
+    const floorGlow = new THREE.Mesh(
+      new THREE.CircleGeometry(3.4, 40),
+      new THREE.MeshBasicMaterial({
+        map: getGlowTexture(),
+        color: 0x8a2bff,
+        transparent: true,
+        opacity: 0.32,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    floorGlow.rotation.x = -Math.PI / 2
+    floorGlow.position.y = -0.02
+    garageScene.add(floorGlow)
+
+    garageCars = GARAGE_DEFS.map((def, index) => {
+      const group = new THREE.Group()
+      group.add(buildCarModel(def.id))
+      group.rotation.y = -0.5 + index * 0.32
+      group.visible = false
+      garageScene.add(group)
+      return group
+    })
+  }
+
+  const resizeGarage = () => {
+    if (!garageRenderer || !garageCanvas) return
+    const width = garageCanvas.clientWidth
+    const height = garageCanvas.clientHeight
+    if (width < 4 || height < 4) return
+    garageWidth = width
+    garageHeight = height
+    garageRenderer.setSize(width, height, false)
+    /* 每个象限宽高各占一半，因此相机宽高比就是整体宽高比 */
+    garageCamera.aspect = width / height
+    garageCamera.updateProjectionMatrix()
+  }
+
+  const renderGarageQuadrants = () => {
+    if (!garageRenderer || garageWidth < 4 || garageHeight < 4) return
+    const halfW = Math.floor(garageWidth / 2)
+    const halfH = Math.floor(garageHeight / 2)
+    const quads = [
+      [0, halfH],
+      [halfW, halfH],
+      [0, 0],
+      [halfW, 0],
+    ]
+    garageRenderer.setScissorTest(true)
+    for (let i = 0; i < garageCars.length; i += 1) {
+      garageCars.forEach((car, index) => {
+        car.visible = index === i
+      })
+      const [x, y] = quads[i]
+      garageRenderer.setViewport(x, y, halfW, halfH)
+      garageRenderer.setScissor(x, y, halfW, halfH)
+      garageRenderer.render(garageScene, garageCamera)
+    }
+    garageRenderer.setScissorTest(false)
+  }
+
+  const garageTick = (now) => {
+    if (!garageOpen) return
+    const dt = garageLastTime ? Math.min(0.06, (now - garageLastTime) / 1000) : 0.016
+    garageLastTime = now
+    garageCars.forEach((car) => {
+      car.rotation.y += dt * 0.55
+    })
+    renderGarageQuadrants()
+    garageRaf = requestAnimationFrame(garageTick)
+  }
+
+  const openGarage = () => {
+    if (!garageEl) return
+    initGarageScene()
+    garageOpen = true
+    garageEl.classList.add('is-open')
+    garageEl.setAttribute('aria-hidden', 'false')
+    document.body.classList.add('racer-garage-open')
+    refreshGarageUI()
+    resizeGarage()
+    garageLastTime = 0
+    if (!garageRaf) garageRaf = requestAnimationFrame(garageTick)
+  }
+
+  const closeGarage = () => {
+    if (!garageOpen) return
+    garageOpen = false
+    garageEl?.classList.remove('is-open')
+    garageEl?.setAttribute('aria-hidden', 'true')
+    document.body.classList.remove('racer-garage-open')
+    if (garageRaf) cancelAnimationFrame(garageRaf)
+    garageRaf = 0
+    garageCars.forEach((car) => {
+      car.visible = false
+    })
+  }
+
+  const clearGaragePopup = () => {
+    if (!garagePopupTimer) return
+    window.clearTimeout(garagePopupTimer)
+    garagePopupTimer = 0
+  }
+
   /* ---------------- 车辆状态 ---------------- */
   const resetEnemies = () => {
     enemies.forEach((enemy) => {
@@ -1010,12 +1675,14 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   }
 
   const startRun = () => {
+    clearGaragePopup()
+    closeGarage()
     resetEnemies()
     resetPlayer()
     resetCombo()
     resetBoost()
     score = 0
-    speed = 26
+    speed = currentStats().baseSpeed
     spawnTimer = 1.0
     shake = 0
     shieldTimer = 0
@@ -1032,6 +1699,8 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   /* ---------------- 入场 / 出场 ---------------- */
   const enter = () => {
     if (phase !== 'off') return
+    clearGaragePopup()
+    closeGarage()
 
     savedPos.copy(camera.position)
     savedQuat.copy(camera.quaternion)
@@ -1044,7 +1713,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     phase = 'intro'
     introTime = 0
     score = 0
-    speed = 26
+    speed = currentStats().baseSpeed
     playerVX = 0
     tailYaw = 0
     introCarZ = INTRO_CAR_START_Z
@@ -1094,6 +1763,8 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   /* 退出第 1 步：游戏组件（道路 / 车辆 / HUD）立即消失，站点元素先还原 */
   const hideGameElements = () => {
+    clearGaragePopup()
+    closeGarage()
     racerGroup.visible = false
     runway.scale.z = 0.001
     playerCar.visible = false
@@ -1186,6 +1857,14 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       }
     }
     shownHi = -1
+    /* 本机累计总分：每局结束把最终得分累加并写入本地缓存 */
+    totalScore += finalScore
+    try {
+      window.localStorage.setItem(TOTAL_KEY, String(totalScore))
+    } catch (error) {
+      /* localStorage 不可用时忽略 */
+    }
+    updateTotalUI()
     updateScoreUI()
     resetCombo()
     resetBoost()
@@ -1197,9 +1876,15 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     setStatus('SIGNAL LOST')
     showOverlay(
       'GAME OVER',
-      `SCORE ${formatScore(score)} · HI ${formatScore(hiScore)}`,
+      `SCORE ${formatScore(score)} · HI ${formatScore(hiScore)} · TOTAL ${formatScore(totalScore)}`,
       'RETRY',
     )
+    /* 结算稍作停顿后弹出车库：展示四辆车与解锁按钮 */
+    clearGaragePopup()
+    garagePopupTimer = window.setTimeout(() => {
+      garagePopupTimer = 0
+      if (phase === 'over') openGarage()
+    }, 900)
   }
 
   const pause = () => {
@@ -1240,13 +1925,14 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       easeInOutCubic(settleT),
     )
     playerX = centerAtLocal(introCarZ - ROAD_FAR_Z) + START_X
-    playerCar.position.set(playerX, 0, introCarZ)
+    const introBank = bankAtWorld(introCarZ) * START_X
+    playerCar.position.set(playerX, introBank, introCarZ)
     const introYaw = Math.atan2(
       centerAtWorld(introCarZ + 8) - centerAtWorld(introCarZ - 8),
       16,
     )
     playerCar.rotation.y += (introYaw - playerCar.rotation.y) * 0.12
-    playerCar.rotation.z += (0 - playerCar.rotation.z) * 0.12
+    playerCar.rotation.z += (0 - playerCar.rotation.z) * 0.22
 
     /* ③ 镜头跟随与赛车入场同时进行：从赛车起步就一路贴到尾随机位 */
     const follow = easeInOutCubic(
@@ -1293,27 +1979,30 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   const updateRunning = (dt, seconds) => {
     /* 火箭加速计时：激活 3 秒，结束进入 5 秒冷却 */
+    const stats = currentStats()
     if (boostTime > 0) {
       boostTime = Math.max(0, boostTime - dt)
-      if (boostTime === 0) boostCooldown = BOOST_COOLDOWN
+      if (boostTime === 0) boostCooldown = stats.boostCooldown
       refreshBoostUI()
     } else if (boostCooldown > 0) {
       boostCooldown = Math.max(0, boostCooldown - dt)
       refreshBoostUI()
     }
     const boosting = boostTime > 0
-    /* 平滑加速/减速：点火后约 1.5s 拉满，加速结束后约 1.2s 缓慢回落 */
-    const blendRate = boosting ? 2.0 : 2.4
+    /* 平滑加速/减速：加速时间越短的车拉满越快（按 accelTime 换算） */
+    const blendRate = boosting ? stats.boostRamp : 2.4
     boostBlend += ((boosting ? 1 : 0) - boostBlend) * Math.min(1, dt * blendRate)
     const scoreMult = 1 + boostBlend
-    speed = maxSpeed() * (1 + (BOOST_MULT - 1) * boostBlend)
+    const targetSpeed = maxSpeed() * (1 + (BOOST_MULT - 1) * boostBlend)
+    const accelRate = 2.6 / stats.accelTime
+    speed += (targetSpeed - speed) * Math.min(1, dt * accelRate)
     score += dt * speed * 1.6 * scoreMult
 
     /* 简化漂移手感：转向给一个横向目标速度，松开后缓慢回正 → 车会滑一段 */
     const steer = (input.left ? -1 : 0) + (input.right ? 1 : 0) + input.touch
-    const maxLateral = 8.5 + speed * 0.075
+    const maxLateral = (8.5 + speed * 0.075) * stats.turn
     const targetVX = steer * maxLateral
-    const grip = steer !== 0 ? 7 : 2.2
+    const grip = (steer !== 0 ? 7 : 2.2) * stats.turn
     playerVX += (targetVX - playerVX) * Math.min(1, grip * dt)
     playerX += playerVX * dt
 
@@ -1341,14 +2030,20 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     /* 旋转中心在前轮轴（本地 z=-1.35）：绕前轮转，车头位置基本不动 */
     const FRONT_AXLE_Z = -1.35
     const bob = Math.sin(seconds * 22) * 0.012
+    /* 车体贴着倾斜路面：按玩家相对路心的偏移量抬升/下压，并随坡度侧倾 */
+    const playerBank = bankAtWorld(PLAYER_Z)
+    const playerBankOffset = (playerX - centerNow) * playerBank
     playerCar.position.set(
       playerX - Math.sin(yawOffset) * FRONT_AXLE_Z,
-      bob,
+      bob + playerBankOffset,
       PLAYER_Z + FRONT_AXLE_Z * (1 - Math.cos(yawOffset)),
     )
     const turn = Math.min(1, dt * 10)
+    /* 侧倾比车头转向更跟手：转向时快速压低，松开后更快速回正 */
+    const rollTurn = Math.min(1, dt * (steer !== 0 ? 18 : 26))
     playerCar.rotation.y += (roadYaw + yawOffset - playerCar.rotation.y) * turn
-    playerCar.rotation.z += (yawOffset * 0.3 - playerCar.rotation.z) * turn
+    playerCar.rotation.z +=
+      (yawOffset * 0.3 + Math.atan(playerBank) - playerCar.rotation.z) * rollTurn
 
     /* 轻微甩尾特效：横向滑移越大，车尾粉色尾迹越亮 */
     const slip = Math.min(1, Math.abs(playerVX) / 12)
@@ -1359,25 +2054,25 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     boostFlameMat.opacity =
       boostBlend > 0.01 ? boostBlend * (0.5 + Math.sin(seconds * 36) * 0.14) : 0
 
-    /* 尾灯拖尾：随加速权重亮起，并随速度轻微伸缩 */
+    /* 尾灯拖尾：随加速权重亮起，alpha 更足，并随速度轻微伸缩 */
     tailTrailMat.opacity =
-      boostBlend > 0.01 ? boostBlend * (0.85 + Math.sin(seconds * 24) * 0.12) : 0
+      boostBlend > 0.01 ? boostBlend * (1.35 + Math.sin(seconds * 24) * 0.15) : 0
     tailTrail.scale.set(1, 1, 0.8 + boostBlend * 0.35)
 
-    /* 速度粒子：加速时向镜头快速掠过 */
+    /* 速度粒子：加速时从下往上持续升腾 */
     if (boostBlend > 0.02) {
       speedParticles.visible = true
       particleMaterial.uniforms.uOpacity.value = boostBlend * 0.9
       particleMaterial.uniforms.uScreenH.value =
         window.innerHeight * Math.min(window.devicePixelRatio || 1, 2)
-      const travel = dt * (speed * 0.9 + 28)
+      const rise = dt * (4 + speed * 0.06)
       let glyphChanged = false
       for (let i = 0; i < PARTICLE_COUNT; i += 1) {
-        const zi = i * 3 + 2
-        particlePositions[zi] += travel * particleDrops[i]
-        if (particlePositions[zi] > 14) {
-          particlePositions[zi] = -26 - Math.random() * 8
-          particlePositions[i * 3 + 1] = Math.random() * 4.2
+        const yi = i * 3 + 1
+        particlePositions[yi] += rise * particleDrops[i]
+        if (particlePositions[yi] > 9.5) {
+          particlePositions[yi] = 0.2 + Math.random() * 1.4
+          particlePositions[i * 3 + 2] = -26 + Math.random() * 40
           particleSides[i] = Math.random() < 0.5 ? -1 : 1
           particleSpread[i] = 1.5 + 6.5 * Math.sqrt(Math.random())
           /* 重生时换一个字符，让代码流不断变化 */
@@ -1386,7 +2081,8 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
         }
         /* 沿当前弯道中心贴在路缘两侧 */
         particlePositions[i * 3] =
-          centerAtWorld(particlePositions[zi]) + particleSides[i] * particleSpread[i]
+          centerAtWorld(particlePositions[i * 3 + 2]) +
+          particleSides[i] * particleSpread[i]
       }
       particleGeometry.attributes.position.needsUpdate = true
       if (glyphChanged) particleGeometry.attributes.aGlyph.needsUpdate = true
@@ -1437,13 +2133,22 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
       enemy.z += enemyAdvance
       const enemyX = centerAtWorld(enemy.z) + enemy.lane
-      enemy.mesh.position.set(enemyX, Math.sin(seconds * 8 + i) * 0.015, enemy.z)
+      const enemyBank = bankAtWorld(enemy.z)
+      enemy.mesh.position.set(
+        enemyX,
+        Math.sin(seconds * 8 + i) * 0.015 + enemy.lane * enemyBank,
+        enemy.z,
+      )
       enemy.mesh.rotation.y = Math.atan2(
         centerAtWorld(enemy.z + 6) - centerAtWorld(enemy.z - 6),
         12,
       )
+      enemy.mesh.rotation.z += (Math.atan(enemyBank) - enemy.mesh.rotation.z) * 0.2
 
-      if (Math.abs(enemy.z - PLAYER_Z) < 3.2 && Math.abs(enemyX - playerX) < 1.75) {
+      if (
+        Math.abs(enemy.z - PLAYER_Z) < PLAYER_HIT_HALF_Z &&
+        Math.abs(enemyX - playerX) < PLAYER_HIT_HALF_X
+      ) {
         enemy.active = false
         enemy.mesh.visible = false
         if (shieldTimer > 0) continue
@@ -1457,11 +2162,12 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       }
 
       if (enemy.z > 6) {
-        /* 超车成功：越贴近车身（横向 gap 越小）基础分越高 */
+        /* 超车判定：横向距离在判定范围内才算真正超越，
+           才能获得分数、连击与加速冷却收益；隔着车道飘过去不算 */
         const gap = Math.abs(enemyX - playerX)
         enemy.active = false
         enemy.mesh.visible = false
-        registerOvertake(gap)
+        if (gap <= OVERTAKE_MAX_LATERAL) registerOvertake(gap)
       }
     }
 
@@ -1525,9 +2231,44 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     else if (phase === 'over') startRun()
   })
 
+  /* 开始界面的「车库」按钮：随时查看车辆与解锁进度 */
+  garageBtn?.addEventListener('click', () => {
+    if (phase === 'running') return
+    openGarage()
+  })
+
+  garageCloseBtn?.addEventListener('click', closeGarage)
+
+  garageActions.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.car, 10)
+      const def = GARAGE_DEFS[id]
+      if (!def || id === selectedCar) return
+      /* 总分不扣除，只看累计是否达到门槛 */
+      if (!unlockedCars.has(id)) {
+        if (totalScore < def.cost) return
+        unlockedCars.add(id)
+      }
+      selectedCar = id
+      saveGarage()
+      applyPlayerModel(selectedCar)
+      syncTrailColor(selectedCar)
+      refreshGarageUI()
+    })
+  })
+
   const onKeyDown = (event) => {
     if (phase === 'off') return
     const key = event.key
+
+    /* 车库打开时只响应 ESC，先关车库再退出游戏 */
+    if (garageOpen) {
+      if (key === 'Escape') {
+        event.preventDefault()
+        closeGarage()
+      }
+      return
+    }
 
     if (key === 'Escape') {
       event.preventDefault()
@@ -1580,10 +2321,13 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   window.addEventListener('pointerdown', (event) => {
     if (phase !== 'running') return
-    if (event.target.closest('button')) return
+    /* 按钮 / 音量滑块等控件照常响应，不参与转向 */
+    if (event.target.closest('button, input, label, a, select')) return
+    /* 阻止移动端长按触发文字选中与系统菜单 */
+    event.preventDefault()
     pointerActive = true
     updatePointer(event)
-  })
+  }, { passive: false })
 
   window.addEventListener('pointermove', (event) => {
     if (!pointerActive || phase !== 'running') return
@@ -1592,6 +2336,9 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   window.addEventListener('pointerup', endPointer)
   window.addEventListener('pointercancel', endPointer)
+  window.addEventListener('resize', () => {
+    if (garageOpen) resizeGarage()
+  })
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('keyup', onKeyUp)
 
@@ -1601,6 +2348,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   /* ---------------- 初始 ---------------- */
   updateScoreUI()
+  updateTotalUI()
 
   return {
     enter,

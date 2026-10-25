@@ -73,8 +73,8 @@ class MusicService {
       const list = (data || [])
         .filter(item => item.name && /\.(mp3|m4a|ogg|wav)$/i.test(item.name))
         .map(item => {
-          /* 文件名可能含空格/中文/# 等字符，必须编码后再拼公开 URL */
-          const path = `${folder}/${encodeURIComponent(item.name)}`
+          /* getPublicUrl 内部已用 encodeURI 处理空格等字符，这里不能再编码，否则会变成 %2520 */
+          const path = `${folder}/${item.name}`
           const { data: urlData } = supabase.storage.from('music-files').getPublicUrl(path)
           return {
             title: item.name.replace(/\.[^.]+$/, ''),

@@ -191,6 +191,9 @@ const pinkOzoneFog = new PinkOzoneFog(scene.instance, camera.instance)
 const musicVisualizer = new MusicVisualizer(scene.instance, camera.instance)
 
 let composer
+/* 默认辉光强度；游戏内压到 BLOOM_STRENGTH_GAME，退出后还原 */
+const BLOOM_STRENGTH = 0.4
+const BLOOM_STRENGTH_GAME = 0.28
 const renderScene = new RenderPass(scene.instance, camera.instance)
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(sizes.width * bloomScale, sizes.height * bloomScale),
@@ -199,7 +202,7 @@ const bloomPass = new UnrealBloomPass(
   0.05
 )
 bloomPass.threshold = 0.25
-bloomPass.strength = 0.4
+bloomPass.strength = BLOOM_STRENGTH
 bloomPass.radius = 0.4
 
 composer = new EffectComposer(renderer.instance)
@@ -1041,18 +1044,26 @@ document.addEventListener('visibilitychange', () => {
   }
 })
 
-window.addEventListener('resize', () => {
+/* 统一同步画布与后处理链尺寸。
+   浏览器地址栏收放、窗口缩放、跨屏导致 DPR 变化时，
+   若绘制缓冲与显示尺寸脱节，画面上会出现一块黑色区域挡住游戏。 */
+function syncViewportSize() {
   sizes.width = window.innerWidth
   sizes.height = window.innerHeight
 
   camera.resize()
   renderer.resize()
-  
+
   composer.setSize(sizes.width, sizes.height)
   bloomPass.setSize(sizes.width * bloomScale, sizes.height * bloomScale)
   vhsPass.uniforms.resolution.value.set(sizes.width, sizes.height)
   if (gridFloor) gridFloor.setResolution(sizes.width, sizes.height)
-})
+}
+
+window.addEventListener('resize', syncViewportSize)
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncViewportSize)
+}
 
 function cleanup() {
   if (isCleanedUp) return
@@ -1251,9 +1262,13 @@ const init = async () => {
       }
       if (wireframeIcosahedron) wireframeIcosahedron.visible = false
       if (virtualAvatar) virtualAvatar.group.visible = false
-      /* 游戏期间太阳与地面网格亮度各降 10% */
-      if (sun) sun.setBrightness(0.9)
-      if (gridFloor) gridFloor.brightness = 0.9
+      /* 游戏期间轻微压低远处落日与地面网格的发光，避免抢画面 */
+      if (sun) sun.setBrightness(0.84)
+      if (gridFloor) gridFloor.brightness = 0.84
+      /* 游戏期间降低整体辉光，赛道更清晰 */
+      bloomPass.strength = BLOOM_STRENGTH_GAME
+      /* 进入游戏前再同步一次画布/后处理尺寸，避免窗口或缩放变化后留下黑块 */
+      syncViewportSize()
       /* 进入游戏自动播放游戏歌单（songs.playlist = 'game'） */
       if (uiManager) uiManager.playGameMusic()
     },
@@ -1262,6 +1277,7 @@ const init = async () => {
       if (virtualAvatar) virtualAvatar.group.visible = true
       if (sun) sun.setBrightness(1)
       if (gridFloor) gridFloor.brightness = 1
+      bloomPass.strength = BLOOM_STRENGTH
       /* 退出游戏后后续随机播放回落到默认歌单 */
       if (uiManager) uiManager.restoreDefaultPlaylist()
     },

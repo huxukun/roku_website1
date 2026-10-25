@@ -5,6 +5,7 @@ export default class MusicVisualizer {
     this.scene = scene
     this.camera = camera
     this.bars = []
+    this.barGroup = null
     this.audioContext = null
     this.analyser = null
     this.dataArray = null
@@ -26,7 +27,16 @@ export default class MusicVisualizer {
     const barCount = 64
     const spacing = 0.25
     const startX = -(barCount - 1) * spacing * 0.5
-    
+
+    /* 阶梯整体挂到分组里，摆到落日正上方：
+       太阳中心 (0, 3, -80)、半径 18，顶部约 y = 21；
+       分组底边放在 y = 22.2、z 略靠前，缩放后宽度与太阳直径相当，
+       视觉上像是立在太阳顶上的一排声波台阶。 */
+    this.barGroup = new THREE.Group()
+    this.barGroup.position.set(0, 22.2, -78)
+    this.barGroup.scale.set(2.4, 7, 2.4)
+    this.scene.add(this.barGroup)
+
     for (let i = 0; i < barCount; i++) {
       const geometry = new THREE.BoxGeometry(0.2, 0.1, 0.5)
       
@@ -41,7 +51,8 @@ export default class MusicVisualizer {
       })
       
       const bar = new THREE.Mesh(geometry, material)
-      bar.position.set(startX + i * spacing, -6, -20)
+      /* 局部坐标：底边贴住分组原点，只按音量向上生长 */
+      bar.position.set(startX + i * spacing, 0, 0)
       
       this.bars.push({ 
         mesh: bar, 
@@ -49,7 +60,7 @@ export default class MusicVisualizer {
         targetScale: 1,
         baseColor: baseColor.clone() 
       })
-      this.scene.add(bar)
+      this.barGroup.add(bar)
     }
   }
 
@@ -276,7 +287,7 @@ export default class MusicVisualizer {
         bar.currentScale = bar.currentScale * 0.6 + targetScale * 0.4
         
         bar.mesh.scale.y = bar.currentScale
-        bar.mesh.position.y = -6 + bar.currentScale * 0.5
+        bar.mesh.position.y = bar.currentScale * 0.05
         
         // 保持霓虹蓝色的辉光效果
         const intensity = 0.5 + normalizedValue * 0.5
@@ -301,7 +312,7 @@ export default class MusicVisualizer {
         bar.currentScale = bar.currentScale * 0.8 + idleScale * 0.2
         
         bar.mesh.scale.y = bar.currentScale
-        bar.mesh.position.y = -6 + bar.currentScale * 0.5
+        bar.mesh.position.y = bar.currentScale * 0.05
         
         bar.mesh.material.emissiveIntensity = 0.4 + bar.currentScale * 0.3
         bar.mesh.material.opacity = 0.8
@@ -323,8 +334,12 @@ export default class MusicVisualizer {
     this.bars.forEach(bar => {
       bar.mesh.geometry.dispose()
       bar.mesh.material.dispose()
-      this.scene.remove(bar.mesh)
     })
+    
+    if (this.barGroup) {
+      this.scene.remove(this.barGroup)
+      this.barGroup = null
+    }
     
     this.bars = []
   }

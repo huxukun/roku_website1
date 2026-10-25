@@ -4763,6 +4763,20 @@ img.crt-bezel {
   white-space: nowrap;
 }
 
+/* 本机累计总分（localStorage 缓存，按设备累计） */
+.racer-hud-total {
+  white-space: nowrap;
+  color: rgba(150, 240, 255, 0.72);
+}
+
+.racer-hud-total b {
+  margin-left: 0.25em;
+  color: #8ff9ff;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.65);
+}
+
 /* 复古速度线：从画面中心向外辐射的细线，随车速淡入 */
 .racer-speedlines {
   position: absolute;
@@ -4896,6 +4910,228 @@ img.crt-bezel {
   box-shadow: 0 0 26px rgba(0, 229, 255, 0.75);
   transform: translateY(-1px);
   outline: none;
+}
+
+/* 开始 / 车库两个按钮并排 */
+.racer-overlay-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.racer-overlay-actions .racer-overlay-start {
+  margin-top: 0;
+}
+
+.racer-overlay-start.is-ghost {
+  border-color: rgba(255, 42, 109, 0.55);
+  background: rgba(255, 42, 109, 0.08);
+  color: #ffc6dd;
+  box-shadow:
+    0 0 12px rgba(255, 42, 109, 0.25),
+    inset 0 0 10px rgba(255, 42, 109, 0.1);
+}
+
+.racer-overlay-start.is-ghost:hover,
+.racer-overlay-start.is-ghost:focus-visible {
+  background: #ff2a6d;
+  color: #12030a;
+  box-shadow: 0 0 24px rgba(255, 42, 109, 0.7);
+}
+
+/* ---------------- 车库 / 解锁新车 ---------------- */
+/* 独立顶层弹层：高于 HUD（2600）与「正在播放」/音乐控件（2700） */
+.racer-garage {
+  position: fixed;
+  inset: 0;
+  z-index: 2750;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.2rem;
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(4, 2, 14, 0.84),
+    rgba(2, 1, 7, 0.96) 76%
+  );
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.racer-garage.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* CRT 电视外壳：4:3 边框素材把整个车库窗口包住 */
+.racer-garage-crt {
+  position: relative;
+  width: min(980px, 94%, 112vh);
+  aspect-ratio: 4 / 3;
+}
+
+.racer-garage-bezel {
+  z-index: 3;
+  filter: drop-shadow(0 0 22px rgba(0, 229, 255, 0.28));
+}
+
+/* 屏幕窗口：与边框素材的透明洞对齐（左右 6.6%、上下 9.8%） */
+.racer-garage-frame {
+  position: absolute;
+  inset: 9.8% 6.6%;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.2rem 1.2rem;
+  border: 2px solid rgba(0, 229, 255, 0.36);
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.025) 0px,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    radial-gradient(circle at 50% 110%, rgba(255, 42, 109, 0.14), transparent 62%),
+    rgba(3, 6, 16, 0.92);
+  box-shadow: inset 0 0 60px rgba(0, 229, 255, 0.06);
+}
+
+.racer-garage-head {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  color: #9fe8ef;
+}
+
+.racer-garage-title {
+  color: #ffd6ee;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(255, 42, 109, 0.7);
+}
+
+.racer-garage-total {
+  margin-left: auto;
+  color: #7ff6ff;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.7);
+}
+
+.racer-garage-total b {
+  margin-left: 0.3em;
+  font-weight: 400;
+}
+
+.racer-garage-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin-top: 0.7rem;
+}
+
+.racer-garage-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 2×2 车位：3D 画面在下层，标签与解锁按钮贴各自格子底部 */
+.racer-garage-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  pointer-events: none;
+}
+
+.garage-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 0.25rem;
+}
+
+.garage-cell-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: auto;
+}
+
+.garage-cell-name {
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  color: rgba(159, 232, 239, 0.7);
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+}
+
+.garage-cell-stats {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  max-width: 17em;
+  text-align: center;
+  color: rgba(127, 246, 255, 0.62);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+.garage-action {
+  min-width: 6.2em;
+  padding: 0.34rem 0.8rem;
+  border: 1px solid rgba(0, 255, 255, 0.55);
+  border-radius: 2px;
+  background: rgba(0, 255, 255, 0.08);
+  color: #aefaff;
+  font-family: inherit;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+.garage-action:hover:not(:disabled),
+.garage-action:focus-visible:not(:disabled) {
+  background: #00e5ff;
+  color: #030610;
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.7);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.garage-action:disabled {
+  cursor: default;
+}
+
+.garage-action.is-locked {
+  border-color: rgba(255, 42, 109, 0.45);
+  background: rgba(255, 42, 109, 0.07);
+  color: rgba(255, 198, 221, 0.8);
+}
+
+.garage-action.is-selected {
+  border-color: rgba(127, 246, 255, 0.85);
+  background: rgba(127, 246, 255, 0.16);
+  color: #e6ffff;
+  box-shadow: inset 0 0 14px rgba(0, 229, 255, 0.25);
 }
 
 /* 撞车红闪 */
@@ -5322,18 +5558,75 @@ img.crt-bezel {
 }
 
 
-/* 进入游戏时收起作品集界面，只留下 3D 场景与游戏 HUD */
+/* 进入游戏时收起作品集界面，只留下 3D 场景与游戏 HUD；
+   音乐控制与「正在播放」保留，游戏中也能暂停/切歌/调音量 */
 body.racer-active #content-sheet,
 body.racer-active #app,
 body.racer-active .ui-container,
-body.racer-active .left-button-group,
 body.racer-active .upload-section,
-body.racer-active #now-playing,
 body.racer-active .lang-switcher,
 body.racer-active #quote-trigger-btn,
 body.racer-active #back-to-top-btn {
   opacity: 0;
   pointer-events: none;
+}
+
+/* 游戏里彻底关闭内容面板 / 画廊层：
+   仅靠 opacity: 0 时，`.sheet-panel` 的抽屉位移与 backdrop-filter 仍会参与合成，
+   在部分 GPU 或窗口缩放后容易残留半屏黑色块挡住赛道，因此直接不参与渲染 */
+body.racer-active #content-sheet,
+body.racer-active #app,
+body.racer-active .ui-container,
+body.racer-active .gallery-overlay,
+body.racer-active .gallery-modal,
+body.racer-active .upload-section,
+body.racer-active .lang-switcher,
+body.racer-active #quote-trigger-btn,
+body.racer-active #back-to-top-btn {
+  display: none !important;
+}
+
+/* 游戏内禁用文本选择与长按菜单：手机上按住屏幕只负责转向，不会出现选取文字 */
+body.racer-active {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+body.racer-active .webgl,
+body.racer-active .racer-hud {
+  touch-action: none;
+}
+
+/* 游戏内：隐藏设置开关，强制显示播放 / 下一首 / 音量控件 */
+body.racer-active .left-button-group {
+  z-index: 2700;
+}
+
+body.racer-active .left-button-group .toggle-ui-btn {
+  display: none;
+}
+
+body.racer-active .left-button-group .music-controls {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* 「正在播放」移到右上角，避开顶部连击徽标与左侧控件 */
+body.racer-active #now-playing {
+  top: 96px;
+  right: 2.4rem;
+  left: auto;
+  transform: none;
+  max-width: 42vw;
+  text-align: right;
+  z-index: 2700;
+}
+
+/* 车库打开时收起「正在播放」文字，避免透过电视屏幕出现残影 */
+body.racer-garage-open #now-playing {
+  opacity: 0;
 }
 
 @media (max-width: 768px), (max-aspect-ratio: 1/1) {
@@ -5369,8 +5662,51 @@ body.racer-active #back-to-top-btn {
     height: 34px;
   }
 
+  /* 车库在窄屏上尽量占满电视框 */
+  .racer-garage {
+    padding: 0.7rem;
+  }
+
+  .racer-garage-crt {
+    width: 96%;
+  }
+
+  .racer-garage-frame {
+    padding: 0.7rem 0.75rem 0.8rem;
+  }
+
+  .racer-garage-head {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+  }
+
+  .racer-garage-total {
+    font-size: 0.6rem;
+  }
+
+  .garage-cell-name {
+    font-size: 0.52rem;
+    letter-spacing: 0.14em;
+  }
+
+  .garage-action {
+    min-width: 5.4em;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.52rem;
+    letter-spacing: 0.1em;
+  }
+
   .racer-hud-bottom {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
     justify-content: center;
+  }
+
+  /* 手机上累计分单独占一行，避免和底部提示挤在一起 */
+  .racer-hud-total {
+    width: 100%;
+    text-align: center;
+    font-size: 0.62rem;
   }
 
   .racer-hud-hint {
