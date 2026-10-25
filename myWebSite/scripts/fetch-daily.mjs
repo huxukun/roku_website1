@@ -35,7 +35,9 @@ const KEEP_DAYS = 90
 const KNOWN_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14)
 const SYNODIC_MONTH = 29.530588853
 
-const APOD_ENDPOINT = 'https://api.nasa.gov/planetary/apod'
+// NASA 已于 2026-09 把 APOD 迁移到 WordPress 接口，旧接口 2026-12-01 下线
+const APOD_PRIMARY = 'https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=1'
+const APOD_LEGACY = 'https://api.nasa.gov/planetary/apod'
 const SUN_ENDPOINT = 'https://api.sunrise-sunset.org/json?lat=32.0603&lng=118.7969&formatted=0'
 
 const NASA_API_KEY = (process.env.NASA_API_KEY || '').trim() || 'DEMO_KEY'
@@ -130,14 +132,63 @@ function normalizeApod(raw) {
   }
 }
 
-async function fetchApod() {
-  // thumbs=true：视频类型也会返回 thumbnail_url
-  const url = `${APOD_ENDPOINT}?api_key=${encodeURIComponent(NASA_API_KEY)}&thumbs=true`
-  const data = await fetchJson(url)
-  if (!data || typeof data !== 'object') {
-    throw new Error('APOD 返回数据为空')
+function decodeEntities(text) {
+  const map = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }
+  return text
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (match, name) => map[name.toLowerCase()] ?? match)
+}
+
+function stripHtml(value) {
+  return decodeEntities(String(value || '').replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// WordPress 版字段：url/permalink 是文章页，hdurl 才是图片本身
+function normalizeApodBasic(raw) {
+  const isVideo = raw.media_type === 'video' || raw.media_type === 'iframe'
+  const poster = String(raw.hdurl || '')
+  const permalink = String(raw.permalink || raw.url || '')
+  return {
+    title: stripHtml(raw.title),
+    date: String(raw.date || ''),
+    media_type: isVideo ? 'video' : 'image',
+    // 图片：直接用图片地址；视频：指向文章页，缩略图用 hdurl 海报图
+    url: isVideo ? permalink : (poster || permalink),
+    hdurl: poster,
+    thumbnail_url: isVideo ? poster : '',
+    explanation: stripHtml(raw.explanation),
+    copyright: stripHtml(raw.copyright || raw.credit || '')
   }
-  return normalizeApod(data)
+}
+
+async function fetchApod() {
+  try {
+    const data = await fetchJson(APOD_PRIMARY)
+    const item = Array.isArray(data) ? data[0] : data
+    if (!item || typeof item !== 'object') {
+      throw new Error('APOD 返回数据为空')
+    }
+    if (!item.title && !item.hdurl) {
+      throw new Error('APOD 数据缺少标题与图片')
+    }
+    return normalizeApodBasic(item)
+  } catch (primaryError) {
+    // 新接口不可用时回退到旧接口（2026-12-01 前仍可能可用）
+    // thumbs=true：视频类型也会返回 thumbnail_url
+    const url = `${APOD_LEGACY}?api_key=${encodeURIComponent(NASA_API_KEY)}&thumbs=true`
+    try {
+      const data = await fetchJson(url)
+      if (!data || typeof data !== 'object') {
+        throw new Error('APOD 返回数据为空')
+      }
+      return normalizeApod(data)
+    } catch (legacyError) {
+      throw new Error(`新接口 ${primaryError.message}；旧接口 ${legacyError.message}`)
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ *
