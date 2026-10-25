@@ -368,6 +368,8 @@ export default class UIManager {
     try {
       this.initElements();
       this.initEventListeners();
+      // 初始就按 isMusicUiVisible 同步一次，避免图标 🎛️ 与实际隐藏状态不一致
+      this.syncMusicUiState();
       this.initConfirmDialog();
       this.createProjectCards();
       this.initGuestbook();
@@ -622,6 +624,11 @@ export default class UIManager {
     }
     if (this.toggleUiBtn) {
       this.toggleUiBtn.addEventListener('click', () => this.toggleMusicUI());
+    }
+    // 回到顶部：收起内容面板，回到 3D 场景（按钮显隐由 body.sheet-open 控制）
+    const backToTopBtn = document.getElementById('back-to-top-btn');
+    if (backToTopBtn) {
+      backToTopBtn.addEventListener('click', () => this.closeContentSheet());
     }
     if (this.audioFileInput) {
       this.audioFileInput.addEventListener('change', (e) => this.handleAudioFileSelect(e));
@@ -1533,45 +1540,42 @@ export default class UIManager {
     }
   }
 
-  // 切换音乐相关控制元素的显示/隐藏
-  toggleMusicUI() {
-    this.isMusicUiVisible = !this.isMusicUiVisible;
-    
-    // 控制所有音乐相关元素
+  // 按 isMusicUiVisible 同步音乐控件的 DOM 表现（初始化与归位时统一调用）
+  syncMusicUiState() {
     this.musicControlElements.forEach(el => {
-      if (this.isMusicUiVisible) {
-        el.classList.remove('hidden');
-      } else {
-        el.classList.add('hidden');
-      }
+      el.classList.toggle('hidden', !this.isMusicUiVisible);
     });
-    
-    // 控制红点显示：隐藏的时候显示红点，显示的时候隐藏红点
+
+    // 隐藏时显示红点提示，显示时隐藏红点
     if (this.notificationDot) {
-      if (this.isMusicUiVisible) {
-        this.notificationDot.classList.add('hidden');
-      } else {
-        this.notificationDot.classList.remove('hidden');
-      }
+      this.notificationDot.classList.toggle('hidden', this.isMusicUiVisible);
     }
-    
+
     if (this.toggleUiIcon) {
       this.toggleUiIcon.textContent = this.isMusicUiVisible ? '🎛️' : '🔇';
     }
-    
+
     if (this.toggleUiBtn) {
-      if (this.isMusicUiVisible) {
-        this.toggleUiBtn.classList.remove('is-primary');
-        this.toggleUiBtn.classList.add('is-success');
-        this.toggleUiBtn.style.opacity = '1';
-      } else {
-        this.toggleUiBtn.classList.remove('is-success');
-        this.toggleUiBtn.classList.add('is-primary');
-        this.toggleUiBtn.style.opacity = '0.5';
-      }
+      this.toggleUiBtn.classList.toggle('is-success', this.isMusicUiVisible);
+      this.toggleUiBtn.classList.toggle('is-primary', !this.isMusicUiVisible);
+      this.toggleUiBtn.style.opacity = this.isMusicUiVisible ? '1' : '0.5';
     }
-    
+  }
+
+  // 切换音乐相关控制元素的显示/隐藏
+  toggleMusicUI() {
+    this.isMusicUiVisible = !this.isMusicUiVisible;
+    this.syncMusicUiState();
     console.log('音乐 UI 显示状态:', this.isMusicUiVisible ? '显示' : '隐藏');
+  }
+
+  // 回到 3D 场景时复位为收起状态：
+  // 面板打开期间音乐控件被遮住但状态可能仍是「显示」，
+  // 不复位的话用户点一下 toggle 反而会变成隐藏，表现为「点了没出现」。
+  resetMusicUiOnScene() {
+    if (!this.isMusicUiVisible) return;
+    this.isMusicUiVisible = false;
+    this.syncMusicUiState();
   }
 
   // 隐藏正在播放
@@ -2548,6 +2552,8 @@ export default class UIManager {
       this.contentSheet?.classList.add('sheet-fully-open');
       this.isSheetOpen = true;
       document.body.classList.add('sheet-open');
+      // 新一轮打开：允许关闭时再做一次音乐控件复位
+      this._sheetMusicResetDone = false;
       if (this.pendingSheetSection) {
         const section = this.pendingSheetSection;
         this.pendingSheetSection = null;
@@ -2557,6 +2563,10 @@ export default class UIManager {
       this.contentSheet?.classList.remove('sheet-fully-open');
       this.isSheetOpen = false;
       document.body.classList.remove('sheet-open');
+      // 回到 3D 场景：音乐控件复位为收起，保证再点一次 toggle 一定是展开。
+      // closeContentSheet 已立即复位过时跳过，否则会把用户刚点开的又关掉。
+      if (!this._sheetMusicResetDone) this.resetMusicUiOnScene();
+      this._sheetMusicResetDone = false;
     }
   }
 
@@ -2590,6 +2600,9 @@ export default class UIManager {
     this.contentSheet.classList.remove('sheet-fully-open');
     this.isSheetOpen = false;
     document.body.classList.remove('sheet-open');
+    // 立即复位（不等动画 settle），否则用户马上点 toggle 会因旧状态而「点了没出现」
+    this.resetMusicUiOnScene();
+    this._sheetMusicResetDone = true;
     this.pendingSheetSection = null;
     this.setSheetTarget(0);
     this.isAboutModalOpen = false;

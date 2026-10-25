@@ -3,14 +3,49 @@
  * ---------------------------------------------------------------
  * 数据由 scripts/fetch-daily.mjs 定时预生成到 public/daily/latest.json，
  * 前端只 fetch 本地 JSON，不在浏览器里请求 NASA API。
+ *
+ * 观测位置：默认南京（直接用预生成数据）；用户输入城市 / 坐标或自动定位后，
+ * 用 skyMath.js（日出日落）与 scripts/sky-guide.mjs（行星）在本地重算，
+ * 不请求任何外部 API。位置保存在 localStorage。
  */
 
-import { t, translateTerm, getCurrentLang } from './i18n.js'
+import { t, tf, translateTerm, getCurrentLang } from './i18n.js'
+import { buildSkyGuide } from '../scripts/sky-guide.mjs'
+import {
+  getSavedLocation,
+  saveLocation,
+  clearSavedLocation,
+  isDefaultLocation,
+  locationLabel,
+  locationUtcOffset,
+  resolveLocation,
+  calcSunTimes
+} from './skyMath.js'
 
 const DATA_URL = '/daily/latest.json'
 
-// 缓存最近一次数据，切换语言时直接重绘（不重新请求）
+// 缓存最近一次数据，切换语言 / 位置时直接重绘（不重新请求）
 let lastData = null
+// 当前观测位置：null 表示默认南京（沿用 JSON 里 Action 算好的数据）
+let currentLocation = getSavedLocation()
+
+/** 默认位置直接返回原数据；自定义位置在本地重算日出日落与行星（流星雨与位置无关，沿用） */
+function resolveViewData(data) {
+  if (!data || isDefaultLocation(currentLocation)) return data
+  const dateStr = data.date
+  if (!dateStr) return data
+
+  const utcOffset = locationUtcOffset(currentLocation)
+  const sun = calcSunTimes(dateStr, currentLocation.lat, currentLocation.lng, utcOffset)
+  const guide = buildSkyGuide(dateStr, currentLocation.lat, currentLocation.lng, utcOffset)
+
+  return {
+    ...data,
+    sun: sun || { sunrise: '', sunset: '' },
+    sunPolar: !sun,
+    planets: guide?.planets ?? data.planets
+  }
+}
 
 const SKELETON_HTML = `
   <div class="daily-sky-skeleton" aria-hidden="true">
@@ -107,7 +142,7 @@ function renderMoon(moon) {
   `
 }
 
-function renderSun(sun) {
+function renderSun(sun, polar) {
   if (!sun || typeof sun !== 'object') return ''
   const hasData = Boolean(sun.sunrise && sun.sunset)
 
@@ -121,7 +156,28 @@ function renderSun(sun) {
         <span class="daily-sky-sun-icon" aria-hidden="true">🌇</span>${escapeHtml(t('sky-sunset'))}
         <b>${escapeHtml(sun.sunset || '--:--')}</b>
       </span>
-      ${hasData ? '' : `<span class="daily-sky-muted">${escapeHtml(t('sky-sun-missing'))}</span>`}
+      ${hasData ? '' : `<span class="daily-sky-muted">${escapeHtml(t(polar ? 'sky-location-polar' : 'sky-sun-missing'))}</span>`}
+    </div>
+  `
+}
+
+// 观测位置输入行：城市名 / 坐标 / 自动定位；自定义位置时显示恢复按钮
+function renderLocationBar() {
+  const isCustom = !isDefaultLocation(currentLocation)
+  return `
+    <div class="daily-sky-location">
+      <span class="daily-sky-location-icon" aria-hidden="true">📍</span>
+      <input type="text" class="daily-sky-location-input" maxlength="40"
+             placeholder="${escapeHtml(t('sky-location-placeholder'))}"
+             aria-label="${escapeHtml(t('sky-location-placeholder'))}">
+      <button type="button" class="daily-sky-location-btn daily-sky-location-apply">${escapeHtml(t('sky-location-apply'))}</button>
+      <button type="button" class="daily-sky-location-btn daily-sky-location-locate"
+              title="${escapeHtml(t('sky-location-locate'))}" aria-label="${escapeHtml(t('sky-location-locate'))}">🛰️</button>
+      ${isCustom
+        ? `<button type="button" class="daily-sky-location-btn daily-sky-location-reset"
+              title="${escapeHtml(t('sky-location-reset'))}" aria-label="${escapeHtml(t('sky-location-reset'))}">✕</button>`
+        : ''}
+      <span class="daily-sky-location-msg" role="status"></span>
     </div>
   `
 }
@@ -165,7 +221,7 @@ function renderGuide(planets, event, lang) {
     <div class="daily-sky-guide">
       <div class="daily-sky-guide-head">
         <h4 class="daily-sky-guide-title">${escapeHtml(t('sky-guide'))}</h4>
-        <span class="daily-sky-guide-sub">${escapeHtml(t('sky-guide-sub'))}</span>
+        <span class="daily-sky-guide-sub">${escapeHtml(tf('sky-guide-sub', { place: locationLabel(currentLocation, lang) }))}</span>
       </div>
       ${planetItems
         ? `<ul class="daily-sky-planets">${planetItems}</ul>`
@@ -196,7 +252,8 @@ function buildBody(data) {
     <h3 class="daily-sky-apod-title">${escapeHtml(title)}</h3>
     ${apod.date ? `<p class="daily-sky-apod-meta">APOD · ${escapeHtml(apod.date)}</p>` : ''}
     ${renderMoon(data?.moon)}
-    ${renderSun(data?.sun)}
+    ${renderSun(data?.sun, data?.sunPolar)}
+    ${renderLocationBar()}
     <p class="daily-sky-credit">
       ${link
         ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${credit}</a>`
@@ -212,6 +269,71 @@ function buildBody(data) {
   `
 }
 
+// 位置行事件：body 每次重建后都要重新绑定
+function bindLocationBar(root) {
+  const bar = root.querySelector('.daily-sky-location')
+  if (!bar) return
+
+  const input = bar.querySelector('.daily-sky-location-input')
+  const msg = bar.querySelector('.daily-sky-location-msg')
+  const rerender = () => render(root, resolveViewData(lastData))
+
+  const submit = () => {
+    const loc = resolveLocation(input.value)
+    if (!loc) {
+      input.classList.add('is-invalid')
+      msg.textContent = t('sky-location-notfound')
+      return
+    }
+    currentLocation = loc
+    saveLocation(loc)
+    rerender()
+  }
+
+  bar.querySelector('.daily-sky-location-apply').addEventListener('click', submit)
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') submit()
+  })
+  input.addEventListener('input', () => {
+    input.classList.remove('is-invalid')
+    msg.textContent = ''
+  })
+
+  bar.querySelector('.daily-sky-location-locate').addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      msg.textContent = t('sky-location-failed')
+      return
+    }
+    msg.textContent = t('sky-location-locating')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        currentLocation = {
+          names: null,
+          lat: Math.round(pos.coords.latitude * 10000) / 10000,
+          lng: Math.round(pos.coords.longitude * 10000) / 10000,
+          // 定位的是本机，浏览器时区比经度估算更准
+          tz: -new Date().getTimezoneOffset() / 60
+        }
+        saveLocation(currentLocation)
+        rerender()
+      },
+      () => {
+        msg.textContent = t('sky-location-failed')
+      },
+      { timeout: 10000 }
+    )
+  })
+
+  const reset = bar.querySelector('.daily-sky-location-reset')
+  if (reset) {
+    reset.addEventListener('click', () => {
+      currentLocation = null
+      clearSavedLocation()
+      rerender()
+    })
+  }
+}
+
 function render(root, data) {
   const apod = data?.apod && typeof data.apod === 'object' ? data.apod : {}
 
@@ -225,6 +347,7 @@ function render(root, data) {
   const existingMedia = root.querySelector('.daily-sky-media')
   if (existingBody && existingMedia) {
     existingBody.innerHTML = buildBody(data)
+    bindLocationBar(root)
     return
   }
 
@@ -232,6 +355,7 @@ function render(root, data) {
     ${renderMedia(apod)}
     <div class="daily-sky-body">${buildBody(data)}</div>
   `
+  bindLocationBar(root)
 
   // 图片加载失败时保留占位底图，避免卡片塌掉
   const img = root.querySelector('.daily-sky-img')
@@ -261,7 +385,7 @@ async function load(root) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const data = await response.json()
     lastData = data
-    render(root, data)
+    render(root, resolveViewData(data))
   } catch (error) {
     console.warn('读取「今晚的天空」数据失败：', error)
     renderUnavailable(root)
@@ -276,6 +400,6 @@ export function initDailySky() {
 
   // 切换语言时用缓存数据重绘文字（不重新请求网络）
   document.addEventListener('languageChange', () => {
-    if (lastData) render(root, lastData)
+    if (lastData) render(root, resolveViewData(lastData))
   })
 }

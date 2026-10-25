@@ -1,9 +1,10 @@
 /**
- * 观星指南（无第三方依赖）
+ * 观星指南（无第三方依赖，Node 与浏览器均可直接 import）
  * ---------------------------------------------------------------
  * 1. 行星：用 Paul Schlyter 的简化轨道根数算法，本地计算「今晚」可见行星，
  *    不请求任何天象 API（避免 key、限流与旧接口下线风险）。
  * 2. 天象：内置主要流星雨年历，算出距离下一次极大期的天数。
+ * 3. utcOffset 为观测地时区（UTC 偏移小时，可为小数），默认 +8（北京时间）。
  */
 
 const DEG = Math.PI / 180
@@ -191,18 +192,21 @@ function compassDirection(azimuth) {
 
 /**
  * 今晚可见行星
- * @param {string} dateStr 北京时间日期 YYYY-MM-DD
+ * @param {string} dateStr 当地日期 YYYY-MM-DD
+ * @param {number} utcOffset 观测地 UTC 偏移小时（可为小数，如 5.5），默认 +8
  */
-export function getVisiblePlanets(dateStr, latitude = 32.0603, longitude = 118.7969) {
+export function getVisiblePlanets(dateStr, latitude = 32.0603, longitude = 118.7969, utcOffset = 8) {
   const [year, month, day] = dateStr.split('-').map(Number)
   const results = []
 
   for (const planet of PLANETS) {
     let best = null
 
-    // 当天 18:00 → 次日 05:00，每小时采样，只取天黑后的时刻
+    // 当地 18:00 → 次日 05:00，每小时采样，只取天黑后的时刻
+    // 用毫秒加法换算 UTC（不用 Date.UTC 的 hour 参数），支持 5.5 这类非整数时区
+    const dayStartUtc = Date.UTC(year, month - 1, day, 0, 0, 0)
     for (let hour = 18; hour <= 29; hour++) {
-      const utcMs = Date.UTC(year, month - 1, day + (hour >= 24 ? 1 : 0), hour - 8, 0, 0)
+      const utcMs = dayStartUtc + (hour - utcOffset) * 3600000
       const time = new Date(utcMs)
       if (sunAltitude(time, latitude, longitude) > -4) continue
 
@@ -260,10 +264,10 @@ export function getNextSkyEvent(dateStr) {
 }
 
 /** 组装观星指南：任何一步失败都返回 null，由调用方沿用旧数据 */
-export function buildSkyGuide(dateStr, latitude = 32.0603, longitude = 118.7969) {
+export function buildSkyGuide(dateStr, latitude = 32.0603, longitude = 118.7969, utcOffset = 8) {
   try {
     return {
-      planets: getVisiblePlanets(dateStr, latitude, longitude),
+      planets: getVisiblePlanets(dateStr, latitude, longitude, utcOffset),
       event: getNextSkyEvent(dateStr)
     }
   } catch (error) {
