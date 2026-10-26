@@ -5810,6 +5810,471 @@ body.racer-garage-open #now-playing {
 }
 
 /* ==========================================================================
+ * 作品集：上传入口 + 卡片网格 + 上传向导
+ * ========================================================================== */
+.portfolio-upload-btn {
+  font-size: 0.62rem !important;
+  padding: 0.45rem 0.8rem !important;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.portfolio-block {
+  width: min(1080px, 100%);
+  margin: 1.6rem auto 0;
+}
+
+.portfolio-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.18);
+}
+
+.portfolio-block-title {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+}
+
+.portfolio-count {
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  color: var(--silver);
+}
+
+.portfolio-empty {
+  margin: 0;
+  padding: 1.4rem 1rem;
+  text-align: center;
+  font-size: 0.62rem;
+  color: var(--silver);
+  border: 1px dashed rgba(0, 255, 255, 0.22);
+  background: rgba(0, 255, 255, 0.03);
+}
+
+.portfolio-empty.hidden {
+  display: none;
+}
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.portfolio-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--semi-transparent-bg);
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  box-shadow:
+    inset 0 0 18px rgba(0, 220, 255, 0.08),
+    0 0 0 1px rgba(255, 0, 255, 0.06);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.portfolio-card:hover {
+  border-color: rgba(0, 255, 255, 0.65);
+  box-shadow:
+    inset 0 0 22px rgba(0, 220, 255, 0.12),
+    0 0 18px rgba(0, 220, 255, 0.28);
+  transform: translateY(-2px);
+}
+
+.portfolio-card-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #05050f;
+}
+
+.portfolio-card-media img,
+.portfolio-card-media video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portfolio-card-media video {
+  object-fit: contain;
+  background: #000;
+}
+
+.portfolio-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem 0.8rem 0.8rem;
+}
+
+.portfolio-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.portfolio-type-badge {
+  display: inline-block;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.48rem;
+  letter-spacing: 0.14em;
+  color: #001018;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.45);
+}
+
+.portfolio-type-badge[data-kind="video"] {
+  background: var(--neon-pink);
+  color: #1a001a;
+  box-shadow: 0 0 10px rgba(255, 0, 255, 0.45);
+}
+
+.portfolio-type-badge[data-kind="model"] {
+  background: #ffd166;
+  color: #1d1400;
+  box-shadow: 0 0 10px rgba(255, 209, 102, 0.45);
+}
+
+.portfolio-card-title {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #f4fbff;
+  font-family: var(--font-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-card-desc {
+  margin: 0;
+  font-size: 0.58rem;
+  line-height: 1.7;
+  color: #b7d7dd;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.portfolio-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.portfolio-card-link,
+.portfolio-card-file {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.54rem;
+  color: var(--neon-cyan);
+  text-decoration: none;
+  border: 1px solid rgba(0, 255, 255, 0.32);
+  background: rgba(0, 255, 255, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.portfolio-card-link:hover,
+.portfolio-card-file:hover {
+  background: rgba(0, 255, 255, 0.16);
+  border-color: var(--neon-cyan);
+}
+
+.portfolio-delete-btn {
+  margin-left: auto;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.54rem;
+  font-family: var(--font-main);
+  color: #ff8fb8;
+  background: rgba(255, 0, 100, 0.08);
+  border: 1px solid rgba(255, 90, 150, 0.4);
+  cursor: pointer;
+}
+
+.portfolio-delete-btn:hover {
+  background: rgba(255, 0, 100, 0.18);
+  border-color: #ff5a96;
+}
+
+/* 3D 模型占位 / 预览 */
+.portfolio-model-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  padding: 1rem;
+  background:
+    linear-gradient(rgba(0, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.07) 1px, transparent 1px),
+    radial-gradient(ellipse at center, rgba(0, 180, 255, 0.16), transparent 70%);
+  background-size: 18px 18px, 18px 18px, 100% 100%;
+}
+
+.portfolio-model-ext {
+  padding: 0.3rem 0.62rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  color: #eafeff;
+  border: 1px dashed rgba(0, 255, 255, 0.55);
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.75);
+}
+
+.portfolio-model-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  color: rgba(160, 235, 245, 0.8);
+  text-align: center;
+}
+
+/* ---------- 上传向导模态框 ---------- */
+.portfolio-modal-content {
+  width: 92%;
+  max-width: 560px;
+  max-height: 86vh;
+  overflow-y: auto;
+  transform: scale(0.95);
+  opacity: 0;
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+.modal-overlay:not(.hidden) .portfolio-modal-content {
+  transform: scale(1);
+  opacity: 1;
+}
+
+#portfolio-upload-modal {
+  z-index: 9800;
+}
+
+.portfolio-dialog {
+  width: 100%;
+  padding: 1.2rem 1.2rem 1.3rem !important;
+  background: var(--semi-purple-bg);
+  border: 3px solid var(--neon-cyan) !important;
+  box-shadow:
+    0 0 30px rgba(0, 255, 255, 0.35),
+    0 0 60px rgba(0, 255, 255, 0.18);
+}
+
+.portfolio-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.8rem;
+  border-bottom: 2px solid var(--neon-pink);
+}
+
+.portfolio-modal-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-pink);
+}
+
+.portfolio-step-label {
+  margin: 0 0 0.9rem;
+  font-size: 0.52rem;
+  letter-spacing: 0.18em;
+  color: var(--neon-cyan);
+}
+
+.portfolio-step.hidden {
+  display: none;
+}
+
+.portfolio-position-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 48vh;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.portfolio-position-option {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  font-family: var(--font-main);
+  color: #e8ffff;
+  background: rgba(0, 255, 255, 0.04);
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.portfolio-position-option:hover,
+.portfolio-position-option:focus-visible {
+  background: rgba(0, 255, 255, 0.12);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.32);
+  outline: none;
+}
+
+.portfolio-position-index {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  font-size: 0.58rem;
+  color: var(--neon-cyan);
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
+}
+
+.portfolio-position-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.portfolio-position-text strong {
+  font-size: 0.66rem;
+  font-weight: 400;
+  color: #ffffff;
+}
+
+.portfolio-position-text small {
+  font-size: 0.52rem;
+  line-height: 1.5;
+  color: rgba(170, 215, 225, 0.8);
+}
+
+.portfolio-file-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 0.7rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.62rem;
+  color: var(--neon-cyan);
+  text-align: center;
+  word-break: break-all;
+  border: 1px dashed rgba(0, 255, 255, 0.5);
+  background: rgba(0, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.portfolio-file-picker:hover {
+  background: rgba(0, 255, 255, 0.12);
+  border-color: var(--neon-cyan);
+}
+
+.portfolio-file-preview {
+  margin-bottom: 0.7rem;
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.portfolio-file-preview.hidden {
+  display: none;
+}
+
+.portfolio-file-preview img,
+.portfolio-file-preview video {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin: 0 auto;
+}
+
+.portfolio-file-hint {
+  margin: 0 0 0.7rem;
+  font-size: 0.5rem;
+  line-height: 1.7;
+  color: var(--silver);
+}
+
+#portfolio-upload-modal .nes-input,
+#portfolio-upload-modal .nes-textarea {
+  width: 100%;
+  margin-bottom: 0.6rem;
+}
+
+#portfolio-upload-modal .nes-textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.portfolio-upload-status {
+  margin-bottom: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.56rem;
+  line-height: 1.6;
+  color: var(--neon-cyan);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  background: rgba(0, 255, 255, 0.05);
+}
+
+.portfolio-upload-status.hidden {
+  display: none;
+}
+
+.portfolio-upload-status[data-type="error"] {
+  color: #ff8fb8;
+  border-color: rgba(255, 90, 150, 0.45);
+  background: rgba(255, 0, 100, 0.08);
+}
+
+.portfolio-upload-status[data-type="success"] {
+  color: #7dffc4;
+  border-color: rgba(125, 255, 196, 0.4);
+  background: rgba(0, 255, 160, 0.06);
+}
+
+.portfolio-modal-actions {
+  position: sticky;
+  bottom: -1.3rem;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  padding: 0.7rem 0 1.3rem;
+  background: linear-gradient(to top, var(--semi-purple-bg) 72%, transparent);
+}
+
+.portfolio-modal-actions .nes-btn {
+  font-size: 0.62rem !important;
+  padding: 0.45rem 0.8rem !important;
+}
+
+@media (max-width: 520px) {
+  .portfolio-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .portfolio-card-body {
+    padding: 0.6rem 0.65rem 0.7rem;
+  }
+}
+
+/* ==========================================================================
  * 整体 UI 明度统一下调一点（只作用于界面层，不动 3D 画布）
  * ========================================================================== */
 .left-button-group,

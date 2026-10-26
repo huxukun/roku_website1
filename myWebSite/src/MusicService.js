@@ -1,5 +1,18 @@
 import { supabase } from './supabase';
 
+/* 歌单清单缓存：先渲染上次的列表，再后台刷新。
+   云端慢或暂时离线时，音乐按钮依然可以立即点开。 */
+const CACHE_KEY = 'roku-music-library-cache';
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 class MusicService {
   constructor() {
     this.songs = [];
@@ -7,6 +20,32 @@ class MusicService {
     this.gameBgmSongs = [];
     this.currentSongIndex = 0;
     this.lastPlayedIndices = [];
+    this.cacheLoaded = false;
+  }
+
+  // 启动时先灌入本地缓存，调用方可在创建 UI 前 await 它
+  loadCache() {
+    if (this.cacheLoaded) return true;
+    this.cacheLoaded = true;
+    const cached = readCache();
+    if (!cached) return false;
+    if (Array.isArray(cached.songs)) this.songs = cached.songs;
+    if (Array.isArray(cached.mainBgmSongs)) this.mainBgmSongs = cached.mainBgmSongs;
+    if (Array.isArray(cached.gameBgmSongs)) this.gameBgmSongs = cached.gameBgmSongs;
+    return true;
+  }
+
+  saveCache() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        songs: this.songs,
+        mainBgmSongs: this.mainBgmSongs,
+        gameBgmSongs: this.gameBgmSongs,
+        updatedAt: Date.now(),
+      }));
+    } catch (error) {
+      /* 配额不足或隐私模式下写入失败，不影响播放 */
+    }
   }
 
   async fetchSongs() {
@@ -26,6 +65,7 @@ class MusicService {
       }));
       this.songs = rows;
       this.songs = this.songs.map(({ url, ...song }) => song);
+      this.saveCache();
       console.log('MusicService: Fetched songs:', this.songs.length);
       return true;
     } catch (error) {
@@ -75,6 +115,7 @@ class MusicService {
   async fetchBgmSongs() {
     this.mainBgmSongs = await this.fetchBgmFolder('MainSynthBGM', 'main')
     this.gameBgmSongs = await this.fetchBgmFolder('GameSynthBGM', 'game')
+    this.saveCache()
     return this.mainBgmSongs.length + this.gameBgmSongs.length
   }
 

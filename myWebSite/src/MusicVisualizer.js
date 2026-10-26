@@ -85,9 +85,15 @@ export default class MusicVisualizer {
        媒体节点并触发无限重试，最终拖垮渲染（表现为整屏黑掉）。
        元素复用后 ended 只绑定一次，交给 UIManager 的 onEnded 切下一首。 */
     this.audioElement = new Audio()
-    this.audioElement.preload = 'auto'
+    /* 先只取元数据，真正点播时再切 auto：
+       进页面不会预先下载整首，用户点击后又能尽快起播 */
+    this.audioElement.preload = 'metadata'
     this.audioElement.loop = false
     this.audioElement.volume = 0.5
+    this.audioElement.addEventListener('playing', () => {
+      this.isPlaying = true
+      this.hasAudioData = true
+    })
     this.audioElement.addEventListener('ended', () => {
       this.isPlaying = false
       this.onEnded?.()
@@ -134,7 +140,9 @@ export default class MusicVisualizer {
 
       let settled = false
       let timer = 0
-      const onCanPlay = () => {
+      /* 起播判定用 loadeddata/canplay 中先到的一个：
+         手机网络下 canplay 往往要等更久，loadeddata 已足够开始播放 */
+      const onReady = () => {
         if (this.audioContext && this.audioContext.state === 'suspended') this.audioContext.resume()
         this.hasAudioData = true
         finish()
@@ -142,7 +150,8 @@ export default class MusicVisualizer {
       const onError = () => finish(new Error(this.describeAudioError()))
       const cleanup = () => {
         window.clearTimeout(timer)
-        audio.removeEventListener('canplay', onCanPlay)
+        audio.removeEventListener('loadeddata', onReady)
+        audio.removeEventListener('canplay', onReady)
         audio.removeEventListener('error', onError)
         if (this._cancelPendingLoad === cancel) this._cancelPendingLoad = null
       }
@@ -162,7 +171,10 @@ export default class MusicVisualizer {
       this._cancelPendingLoad = cancel
 
       audio.loop = loop
-      audio.addEventListener('canplay', onCanPlay)
+      // 用户已明确点播，这一首切到 auto 才真正下载媒体数据
+      audio.preload = 'auto'
+      audio.addEventListener('loadeddata', onReady)
+      audio.addEventListener('canplay', onReady)
       audio.addEventListener('error', onError)
       /* 超时兜底：canplay 迟迟不触发时主动失败，防止 Promise 永久挂起
          移动端网络起播慢，留足 20 秒 */

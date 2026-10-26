@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS collection_items (
     id BIGSERIAL PRIMARY KEY,
     title VARCHAR(300),
     image_url TEXT NOT NULL,
+    thumb_url TEXT,
     storage_path VARCHAR(500),
     likes INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -146,6 +147,8 @@ CREATE TABLE IF NOT EXISTS collection_items (
 
 -- 老库补列（已存在时忽略）
 ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS likes INTEGER NOT NULL DEFAULT 0;
+-- 列表缩略图（480px WebP），卡片优先使用它，点开灯箱才加载原图
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS thumb_url TEXT;
 
 ALTER TABLE collection_items ENABLE ROW LEVEL SECURITY;
 

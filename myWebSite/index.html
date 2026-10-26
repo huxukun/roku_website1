@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preload" href="/fonts/pixel-zh.woff2" as="font" type="font/woff2" crossorigin>
-    <link href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css" rel="stylesheet">
+    <link href="/vendor/nes-core.min.css" rel="stylesheet">
     <title>ROKU HERE</title>
   </head>
   <body>
@@ -154,6 +154,44 @@
       </div>
     </div>
 
+    <!-- 作品集上传向导：先选位置，再上传文件并填写描述 / 链接 -->
+    <div id="portfolio-upload-modal" class="modal-overlay hidden">
+      <div class="portfolio-modal-content">
+        <div class="nes-dialog portfolio-dialog">
+          <div class="portfolio-modal-head">
+            <h2 class="modal-title">⬆️ 上传作品</h2>
+            <button id="close-portfolio-modal" class="nes-btn is-error close-btn" type="button">×</button>
+          </div>
+          <p id="portfolio-step-label" class="portfolio-step-label">STEP 1 / 2 · 选择插入位置</p>
+
+          <div id="portfolio-step-position" class="portfolio-step">
+            <div id="portfolio-position-list" class="portfolio-position-list"></div>
+          </div>
+
+          <div id="portfolio-step-details" class="portfolio-step hidden">
+            <label class="portfolio-file-picker" for="portfolio-file-input">
+              <span id="portfolio-file-picker-text">📁 选择文件（图片 / 视频 / 3D 模型）</span>
+            </label>
+            <input type="file" id="portfolio-file-input"
+                   accept="image/*,video/*,.glb,.gltf,.fbx,.obj,.stl,.ply,.usdz,.blend" hidden>
+            <div id="portfolio-file-preview" class="portfolio-file-preview hidden"></div>
+            <p class="portfolio-file-hint">支持 JPG / PNG / WebP / GIF、MP4 / WebM / MOV、GLB / GLTF / FBX / OBJ / STL / PLY / USDZ / BLEND，单个文件不超过 120MB。</p>
+
+            <input type="text" id="portfolio-title-input" class="nes-input" maxlength="80" placeholder="作品标题">
+            <textarea id="portfolio-desc-input" class="nes-textarea" rows="3" maxlength="500" placeholder="作品描述（可选）"></textarea>
+            <input type="url" id="portfolio-link-input" class="nes-input" maxlength="500" placeholder="作品链接 https://...（可选）">
+
+            <div id="portfolio-upload-status" class="portfolio-upload-status hidden"></div>
+
+            <div class="portfolio-modal-actions">
+              <button id="portfolio-back-btn" class="nes-btn is-primary" type="button">← 上一步</button>
+              <button id="portfolio-save-btn" class="nes-btn is-success" type="button">⬆️ 上传并保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 关于我：内容已迁移至 #content-sheet > #sheet-about -->
 
 
@@ -241,6 +279,9 @@
           <section id="sheet-works" class="sheet-section">
             <div class="sheet-section-head">
               <h2 class="modal-title sheet-section-title">作品展示</h2>
+              <button id="portfolio-upload-btn" class="nes-btn is-success admin-only portfolio-upload-btn" type="button">
+                <span class="portfolio-upload-text">⬆️ 上传作品</span>
+              </button>
             </div>
             <div class="works-stage">
               <span class="works-stage-corner works-stage-corner-tl" aria-hidden="true"></span>
@@ -268,6 +309,15 @@
                 <img class="crt-bezel" src="/assets/crt/crt-frame.webp" alt="" aria-hidden="true">
               </span>
               </button>
+            </div>
+
+            <div class="portfolio-block">
+              <div class="portfolio-block-head">
+                <h3 class="portfolio-block-title">作品集</h3>
+                <span id="portfolio-count" class="portfolio-count"></span>
+              </div>
+              <div id="portfolio-grid" class="portfolio-grid"></div>
+              <p id="portfolio-empty" class="portfolio-empty">还没有上传作品，管理员模式下可以添加第一件作品。</p>
             </div>
           </section>
 

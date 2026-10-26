@@ -11,6 +11,24 @@ const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey &&
 
 if (isSupabaseConfigured) {
   supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+  // 提前建立与 Supabase 的 DNS/TLS 连接，减少首个数据请求的等待
+  try {
+    const origin = new URL(supabaseUrl).origin
+    ;[
+      ['preconnect', 'anonymous'],
+      ['dns-prefetch', '']
+    ].forEach(([rel, crossOrigin]) => {
+      const link = document.createElement('link')
+      link.rel = rel
+      link.href = origin
+      if (crossOrigin) link.crossOrigin = crossOrigin
+      document.head.appendChild(link)
+    })
+  } catch (error) {
+    /* URL 异常时忽略预连接，不影响正常初始化 */
+  }
+
   console.log('Supabase client initialized successfully')
 } else {
   console.warn('Supabase environment variables are not set or using default values. Using local storage fallback.')

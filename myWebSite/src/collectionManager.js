@@ -5,9 +5,13 @@ const TABLE = 'collection_items';
 const BUCKET = 'collection-images';
 const LOCAL_STORAGE_KEY = 'synthwave-collection-items';
 const LIKED_STORAGE_KEY = 'synthwave-liked-items';
+/* 云端列表的只读快照：先渲染上次结果，再后台拉最新，避免首屏空白等待 */
+const CLOUD_CACHE_KEY = 'synthwave-collection-cloud-cache';
 const LOCAL_BUDGET = 3 * 1024 * 1024;
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const MAX_EDGE = 2000;
+/* 卡片用的小图尺寸：480px 宽的高质量缩略图，列表滚动时不必下载原图 */
+const THUMB_EDGE = 480;
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i;
 
 let items = [];
@@ -39,6 +43,22 @@ function readLocalItems() {
     return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
   } catch (error) {
     return [];
+  }
+}
+
+function readCloudCache() {
+  try {
+    return JSON.parse(localStorage.getItem(CLOUD_CACHE_KEY) || '[]');
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCloudCache(list) {
+  try {
+    localStorage.setItem(CLOUD_CACHE_KEY, JSON.stringify(list));
+  } catch (error) {
+    /* 配额不足时忽略 */
   }
 }
 
@@ -138,6 +158,7 @@ async function loadItems() {
     .order('created_at', { ascending: false });
   if (error) throw error;
   items = data || [];
+  saveCloudCache(items);
   return items;
 }
 
@@ -176,6 +197,36 @@ function compressImage(file) {
   });
 }
 
+// 生成列表用的小缩略图（WebP），失败时返回 null，卡片自动回退到原图
+function makeThumbnail(file, maxEdge = THUMB_EDGE) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          resolve(null);
+          return;
+        }
+        const name = `${file.name.replace(/\.[^.]+$/, '')}-thumb.webp`;
+        resolve(new File([blob], name, { type: 'image/webp' }));
+      }, 'image/webp', 0.72);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
 async function uploadFile(file) {
   // 部分系统/手机导出的图片 MIME 为空，用扩展名兜底判断
   if (!file.type.startsWith('image/') && !IMAGE_EXTENSIONS.test(file.name)) {
@@ -186,9 +237,12 @@ async function uploadFile(file) {
   // GIF 交给 canvas 压缩会只剩第一帧，直接上传原文件以保留动画
   const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
   const optimized = isGif ? file : await compressImage(file);
+  // 同时生成列表缩略图：GIF 保留原图，其余用 480px WebP
+  const thumbFile = isGif ? null : await makeThumbnail(optimized);
   const now = Date.now();
   const safeName = optimized.name.replace(/[^\w.-]+/g, '_').slice(-60);
   const path = `${now}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+  const thumbPath = thumbFile ? `${path.replace(/\.[^.]+$/, '')}-thumb.webp` : '';
 
   // 未配置 Supabase 时降级为本地预览，方便先调界面
   if (!isSupabaseConfigured) {
@@ -200,6 +254,7 @@ async function uploadFile(file) {
       id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
       title: file.name,
       image_url: dataUrl,
+      thumb_url: '',
       storage_path: '',
       created_at: new Date().toISOString(),
       local: true
@@ -215,15 +270,34 @@ async function uploadFile(file) {
     throw new Error(`存储上传失败：${uploadError.message}`);
   }
 
+  let thumbUrl = '';
+  if (thumbFile && thumbPath) {
+    const { error: thumbError } = await supabase.storage
+      .from(BUCKET)
+      .upload(thumbPath, thumbFile, { cacheControl: '31536000', upsert: false });
+    if (thumbError) {
+      console.warn('缩略图上传失败，卡片将回退到原图:', thumbError.message);
+    } else {
+      thumbUrl = supabase.storage.from(BUCKET).getPublicUrl(thumbPath).data?.publicUrl || '';
+    }
+  }
+
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const { data, error } = await supabase
     .from(TABLE)
-    .insert([{ title: file.name, image_url: urlData.publicUrl, storage_path: path }])
+    .insert([{
+      title: file.name,
+      image_url: urlData.publicUrl,
+      thumb_url: thumbUrl || null,
+      storage_path: path
+    }])
     .select()
     .single();
   if (error) {
     // 写入记录失败时清理已上传的文件，避免留下孤儿对象
-    await supabase.storage.from(BUCKET).remove([path]);
+    const removePaths = [path];
+    if (thumbUrl && thumbPath) removePaths.push(thumbPath);
+    await supabase.storage.from(BUCKET).remove(removePaths);
     throw new Error(`写入数据库失败：${error.message}`);
   }
   return data;
@@ -240,7 +314,12 @@ async function deleteItem(item) {
   }
 
   if (item.storage_path) {
-    await supabase.storage.from(BUCKET).remove([item.storage_path]);
+    const removePaths = [item.storage_path];
+    // 缩略图与原图同一路径前缀，删除时一并清理
+    if (item.thumb_url) {
+      removePaths.push(`${item.storage_path.replace(/\.[^.]+$/, '')}-thumb.webp`);
+    }
+    await supabase.storage.from(BUCKET).remove(removePaths);
   }
   const { error } = await supabase.from(TABLE).delete().eq('id', item.id);
   if (error) throw error;
@@ -294,7 +373,8 @@ function render() {
     card.className = 'collection-card';
 
     const img = document.createElement('img');
-    img.src = item.image_url;
+    // 卡片优先用缩略图，点开灯箱才加载原图
+    img.src = item.thumb_url || item.image_url;
     img.alt = item.title || '';
     img.loading = 'lazy';
     img.decoding = 'async';
@@ -421,6 +501,16 @@ async function handleFiles(fileList) {
 export async function refreshImageCollection() {
   const grid = el('collection-grid');
   if (!grid) return;
+
+  // 先用上次的云端快照渲染，网络请求在后台继续
+  if (isSupabaseConfigured && items.length === 0) {
+    const cached = readCloudCache();
+    if (cached.length > 0) {
+      items = cached;
+      render();
+    }
+  }
+
   try {
     await loadItems();
     render();
