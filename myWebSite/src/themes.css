@@ -1,0 +1,2034 @@
+/* ==========================================================================
+ * 三风格主题 THEMES
+ *  - html[data-style="synth"]  合成波（默认，沿用原 style.css 的 3D 霓虹）
+ *  - html[data-style="aero"]   Frutiger Aero & SolarPunk（明亮 / 玻璃 / 天空 / 绿植）
+ *  - html[data-style="y2k"]    Y2K & Vaporwave（铬色 / 棋盘 / 千禧年桌面窗口）
+ *
+ * 三种风格共用同一份 DOM 内容，通过 html[data-style] 切换视觉与页面结构：
+ *  - synth：底部抽屉 + 3D 场景
+ *  - aero ：全屏玻璃卡片 + 底部胶囊导航（一次只展示一个分区）
+ *  - y2k ：桌面窗口 + 左侧竖排导航（全部分区堆叠成独立窗口）
+ * ========================================================================== */
+
+/* --------------------------------------------------------------------------
+ * 1. 风格舞台：非 synth 风格用纯 CSS 场景替换 WebGL 画布
+ * -------------------------------------------------------------------------- */
+.theme-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+html[data-style="aero"] .theme-stage,
+html[data-style="y2k"] .theme-stage {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* synth 下彻底移除 CSS 主题舞台：避免隐藏层里的无限动画持续重绘，
+   这也是赛车模式下掉帧的主要来源之一 */
+html[data-style="synth"] .theme-stage {
+  display: none;
+}
+
+.bg-aero,
+.bg-y2k {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+html[data-style="aero"] .bg-aero,
+html[data-style="y2k"] .bg-y2k {
+  opacity: 1;
+}
+
+/* 只保留当前风格的背景层，隐藏的另一层不再参与合成与动画 */
+html[data-style="aero"] .bg-y2k,
+html[data-style="y2k"] .bg-aero,
+html[data-style="synth"] .bg-aero,
+html[data-style="synth"] .bg-y2k {
+  display: none;
+}
+
+/* 非 synth 风格隐藏 3D 画布与 CRT 叠加层，避免视觉打架 */
+html[data-style="aero"] .webgl,
+html[data-style="y2k"] .webgl,
+html[data-style="aero"] .crt-overlay,
+html[data-style="y2k"] .crt-overlay {
+  display: none !important;
+}
+
+/* ==========================================================================
+ * 2. Frutiger Aero & SolarPunk 背景
+ * ========================================================================== */
+.bg-aero {
+  background:
+    radial-gradient(circle at 74% 4%, rgba(255, 255, 255, 0.96) 0 7%, rgba(255, 255, 255, 0) 30%),
+    radial-gradient(circle at 74% 4%, rgba(255, 236, 170, 0.9) 0 13%, rgba(255, 210, 122, 0.32) 20%, transparent 44%),
+    linear-gradient(180deg, #7fe1ff 0%, #b6efff 24%, #dcfcef 46%, #c6f6b0 62%, #86dd8d 80%, #2f9e63 100%);
+}
+
+/* 远处云带与水汽 */
+.bg-aero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 46% 8% at 22% 24%, rgba(255, 255, 255, 0.85), transparent 70%),
+    radial-gradient(ellipse 34% 7% at 62% 34%, rgba(255, 255, 255, 0.7), transparent 72%),
+    radial-gradient(ellipse 52% 6% at 84% 20%, rgba(255, 255, 255, 0.6), transparent 70%),
+    radial-gradient(ellipse 90% 22% at 50% 84%, rgba(20, 120, 80, 0.22), transparent 74%);
+  filter: blur(2px);
+}
+
+/* 水面反光 */
+.bg-aero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 58% 16% at 18% 92%, rgba(255, 255, 255, 0.5), transparent 72%),
+    radial-gradient(ellipse 64% 18% at 78% 98%, rgba(255, 255, 255, 0.32), transparent 74%);
+  mix-blend-mode: screen;
+}
+
+.aero-sun {
+  position: absolute;
+  top: -15vh;
+  right: 6vw;
+  width: 46vw;
+  height: 46vw;
+  max-width: 640px;
+  max-height: 640px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    #fffbe6 0 16%,
+    rgba(255, 240, 185, 0.92) 30%,
+    rgba(255, 208, 120, 0.34) 48%,
+    rgba(255, 208, 120, 0) 70%
+  );
+  animation: aeroSunPulse 9s ease-in-out infinite;
+}
+
+/* 太阳光芒：慢速旋转的放射条纹，用径向遮罩收边 */
+.aero-sun::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.38) 0deg 1.6deg,
+    transparent 1.6deg 9deg
+  );
+  -webkit-mask-image: radial-gradient(circle, #000 26%, transparent 66%);
+  mask-image: radial-gradient(circle, #000 26%, transparent 66%);
+  animation: aeroSpin 70s linear infinite;
+}
+
+.aero-hill {
+  position: absolute;
+  bottom: -20vh;
+  width: 92vw;
+  height: 40vh;
+  border-radius: 50%;
+  filter: blur(1.5px);
+}
+
+.aero-hill-far {
+  left: -24vw;
+  bottom: -16vh;
+  background: linear-gradient(180deg, #b9f2b8, #57b57a);
+  opacity: 0.9;
+}
+
+.aero-hill-near {
+  left: 24vw;
+  background: linear-gradient(180deg, #82dc8d, #1f7a4c);
+}
+
+/* 玻璃气泡：内高光 + 边缘折射 */
+.aero-bubble {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgba(255, 255, 255, 0.95) 0 12%,
+    rgba(255, 255, 255, 0.32) 28%,
+    rgba(168, 238, 255, 0.18) 58%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  box-shadow:
+    inset 0 0 22px rgba(255, 255, 255, 0.55),
+    0 0 34px rgba(130, 224, 255, 0.35);
+  animation: aeroBubbleFloat 14s ease-in-out infinite;
+}
+
+.aero-bubble-1 { width: 120px; height: 120px; left: 8%;  top: 66%; animation-delay: -2s; }
+.aero-bubble-2 { width: 64px;  height: 64px;  left: 22%; top: 78%; animation-delay: -6s; }
+.aero-bubble-3 { width: 180px; height: 180px; left: 68%; top: 70%; animation-delay: -4s; }
+.aero-bubble-4 { width: 46px;  height: 46px;  left: 86%; top: 58%; animation-delay: -8s; }
+.aero-bubble-5 { width: 90px;  height: 90px;  left: 46%; top: 88%; animation-delay: -10s; }
+.aero-bubble-6 { width: 34px;  height: 34px;  left: 60%; top: 46%; animation-delay: -1s; }
+
+/* 太阳能叶子剪影 */
+.aero-leaf {
+  position: absolute;
+  width: 120px;
+  height: 46px;
+  border-radius: 0 100% 0 100%;
+  background: linear-gradient(135deg, rgba(86, 200, 106, 0.85), rgba(20, 110, 60, 0.75));
+  filter: blur(0.5px);
+  opacity: 0.75;
+}
+
+.aero-leaf-1 { left: -20px; bottom: 4vh; transform: rotate(-18deg); }
+.aero-leaf-2 { right: -30px; bottom: 10vh; transform: rotate(198deg) scale(1.3); }
+
+@keyframes aeroSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes aeroSunPulse {
+  0%, 100% { transform: scale(1); opacity: 0.92; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+@keyframes aeroBubbleFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(10px, -26px, 0) scale(1.03); }
+}
+
+/* ==========================================================================
+ * 3. Y2K & Vaporwave 背景
+ * ========================================================================== */
+.bg-y2k {
+  background:
+    radial-gradient(circle at 50% -6%, rgba(122, 100, 148, 0.5) 0%, rgba(56, 40, 74, 0.94) 42%, #0b0712 100%);
+  /* 整体降饱和：老 CRT 显示器的发灰观感 */
+  filter: saturate(0.74) contrast(0.98);
+}
+
+/* 雾化层：把远处压灰，制造朦胧感 */
+.bg-y2k::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 64% 38% at 50% 16%, rgba(198, 186, 216, 0.15), transparent 72%),
+    radial-gradient(ellipse 96% 46% at 50% 104%, rgba(10, 6, 18, 0.92), transparent 62%);
+  filter: blur(1px);
+}
+
+/* 颗粒 + 扫描线：低保真做旧叠加 */
+.bg-y2k::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.2) 0 1px, transparent 1px 3px);
+  background-size: 160px 160px, 100% 3px;
+  mix-blend-mode: overlay;
+  opacity: 0.32;
+  animation: grainDrift 1.2s steps(6) infinite;
+}
+
+.y2k-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(rgba(224, 218, 234, 0.72) 1px, transparent 1.4px),
+    radial-gradient(rgba(168, 80, 143, 0.5) 1px, transparent 1.4px),
+    radial-gradient(rgba(91, 127, 150, 0.45) 1px, transparent 1.4px);
+  background-size: 110px 110px, 170px 170px, 230px 230px;
+  background-position: 0 0, 40px 60px, 90px 20px;
+  opacity: 0.42;
+  animation: y2kStarDrift 60s linear infinite;
+}
+
+/* 线框球：千禧年的「未来感」图腾 */
+.y2k-globe {
+  position: absolute;
+  top: 6vh;
+  left: 50%;
+  width: 46vh;
+  height: 46vh;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  border: 2px solid rgba(127, 159, 181, 0.4);
+  box-shadow:
+    0 0 40px rgba(127, 159, 181, 0.2),
+    inset 0 0 44px rgba(168, 80, 143, 0.18);
+  background: radial-gradient(circle at 40% 32%, rgba(236, 232, 244, 0.14), transparent 62%);
+  opacity: 0.5;
+  /* 轻微虚焦，加强老显示器的朦胧感 */
+  filter: blur(0.4px) saturate(0.75);
+}
+
+.y2k-globe::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 13px, rgba(127, 159, 181, 0.2) 13px 14px),
+    repeating-linear-gradient(90deg, transparent 0 13px, rgba(168, 80, 143, 0.16) 13px 14px);
+  opacity: 0.9;
+}
+
+/* 透视棋盘地面：斜向延伸的粉色/深紫棋盘 */
+.y2k-floor {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  bottom: 0;
+  height: 46vh;
+  transform: perspective(520px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    #8a5587 0deg 90deg,
+    #1c1428 90deg 180deg,
+    #3a2a4a 180deg 270deg,
+    #8a5587 270deg 360deg
+  );
+  background-size: 116px 116px;
+  opacity: 0.66;
+  animation: y2kFloorRun 10s linear infinite;
+  box-shadow: inset 0 0 46px #000;
+  filter: saturate(0.75);
+}
+
+.y2k-floor::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(9, 0, 20, 0.95) 0%, rgba(9, 0, 20, 0.35) 26%, transparent 52%);
+}
+
+.y2k-floor::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #7f9fb5 30%, #a8508f 70%, transparent);
+  box-shadow: 0 0 14px rgba(127, 159, 181, 0.55);
+  opacity: 0.7;
+}
+
+/* 竖向霓虹网纹，营造空间纵深 */
+.y2k-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgba(127, 159, 181, 0.1) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(168, 80, 143, 0.08) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 60%, transparent 20%, #000 90%);
+  mask-image: radial-gradient(ellipse at 50% 60%, transparent 20%, #000 90%);
+  opacity: 0.38;
+}
+
+@keyframes y2kStarDrift {
+  to { background-position: 110px 110px, 210px 230px, -140px 250px; }
+}
+
+@keyframes y2kFloorRun {
+  to { background-position: 0 0, 0 96px; }
+}
+
+/* ==========================================================================
+ * 4. 风格切换的整屏扫过动画
+ * ========================================================================== */
+.theme-wipe {
+  position: fixed;
+  /* 幕布上下各多出 24vh：羽化区落在屏幕外，
+     完全盖住时视口内仍是实色，竖屏也不会透出下层内容 */
+  top: -24vh;
+  bottom: -24vh;
+  left: 0;
+  right: 0;
+  z-index: 9000;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(101%);
+  transition: none;
+  will-change: transform, opacity;
+  /* 只羽化上下边缘，渐变按 vh 固定长度（24vh），拉长且不受元素自身高度影响 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24vh,
+    #000 calc(100% - 24vh),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24vh,
+    #000 calc(100% - 24vh),
+    transparent 100%
+  );
+}
+
+.theme-wipe[data-to="synth"] {
+  background: linear-gradient(160deg, #2b0044 0%, #7b1fa2 46%, #00ffff 100%);
+}
+
+.theme-wipe[data-to="aero"] {
+  background: linear-gradient(160deg, #8fe6ff 0%, #c9ffd8 52%, #ffd08a 100%);
+}
+
+.theme-wipe[data-to="y2k"] {
+  background: linear-gradient(160deg, #8a5f9e 0%, #5f5078 48%, #6f8fa0 100%);
+}
+
+.theme-wipe::after {
+  content: attr(data-label);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-main);
+  font-size: clamp(2.2rem, 8vw, 5.4rem);
+  letter-spacing: 0.28em;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+}
+
+.theme-wipe[data-to="aero"]::after {
+  color: #063f3c;
+  text-shadow: 0 0 30px rgba(255, 255, 255, 0.85);
+}
+
+/* ==========================================================================
+ * 5. 风格拉杆
+ * ========================================================================== */
+.style-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  z-index: 600;
+  width: min(400px, calc(100vw - 48px));
+  padding: 9px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  background: rgba(6, 8, 18, 0.62);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-family: var(--font-main);
+  user-select: none;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.style-switcher-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.56rem;
+  letter-spacing: 0.18em;
+  color: rgba(200, 220, 240, 0.55);
+}
+
+.style-switcher-name {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+}
+
+.style-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  cursor: grab;
+}
+
+.style-range:active {
+  cursor: grabbing;
+}
+
+.style-range::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff00ff 0%, #a24bff 34%, #7fe6d4 66%, #00ffff 100%);
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.3), inset 0 0 6px rgba(0, 0, 0, 0.55);
+}
+
+.style-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -7px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: radial-gradient(circle at 34% 28%, #fff 0 18%, #ff9ef7 52%, #ff00ff 100%);
+  box-shadow: 0 0 16px rgba(255, 0, 255, 0.85), 0 2px 6px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.style-range::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff00ff 0%, #a24bff 34%, #7fe6d4 66%, #00ffff 100%);
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.3), inset 0 0 6px rgba(0, 0, 0, 0.55);
+}
+
+.style-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: radial-gradient(circle at 34% 28%, #fff 0 18%, #ff9ef7 52%, #ff00ff 100%);
+  box-shadow: 0 0 16px rgba(255, 0, 255, 0.85), 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.style-switcher-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.style-tick {
+  flex: 0 0 auto;
+  padding: 2px 2px;
+  border: none;
+  background: none;
+  color: rgba(190, 206, 230, 0.5);
+  font-family: inherit;
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+.style-tick:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.style-tick.active {
+  color: #fff;
+  text-shadow: 0 0 9px currentColor;
+}
+
+/* 拉杆在 AERO / Y2K 下换材质 */
+html[data-style="aero"] .style-switcher {
+  bottom: 18px;
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 20px 46px rgba(9, 80, 90, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-style="aero"] .style-switcher-head,
+html[data-style="aero"] .style-tick {
+  color: rgba(9, 74, 72, 0.55);
+}
+
+html[data-style="aero"] .style-switcher-name,
+html[data-style="aero"] .style-tick.active {
+  color: #08423f;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+}
+
+html[data-style="aero"] .style-range::-webkit-slider-thumb {
+  background: radial-gradient(circle at 34% 28%, #fff 0 18%, #d4f79b 52%, #2ab3a6 100%);
+  box-shadow: 0 0 16px rgba(42, 179, 166, 0.75), 0 2px 6px rgba(9, 80, 90, 0.4);
+}
+
+html[data-style="y2k"] .style-switcher {
+  bottom: 14px;
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--win-face), var(--win-face-dark));
+  box-shadow:
+    inset 1px 1px 0 var(--win-light),
+    inset -1px -1px 0 var(--win-mid),
+    4px 4px 0 rgba(10, 5, 18, 0.6);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: saturate(0.8);
+}
+
+html[data-style="y2k"] .style-switcher-head,
+html[data-style="y2k"] .style-tick {
+  font-family: 'Trebuchet MS', 'Microsoft YaHei', sans-serif;
+  color: rgba(43, 29, 64, 0.6);
+}
+
+html[data-style="y2k"] .style-tick.active {
+  color: #2b1d40;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+html[data-style="y2k"] .style-switcher-name {
+  color: #2b1d40;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 拉杆换成 Win98 滑块：方头、四色凹凸、硬投影 */
+html[data-style="y2k"] .style-range {
+  height: 18px;
+}
+
+html[data-style="y2k"] .style-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 0;
+  background: linear-gradient(180deg, var(--win-shadow), var(--win-face-dark));
+  box-shadow:
+    inset 1px 1px 0 var(--win-dark),
+    0 1px 0 var(--win-light);
+}
+
+html[data-style="y2k"] .style-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  background: var(--win-face);
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    2px 2px 0 rgba(10, 5, 18, 0.5);
+}
+
+html[data-style="y2k"] .style-range::-moz-range-track {
+  height: 6px;
+  border-radius: 0;
+  background: linear-gradient(180deg, var(--win-shadow), var(--win-face-dark));
+  box-shadow:
+    inset 1px 1px 0 var(--win-dark),
+    0 1px 0 var(--win-light);
+}
+
+html[data-style="y2k"] .style-range::-moz-range-thumb {
+  width: 12px;
+  height: 14px;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  background: var(--win-face);
+  box-shadow: 2px 2px 0 rgba(10, 5, 18, 0.5);
+}
+
+/* ==========================================================================
+ * 6. SYNTH（默认）下的小调整：内容面板打开时拉杆略微让位
+ * ========================================================================== */
+body.sheet-open .style-switcher {
+  opacity: 0.55;
+  transition: opacity 0.3s ease;
+}
+
+body.sheet-open .style-switcher:hover,
+body.sheet-open .style-switcher:focus-within {
+  opacity: 1;
+}
+
+body.racer-active .style-switcher {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+ * 7. FRUTIGER AERO & SOLARPUNK —— 全屏玻璃卡片 + 底部胶囊导航
+ * ========================================================================== */
+html[data-style="aero"] {
+  --font-main: 'Trebuchet MS', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --neon-pink: #ef7a3d;
+  --neon-cyan: #0d8f8a;
+  --neon-purple: #4ea86a;
+  --neon-blue: #2f9fd8;
+  --silver: #e8fff8;
+  --silver-bright: #ffffff;
+  --dark-bg: #d8f6f1;
+  --darker-bg: #eafaf6;
+  --semi-transparent-bg: rgba(255, 255, 255, 0.74);
+  --semi-purple-bg: rgba(255, 255, 255, 0.6);
+  /* 玻璃体系：统一圆角 / 描边 / 饱和度，后续组件复用 */
+  --glass-radius: 42px;
+  --glass-radius-sm: 24px;
+  --glass-border: rgba(255, 255, 255, 0.88);
+  --glass-sat: 185%;
+  --glass-tint: rgba(255, 255, 255, 0.62);
+}
+
+html[data-style="aero"] body {
+  background: #cdeff3;
+}
+
+/* 顶部 WELCOME / 3D 场景入口在明亮主题里不出现，避免与内容争夺注意力 */
+html[data-style="aero"] .ui-container,
+html[data-style="y2k"] .ui-container,
+html[data-style="aero"] #back-to-top-btn,
+html[data-style="y2k"] #back-to-top-btn,
+html[data-style="aero"] .gallery-overlay,
+html[data-style="y2k"] .gallery-overlay {
+  display: none !important;
+}
+
+/* 面板本身退成透明舞台，内容承载在一张玻璃卡片里 */
+html[data-style="aero"] .content-sheet {
+  pointer-events: none;
+}
+
+html[data-style="aero"] .sheet-scrim {
+  display: none;
+}
+
+html[data-style="aero"] .sheet-panel {
+  top: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+  /* 覆盖 JS 抽屉位移，aero 下永远是一整页 */
+  transform: translate(-50%, 0) !important;
+}
+
+html[data-style="aero"] .sheet-panel::before {
+  display: none;
+}
+
+html[data-style="aero"] .sheet-panel::after {
+  opacity: 0.03;
+}
+
+/* 底部悬浮胶囊导航（结构：由顶部横条改为底部 dock） */
+html[data-style="aero"] .sheet-header {
+  position: fixed;
+  left: 50%;
+  bottom: 100px;
+  top: auto;
+  z-index: 8;
+  width: auto;
+  max-width: 92vw;
+  padding: 0.45rem 0.55rem;
+  gap: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(232, 255, 250, 0.5));
+  box-shadow:
+    0 18px 50px rgba(9, 80, 90, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 34px rgba(190, 255, 240, 0.4),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -14px 24px -18px rgba(15, 120, 110, 0.35);
+  backdrop-filter: blur(22px) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(22px) saturate(var(--glass-sat));
+  transform: translateX(-50%);
+  overflow: hidden;
+}
+
+/* 胶囊导航顶部的玻璃高光 */
+html[data-style="aero"] .sheet-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.22) 38%,
+    rgba(255, 255, 255, 0) 58%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  mix-blend-mode: screen;
+}
+
+html[data-style="aero"] .sheet-title {
+  display: none;
+}
+
+html[data-style="aero"] .sheet-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+html[data-style="aero"] .sheet-nav::-webkit-scrollbar {
+  display: none;
+}
+
+html[data-style="aero"] .sheet-nav-btn {
+  padding: 0.6rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  color: #0b5a57;
+  text-shadow: none;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%);
+  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+
+html[data-style="aero"] .sheet-nav-btn::after {
+  display: none;
+}
+
+html[data-style="aero"] .sheet-nav-btn:hover {
+  color: #063f3c;
+  background: rgba(255, 255, 255, 0.6);
+  text-shadow: none;
+}
+
+html[data-style="aero"] .sheet-nav-btn.active {
+  color: #063f3c;
+  background: linear-gradient(135deg, #8fe9dd, #d7f7a0);
+  box-shadow:
+    0 6px 18px rgba(20, 140, 130, 0.28),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -6px 12px -8px rgba(20, 120, 110, 0.4);
+  text-shadow: none;
+}
+
+/* 内容区：整屏滚动，只显示当前分区 */
+html[data-style="aero"] .sheet-scroll {
+  overflow-y: auto !important;
+  padding: clamp(56px, 8vh, 96px) clamp(16px, 4vw, 48px) 220px;
+  color: #0b403e;
+  scrollbar-color: rgba(15, 150, 140, 0.4) transparent;
+}
+
+html[data-style="aero"] .sheet-reveal-ready .sheet-section {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* 内容区：整页连续排布，所有分区依次堆叠，滚轮/触控一起滚动 */
+html[data-style="aero"] .sheet-section {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto clamp(22px, 3.6vh, 36px);
+  padding: clamp(1.6rem, 3vw, 2.9rem);
+  border: 2px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  overflow: hidden;
+  background:
+    radial-gradient(120% 72% at 16% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(152deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.48) 48%, rgba(236, 255, 250, 0.6));
+  box-shadow:
+    0 44px 96px rgba(8, 92, 102, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 0 6px rgba(255, 255, 255, 0.16),
+    0 0 56px rgba(150, 255, 228, 0.42),
+    inset 0 2px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.6),
+    inset 0 22px 34px -26px rgba(255, 255, 255, 1),
+    inset 0 -34px 60px -30px rgba(18, 126, 116, 0.3);
+  backdrop-filter: blur(18px) saturate(var(--glass-sat)) brightness(1.03);
+  -webkit-backdrop-filter: blur(18px) saturate(var(--glass-sat)) brightness(1.03);
+  color: #0b403e;
+}
+
+/* 斜向玻璃反光带：两段错位的白色光条，模拟曲面玻璃的高光 */
+html[data-style="aero"] .sheet-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 34% 20% at 24% 6%, rgba(255, 255, 255, 0.62), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0) 9%),
+    linear-gradient(118deg, rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0.7) 19.5%, rgba(255, 255, 255, 0) 30%),
+    linear-gradient(300deg, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.5) 73.5%, rgba(255, 255, 255, 0) 85%);
+  mix-blend-mode: screen;
+  opacity: 0.95;
+}
+
+/* 底部青绿色折射光晕，让玻璃有厚度 */
+html[data-style="aero"] .sheet-section::after {
+  content: '';
+  position: absolute;
+  left: -8%;
+  bottom: -28%;
+  width: 52%;
+  height: 58%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(150, 255, 225, 0.5), rgba(150, 255, 225, 0) 68%);
+  mix-blend-mode: screen;
+  filter: blur(6px);
+}
+
+/* 保证正文永远压在高光层之上 */
+html[data-style="aero"] .sheet-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-style="aero"] .sheet-section:last-child {
+  margin-bottom: 0;
+}
+
+html[data-style="aero"] .sheet-section-head {
+  align-items: center;
+  margin-bottom: 1.7rem;
+  padding: 0 0 1.1rem;
+  border-bottom: 1px solid rgba(11, 90, 90, 0.16);
+}
+
+html[data-style="aero"] .sheet-section-head::before {
+  display: none;
+}
+
+html[data-style="aero"] .sheet-section-title {
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #08423f;
+  text-shadow: none;
+}
+
+html[data-style="aero"] .sheet-section-title::after {
+  content: ' ✦';
+  font-size: 0.55em;
+  vertical-align: 0.4em;
+  color: #f2a33c;
+}
+
+/* 关于我 */
+html[data-style="aero"] .about-body {
+  gap: 2rem;
+  align-items: center;
+}
+
+html[data-style="aero"] .profile-avatar-container {
+  width: 156px;
+}
+
+html[data-style="aero"] .profile-avatar-frame {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  border: 3px solid rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 0 0 7px rgba(255, 255, 255, 0.3),
+    0 0 0 8px rgba(120, 225, 210, 0.45),
+    0 20px 46px rgba(10, 100, 100, 0.24),
+    inset 0 0 26px rgba(140, 240, 230, 0.4);
+}
+
+/* 头像玻璃罩上的高光弧 */
+html[data-style="aero"] .profile-avatar-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.12) 34%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.32) 100%);
+  mix-blend-mode: screen;
+}
+
+html[data-style="aero"] .about-bio h3,
+html[data-style="aero"] .skills-panel h3,
+html[data-style="aero"] .blog-sidebar h3,
+html[data-style="aero"] .guestbook-input h3,
+html[data-style="aero"] .guestbook-list h3 {
+  color: #0b5654;
+  text-shadow: none;
+}
+
+html[data-style="aero"] .about-bio p {
+  color: #0d4a48;
+  font-size: 0.92rem;
+  line-height: 1.8;
+}
+
+html[data-style="aero"] .skill-label {
+  color: #0b5654;
+}
+
+html[data-style="aero"] .skill-bar {
+  height: 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 1px 4px rgba(10, 90, 90, 0.18);
+  padding: 3px;
+}
+
+html[data-style="aero"] .skill-fill {
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fd6a4, #4fc2b4 55%, #d7f36f);
+  box-shadow: 0 0 10px rgba(79, 194, 180, 0.5);
+}
+
+/* 通用按钮 / 表单：胶囊 + 玻璃 */
+html[data-style="aero"] .nes-btn {
+  border-radius: 999px !important;
+  overflow: hidden;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 58%) !important;
+  box-shadow:
+    0 8px 20px rgba(10, 110, 100, 0.18),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -8px 14px -10px rgba(10, 90, 90, 0.45) !important;
+  text-shadow: none !important;
+}
+
+html[data-style="aero"] .nes-btn::before {
+  border-radius: 999px !important;
+}
+
+html[data-style="aero"] .nes-input,
+html[data-style="aero"] .nes-textarea,
+html[data-style="aero"] .nes-input:focus,
+html[data-style="aero"] .nes-textarea:focus {
+  border-radius: 16px !important;
+  border: 2px solid rgba(13, 143, 138, 0.35) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #08423f !important;
+  box-shadow: inset 0 2px 6px rgba(20, 100, 110, 0.12) !important;
+}
+
+html[data-style="aero"] .nes-input:focus,
+html[data-style="aero"] .nes-textarea:focus {
+  border-color: rgba(239, 122, 61, 0.6) !important;
+  box-shadow: 0 0 0 4px rgba(239, 122, 61, 0.14) !important;
+}
+
+/* 技能编辑器 */
+html[data-style="aero"] .skill-editor {
+  border: 1px solid rgba(13, 143, 138, 0.35);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: none;
+}
+
+/* Blog */
+html[data-style="aero"] .blog-sidebar {
+  border-right: 1px solid rgba(11, 90, 90, 0.2);
+}
+
+html[data-style="aero"] .blog-item {
+  border: 1px solid rgba(13, 143, 138, 0.25);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #0b4a48;
+  box-shadow: 0 8px 20px rgba(15, 120, 120, 0.08);
+}
+
+html[data-style="aero"] .blog-item:hover,
+html[data-style="aero"] .blog-item.active {
+  background: linear-gradient(135deg, #8fe9dd, #d7f7a0);
+  color: #063f3c;
+  box-shadow: 0 10px 26px rgba(20, 140, 130, 0.22);
+  transform: translateX(4px);
+}
+
+html[data-style="aero"] .blog-item-date {
+  color: #197a72;
+}
+
+html[data-style="aero"] .blog-preview {
+  border: 1px solid rgba(13, 143, 138, 0.22);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html[data-style="aero"] .blog-title,
+html[data-style="aero"] .blog-markdown h1,
+html[data-style="aero"] .blog-markdown h2,
+html[data-style="aero"] .blog-markdown h3 {
+  color: #0b5654;
+  text-shadow: none;
+}
+
+html[data-style="aero"] .blog-meta {
+  color: #197a72;
+  border-bottom: 1px dashed rgba(13, 143, 138, 0.4);
+}
+
+html[data-style="aero"] .blog-markdown {
+  color: #0d4a48;
+}
+
+html[data-style="aero"] .blog-markdown code {
+  border: none;
+  border-radius: 8px;
+  background: rgba(13, 143, 138, 0.12);
+}
+
+/* 留言板 */
+html[data-style="aero"] .guestbook-input {
+  border-bottom: 1px dashed rgba(13, 143, 138, 0.4);
+}
+
+html[data-style="aero"] .message-item {
+  border: 1px solid rgba(13, 143, 138, 0.25);
+  border-left: 4px solid #ef7a3d;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 26px rgba(15, 120, 120, 0.08);
+}
+
+/* 收藏：图片卡片变圆角玻璃砖 */
+html[data-style="aero"] .collection-card {
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 30px rgba(10, 100, 100, 0.14);
+}
+
+html[data-style="aero"] .collection-card:hover {
+  border-color: rgba(255, 255, 255, 1);
+  box-shadow: 0 18px 40px rgba(10, 100, 100, 0.22), 0 0 0 4px rgba(215, 243, 111, 0.45);
+  transform: translateY(-4px);
+}
+
+html[data-style="aero"] .collection-caption {
+  color: #063f3c;
+  background: linear-gradient(transparent, rgba(255, 255, 255, 0.92));
+}
+
+html[data-style="aero"] .daily-sky-card {
+  border: 1px solid rgba(13, 143, 138, 0.25);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* 作品传送门：从 CRT 电视变成一颗漂浮的玻璃气泡 */
+html[data-style="aero"] .works-stage {
+  width: min(560px, 100%);
+  padding: 0;
+}
+
+html[data-style="aero"] .works-stage::before,
+html[data-style="aero"] .works-stage::after,
+html[data-style="aero"] .works-stage-corner,
+html[data-style="aero"] .works-stage-tag,
+html[data-style="aero"] .works-stage-spec {
+  display: none;
+}
+
+html[data-style="aero"] .works-portal-btn {
+  width: min(420px, 100%);
+}
+
+html[data-style="aero"] .works-crt {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(
+    circle at 34% 28%,
+    rgba(255, 255, 255, 0.95),
+    rgba(180, 245, 235, 0.55) 40%,
+    rgba(90, 210, 200, 0.35) 70%,
+    rgba(255, 255, 255, 0.22)
+  );
+  box-shadow:
+    0 30px 70px rgba(10, 110, 110, 0.28),
+    0 0 0 6px rgba(255, 255, 255, 0.55),
+    0 0 0 8px rgba(150, 240, 225, 0.7),
+    0 0 0 10px rgba(255, 255, 255, 0.4),
+    0 0 60px rgba(120, 255, 230, 0.4),
+    inset 0 0 60px rgba(255, 255, 255, 0.5);
+  transition: transform 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* 气泡表面的镜面高光 */
+html[data-style="aero"] .works-crt::after {
+  content: '';
+  position: absolute;
+  left: 9%;
+  top: 6%;
+  width: 46%;
+  height: 30%;
+  border-radius: 50%;
+  transform: rotate(-18deg);
+  pointer-events: none;
+  background: radial-gradient(ellipse at 40% 36%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%);
+  filter: blur(4px);
+  mix-blend-mode: screen;
+}
+
+html[data-style="aero"] .works-portal-btn:hover .works-crt {
+  transform: scale(1.03) rotate(-1deg);
+  box-shadow:
+    0 36px 80px rgba(10, 110, 110, 0.32),
+    0 0 0 6px rgba(255, 255, 255, 0.62),
+    0 0 0 9px rgba(215, 243, 111, 0.65),
+    0 0 0 11px rgba(255, 255, 255, 0.45),
+    0 0 72px rgba(120, 255, 230, 0.55),
+    inset 0 0 70px rgba(255, 255, 255, 0.6);
+}
+
+html[data-style="aero"] .works-crt .crt-bezel,
+html[data-style="aero"] .works-crt .crt-glass,
+html[data-style="aero"] .works-crt .crt-vignette,
+html[data-style="aero"] .works-crt .crt-scanlines {
+  display: none;
+}
+
+html[data-style="aero"] .works-portal-screen {
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #f2ffff 0%, #a9edde 42%, #3fc4b2 100%);
+}
+
+html[data-style="aero"] .works-portal-label {
+  color: #044b47;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+  animation: none;
+}
+
+html[data-style="aero"] .works-portal-sub {
+  color: #0b5a57;
+  text-shadow: none;
+}
+
+html[data-style="aero"] .works-portal-ring {
+  border-color: rgba(4, 75, 71, 0.35);
+}
+
+/* 明亮的 AERO 下，浮动按钮改白色玻璃 */
+html[data-style="aero"] #quote-trigger-btn,
+html[data-style="aero"] #back-to-top-btn,
+html[data-style="aero"] .lang-btn,
+html[data-style="aero"] .toggle-ui-btn,
+html[data-style="aero"] .music-controls .control-btn.nes-btn {
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  color: #0a5e59 !important;
+  box-shadow: 0 12px 30px rgba(10, 100, 100, 0.18) !important;
+  text-shadow: none !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+html[data-style="aero"] .lang-dropdown {
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 20px 46px rgba(9, 80, 90, 0.22);
+}
+
+html[data-style="aero"] .lang-option {
+  color: #0b4a48;
+}
+
+/* 加载屏也跟随主题 */
+html[data-style="aero"] .loading-screen {
+  background: linear-gradient(180deg, #8fe6ff, #d9fbef 60%, #c6f6b0);
+}
+
+html[data-style="aero"] .loading-title {
+  color: #08423f;
+  text-shadow: none;
+}
+
+/* ==========================================================================
+ * 8. Y2K & VAPORWAVE —— 桌面窗口 + 左侧竖排导航
+ * ========================================================================== */
+html[data-style="y2k"] {
+  --font-main: 'Trebuchet MS', 'Microsoft YaHei', sans-serif;
+  /* 低饱和的粉 / 青 / 紫，避免现代霓虹感 */
+  --neon-pink: #a8508f;
+  --neon-cyan: #5b7f96;
+  --neon-purple: #7a5f9e;
+  --neon-blue: #5f6f96;
+  --dark-bg: #241733;
+  --darker-bg: #171022;
+  --semi-transparent-bg: #efe9f6;
+  --semi-purple-bg: #efe9f6;
+  /* Win98 立体边框四色体系 */
+  --win-face: #d8d0e4;
+  --win-face-dark: #c3b8d4;
+  --win-light: #f7f3ff;
+  --win-mid: #8a7aa5;
+  --win-shadow: #5f5078;
+  --win-dark: #2a1c3c;
+  --win-title-a: #c4b9d8;
+  --win-title-b: #a99cc2;
+}
+
+html[data-style="y2k"] body {
+  background: #0b0018;
+}
+
+html[data-style="y2k"] .sheet-scrim {
+  display: none;
+}
+
+/* 整个面板 = 一扇 Win98 主窗口：四色凹陷立体边框 + 硬投影 */
+html[data-style="y2k"] .sheet-panel {
+  top: 64px;
+  width: 92vw;
+  max-width: 1280px;
+  height: calc(100vh - 170px);
+  border: 0;
+  border-radius: 0;
+  background: var(--win-face);
+  box-shadow:
+    inset 2px 2px 0 var(--win-light),
+    inset -2px -2px 0 var(--win-mid),
+    inset 4px 4px 0 var(--win-face-dark),
+    inset -4px -4px 0 var(--win-dark),
+    8px 8px 0 rgba(9, 4, 18, 0.62),
+    0 0 0 1px #0a0514,
+    0 30px 70px rgba(0, 0, 0, 0.5);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: translate(-50%, 0) !important;
+  filter: saturate(0.82) contrast(1.02);
+}
+
+/* 面板级扫描线 + 像素抖动纹理 */
+html[data-style="y2k"] .sheet-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(24, 12, 40, 0.06) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px);
+  mix-blend-mode: multiply;
+  opacity: 0.8;
+}
+
+/* 底部状态栏：早期网页 / 系统窗口的气息 */
+html[data-style="y2k"] .sheet-panel::after {
+  content: '◈ ROKU.EXE  ·  800×600  ·  56K MODEM  ·  LAST UPDATE 2001';
+  position: absolute;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: #4a3a63;
+  background: linear-gradient(180deg, var(--win-face), var(--win-face-dark));
+  border-top: 2px solid var(--win-light);
+  box-shadow:
+    inset 0 1px 0 var(--win-light),
+    inset 0 -1px 0 var(--win-mid),
+    inset 2px 0 0 var(--win-face-dark);
+  mix-blend-mode: normal;
+  opacity: 1;
+  animation: none;
+  pointer-events: none;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 左侧竖排导航栏 = 早期 Windows 应用的银色工具侧板 */
+html[data-style="y2k"] .sheet-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 208px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.8rem 0.6rem 2.1rem;
+  border-right: 2px solid var(--win-shadow);
+  border-bottom: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #cdc4da, #b7abca 55%, #a99cbd);
+  box-shadow:
+    inset 2px 0 0 var(--win-light),
+    inset 0 2px 0 var(--win-light),
+    inset -3px 0 0 var(--win-dark);
+}
+
+html[data-style="y2k"] .sheet-title {
+  white-space: normal;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: #241733;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.7), 2px 2px 0 rgba(95, 80, 120, 0.28);
+}
+
+html[data-style="y2k"] .sheet-title::after {
+  content: '_EXE';
+  margin-left: 0;
+  color: #5f5078;
+  animation: none;
+}
+
+html[data-style="y2k"] .sheet-nav {
+  /* 固定为纵向列表：覆盖窄屏/近方形窗口下通用的 3×2 网格，
+     否则 6 个按钮会被拉成 3 列超高格子，文字被裁切 */
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow: visible;
+}
+
+html[data-style="y2k"] .sheet-nav-btn {
+  position: relative;
+  width: 100%;
+  padding: 0.5rem 0.6rem 0.5rem 1.55rem;
+  text-align: left;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  color: #2b1d40;
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  background: var(--win-face);
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    2px 2px 0 rgba(24, 13, 38, 0.45);
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+/* 左侧像素方块指示器 */
+html[data-style="y2k"] .sheet-nav-btn::before {
+  content: '';
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  background: var(--win-mid);
+  box-shadow: 1px 1px 0 var(--win-dark), inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+html[data-style="y2k"] .sheet-nav-btn::after {
+  display: none;
+}
+
+html[data-style="y2k"] .sheet-nav-btn:hover {
+  color: #1c1029;
+  background: #e8e1f1;
+  box-shadow:
+    inset 1px 1px 0 var(--win-light),
+    2px 2px 0 rgba(24, 13, 38, 0.45);
+  text-shadow: none;
+}
+
+/* 选中项 = 按下状态：边框翻转 + 平移 1px */
+html[data-style="y2k"] .sheet-nav-btn.active {
+  color: #171022;
+  background: linear-gradient(180deg, var(--win-title-a), var(--win-title-b));
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  box-shadow:
+    inset 1px 1px 0 var(--win-mid),
+    1px 1px 0 rgba(24, 13, 38, 0.45);
+  transform: translate(1px, 1px);
+  text-shadow: none;
+}
+
+html[data-style="y2k"] .sheet-nav-btn.active::before {
+  background: var(--win-dark);
+}
+
+/* 内容滚动区：低饱和紫灰「Windows 98 应用程序」底色 + 抖动纹理 */
+html[data-style="y2k"] .sheet-scroll {
+  margin-left: 208px;
+  padding: 14px 16px 96px;
+  overflow-y: auto !important;
+  color: #2b1d40;
+  background:
+    repeating-conic-gradient(rgba(60, 40, 82, 0.035) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px,
+    repeating-linear-gradient(0deg, rgba(40, 24, 58, 0.045) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #cec5db, #b6abc7);
+  scrollbar-color: var(--win-face) var(--win-dark);
+}
+
+/* Win98 滚动条：方块轨道 + 四色凹凸滑块 */
+html[data-style="y2k"] .sheet-scroll::-webkit-scrollbar {
+  width: 16px;
+}
+
+html[data-style="y2k"] .sheet-scroll::-webkit-scrollbar-track {
+  background:
+    repeating-conic-gradient(rgba(255, 255, 255, 0.5) 0% 25%, rgba(150, 138, 168, 0.5) 0% 50%) 0 0 / 4px 4px;
+  border-left: 1px solid var(--win-shadow);
+}
+
+html[data-style="y2k"] .sheet-scroll::-webkit-scrollbar-thumb {
+  background: var(--win-face);
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  box-shadow: inset 1px 1px 0 var(--win-face-dark);
+}
+
+html[data-style="y2k"] .sheet-reveal-ready .sheet-section {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* 每个分区 = 一扇独立的小窗口：立体边框 + 做旧内衬 */
+html[data-style="y2k"] .sheet-section {
+  position: relative;
+  margin: 0 0 18px;
+  padding: 0 0 1.4rem;
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  background: var(--win-face);
+  color: #2b1d40;
+  overflow: hidden;
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    inset -1px -1px 0 var(--win-mid),
+    4px 4px 0 rgba(20, 10, 34, 0.48);
+}
+
+/* 做旧纸纹 + 扫描线 */
+html[data-style="y2k"] .sheet-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 12% 0%, rgba(255, 255, 255, 0.42), transparent 58%),
+    repeating-linear-gradient(0deg, rgba(58, 40, 80, 0.05) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+}
+
+/* 陈旧污渍 / 边缘褪色 */
+html[data-style="y2k"] .sheet-section::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 30% 20% at 84% 12%, rgba(120, 92, 128, 0.16), transparent 70%),
+    radial-gradient(ellipse 22% 16% at 10% 88%, rgba(120, 92, 128, 0.12), transparent 70%),
+    linear-gradient(90deg, rgba(60, 40, 80, 0.07), transparent 16%);
+  mix-blend-mode: multiply;
+}
+
+html[data-style="y2k"] .sheet-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-style="y2k"] .sheet-section:last-child {
+  padding-bottom: 1.4rem;
+}
+
+/* 分区标题栏 = 带扫描线的立体窗口标题栏 */
+html[data-style="y2k"] .sheet-section-head {
+  align-items: center;
+  margin: 0 0 1.2rem;
+  padding: 0.34rem 0.5rem 0.34rem 0.62rem;
+  border-bottom: 2px solid var(--win-shadow);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, var(--win-title-b) 0%, var(--win-title-a) 46%, #ded7e9 100%);
+  box-shadow:
+    inset 1px 1px 0 var(--win-light),
+    inset -1px -1px 0 var(--win-dark);
+}
+
+html[data-style="y2k"] .sheet-section-head::before {
+  content: '▣ ▢ ✕';
+  position: static;
+  order: 2;
+  margin-left: auto;
+  padding: 1px 5px 2px;
+  color: #241733;
+  background: linear-gradient(180deg, #efe9f6, #cec5db);
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  border: 1px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  opacity: 1;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.75);
+  box-shadow: inset 1px 1px 0 var(--win-light);
+}
+
+html[data-style="y2k"] .sheet-section-title {
+  font-family: 'Impact', 'Arial Black', 'Microsoft YaHei', sans-serif;
+  font-size: 1.28rem;
+  letter-spacing: 0.02em;
+  color: #241733;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.85), 2px 2px 0 rgba(95, 80, 120, 0.32);
+}
+
+/* 通用文字 / 卡片 */
+html[data-style="y2k"] .about-bio h3,
+html[data-style="y2k"] .skills-panel h3,
+html[data-style="y2k"] .blog-sidebar h3,
+html[data-style="y2k"] .guestbook-input h3,
+html[data-style="y2k"] .guestbook-list h3 {
+  color: #55406e;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+html[data-style="y2k"] .about-bio p {
+  color: #2b1d40;
+}
+
+html[data-style="y2k"] .profile-avatar-frame {
+  width: 108px;
+  height: 108px;
+  border: 2px solid;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  border-radius: 0;
+  box-shadow:
+    inset 1px 1px 0 var(--win-dark),
+    3px 3px 0 rgba(20, 10, 34, 0.4);
+  background: #f4eff8;
+}
+
+html[data-style="y2k"] .profile-avatar {
+  /* 头像也做旧：降饱和 + 轻微偏黄 */
+  filter: saturate(0.72) contrast(1.04) sepia(0.1);
+}
+
+html[data-style="y2k"] .skill-label {
+  color: #55406e;
+}
+
+html[data-style="y2k"] .skill-bar {
+  height: 14px;
+  border: 2px solid;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  border-radius: 0;
+  background: #f4eff8;
+  padding: 2px;
+  box-shadow: inset 1px 1px 0 var(--win-dark);
+}
+
+html[data-style="y2k"] .skill-fill {
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #7f6d96 0 6px,
+    #a390b8 6px 12px
+  );
+  box-shadow: inset 0 0 0 1px rgba(36, 23, 51, 0.22);
+}
+
+html[data-style="y2k"] .skill-editor {
+  border: 2px solid;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  border-radius: 0;
+  background: #f4eff8;
+  box-shadow: inset 1px 1px 0 var(--win-dark);
+}
+
+/* 按钮：凸起的银色按键，按下时边框翻转 */
+html[data-style="y2k"] .nes-btn {
+  border: 2px solid !important;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light) !important;
+  border-radius: 0 !important;
+  background: var(--win-face) !important;
+  color: #2b1d40 !important;
+  font-weight: 700;
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    2px 2px 0 rgba(20, 10, 34, 0.45) !important;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.65) !important;
+}
+
+html[data-style="y2k"] .nes-btn:hover {
+  background: #e8e1f1 !important;
+  color: #171022 !important;
+}
+
+html[data-style="y2k"] .nes-btn:active {
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow) !important;
+  box-shadow: inset 1px 1px 0 var(--win-mid) !important;
+  transform: translate(1px, 1px);
+}
+
+/* 输入框：凹陷的白色记事本区域 */
+html[data-style="y2k"] .nes-input,
+html[data-style="y2k"] .nes-textarea,
+html[data-style="y2k"] .nes-input:focus,
+html[data-style="y2k"] .nes-textarea:focus {
+  border-radius: 0 !important;
+  border: 2px solid !important;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow) !important;
+  background: #f7f2fb !important;
+  color: #2b1d40 !important;
+  box-shadow: inset 1px 1px 0 var(--win-dark) !important;
+}
+
+html[data-style="y2k"] .input-row .nes-input {
+  background: #f7f2fb !important;
+  color: #2b1d40 !important;
+}
+
+/* Blog */
+html[data-style="y2k"] .blog-sidebar {
+  border-right: 2px solid var(--win-shadow);
+  box-shadow: inset -1px 0 0 var(--win-light);
+}
+
+html[data-style="y2k"] .blog-item {
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  background: #f4eff8;
+  color: #2b1d40;
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    2px 2px 0 rgba(20, 10, 34, 0.35);
+}
+
+html[data-style="y2k"] .blog-item:hover,
+html[data-style="y2k"] .blog-item.active {
+  background: linear-gradient(180deg, var(--win-title-a), var(--win-title-b));
+  color: #171022;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  box-shadow:
+    inset 1px 1px 0 var(--win-mid),
+    1px 1px 0 rgba(20, 10, 34, 0.35);
+  transform: translate(1px, 1px);
+}
+
+html[data-style="y2k"] .blog-item-date {
+  color: #6b5582;
+}
+
+html[data-style="y2k"] .blog-preview {
+  border: 2px solid;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  border-radius: 0;
+  background: #f7f2fb;
+  box-shadow: inset 1px 1px 0 var(--win-dark);
+}
+
+html[data-style="y2k"] .blog-title,
+html[data-style="y2k"] .blog-markdown h1,
+html[data-style="y2k"] .blog-markdown h2,
+html[data-style="y2k"] .blog-markdown h3 {
+  color: #55406e;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+html[data-style="y2k"] .blog-meta {
+  color: #6b5582;
+  border-bottom: 1px dashed var(--win-mid);
+}
+
+html[data-style="y2k"] .blog-markdown {
+  color: #2b1d40;
+}
+
+html[data-style="y2k"] .blog-markdown code {
+  border: 1px solid var(--win-mid);
+  background: #f0e9f7;
+}
+
+/* 留言板 */
+html[data-style="y2k"] .guestbook-input {
+  border-bottom: 2px dashed var(--win-mid);
+}
+
+html[data-style="y2k"] .message-item {
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-left: 4px solid var(--win-mid);
+  border-radius: 0;
+  background: #f4eff8;
+  color: #2b1d40;
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    2px 2px 0 rgba(20, 10, 34, 0.35);
+}
+
+/* 收藏 */
+html[data-style="y2k"] .collection-card {
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  background: #f4eff8;
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    2px 2px 0 rgba(20, 10, 34, 0.4);
+}
+
+html[data-style="y2k"] .collection-card:hover {
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  box-shadow:
+    inset 1px 1px 0 var(--win-mid),
+    1px 1px 0 rgba(20, 10, 34, 0.4);
+  transform: translate(1px, 1px);
+}
+
+html[data-style="y2k"] .collection-caption {
+  color: #f4eff8;
+  background: linear-gradient(transparent, rgba(26, 16, 38, 0.92));
+}
+
+html[data-style="y2k"] .daily-sky-card {
+  border: 2px solid;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  border-radius: 0;
+  background: #f7f2fb;
+  box-shadow: inset 1px 1px 0 var(--win-dark);
+}
+
+/* 作品窗：像素扫描框 + 降饱和画面 */
+html[data-style="y2k"] .works-crt {
+  border: 3px solid;
+  border-color: var(--win-shadow) var(--win-light) var(--win-light) var(--win-shadow);
+  background: #100b18;
+  box-shadow:
+    inset 0 0 0 3px #1c1426,
+    3px 3px 0 rgba(20, 10, 34, 0.45);
+}
+
+html[data-style="y2k"] .works-crt img,
+html[data-style="y2k"] .works-crt .crt-bezel {
+  filter: saturate(0.62) contrast(1.06) sepia(0.12);
+  image-rendering: pixelated;
+}
+
+html[data-style="y2k"] .works-crt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 52%, rgba(8, 4, 14, 0.5));
+  mix-blend-mode: multiply;
+}
+
+html[data-style="y2k"] .works-stage::before {
+  background-image:
+    linear-gradient(rgba(168, 80, 143, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(127, 159, 181, 0.12) 1px, transparent 1px);
+}
+
+html[data-style="y2k"] .works-stage::after {
+  background: radial-gradient(ellipse at center, rgba(168, 80, 143, 0.14), transparent 68%);
+}
+
+html[data-style="y2k"] .works-stage-tag,
+html[data-style="y2k"] .works-stage-spec {
+  color: rgba(210, 188, 218, 0.75);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+html[data-style="y2k"] .works-stage-corner {
+  border-color: rgba(210, 188, 218, 0.4);
+}
+
+/* 浮动按钮 / 音乐键：银色立体按键，早期软件的既视感 */
+html[data-style="y2k"] #quote-trigger-btn,
+html[data-style="y2k"] #back-to-top-btn,
+html[data-style="y2k"] .lang-btn,
+html[data-style="y2k"] .toggle-ui-btn,
+html[data-style="y2k"] .music-controls .control-btn.nes-btn {
+  border: 2px solid !important;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light) !important;
+  border-radius: 0 !important;
+  background: var(--win-face) !important;
+  color: #2b1d40 !important;
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    3px 3px 0 rgba(10, 5, 18, 0.5) !important;
+  text-shadow: none !important;
+}
+
+html[data-style="y2k"] .lang-dropdown {
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-shadow) var(--win-shadow) var(--win-light);
+  border-radius: 0;
+  background: var(--win-face);
+  box-shadow:
+    inset 1px 1px 0 var(--win-face-dark),
+    4px 4px 0 rgba(10, 5, 18, 0.6);
+}
+
+html[data-style="y2k"] .lang-option {
+  color: #2b1d40;
+  border-radius: 0;
+}
+
+html[data-style="y2k"] .lang-option:hover {
+  background: var(--win-title-b);
+  color: #171022;
+}
+
+html[data-style="y2k"] .loading-screen {
+  background: #101018;
+}
+
+/* ==========================================================================
+ * 9. 响应式
+ * ========================================================================== */
+@media (max-width: 900px) {
+  /* aero 胶囊导航横向滚动，避免换行撑高 */
+  html[data-style="aero"] .sheet-header {
+    max-width: 94vw;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  html[data-style="aero"] .sheet-header::-webkit-scrollbar {
+    display: none;
+  }
+
+  html[data-style="aero"] .sheet-nav-btn {
+    padding: 0.52rem 0.72rem;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .style-switcher {
+    left: 14px;
+    right: auto;
+    transform: none;
+    width: calc(100vw - 98px);
+    bottom: 102px;
+    padding: 7px 12px 6px;
+  }
+
+  html[data-style="aero"] .style-switcher {
+    bottom: 16px;
+  }
+
+  html[data-style="y2k"] .style-switcher {
+    bottom: 12px;
+  }
+
+  html[data-style="aero"] .sheet-header {
+    bottom: 118px;
+  }
+
+  html[data-style="aero"] .sheet-scroll {
+    padding: 24px 14px 190px;
+  }
+
+  html[data-style="aero"] .sheet-section {
+    border-radius: 26px;
+    padding: 1.3rem 1.1rem 1.6rem;
+  }
+
+  /* y2k 在窄屏把侧边栏折成顶部条 */
+  html[data-style="y2k"] .sheet-panel {
+    top: 44px;
+    height: calc(100vh - 150px);
+    width: 96vw;
+  }
+
+  html[data-style="y2k"] .sheet-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-right: none;
+    border-bottom: 2px solid var(--win-shadow);
+    box-shadow: inset 0 2px 0 var(--win-light);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  html[data-style="y2k"] .sheet-header::-webkit-scrollbar {
+    display: none;
+  }
+
+  html[data-style="y2k"] .sheet-title {
+    flex: 0 0 auto;
+    font-size: 0.6rem;
+  }
+
+  html[data-style="y2k"] .sheet-header {
+    align-items: stretch;
+    overflow: visible;
+  }
+
+  /* 窄屏导航改为单列纵向排列，与桌面侧栏一致，从上往下依次堆叠 */
+  html[data-style="y2k"] .sheet-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    overflow: visible;
+  }
+
+  html[data-style="y2k"] .sheet-nav-btn {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding: 0 0.5rem 0 1.55rem;
+    font-size: 0.64rem;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  html[data-style="y2k"] .sheet-scroll {
+    margin-left: 0;
+    /* 让开纵向排列的 6 个导航按钮（约 208px 高） */
+    padding: 222px 10px 90px;
+  }
+
+  html[data-style="y2k"] .sheet-section-title {
+    font-size: 1.05rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aero-sun,
+  .aero-sun::before,
+  .aero-bubble,
+  .y2k-stars,
+  .y2k-floor {
+    animation: none !important;
+  }
+}

@@ -11,6 +11,39 @@
   <body>
     <canvas class="webgl"></canvas>
     <div class="crt-overlay"></div>
+
+    <!-- ====================================================================
+         风格舞台 THEME STAGE
+         同一份内容在 synth / aero / y2k 三种视觉风格下切换；
+         非 synth 风格时用纯 CSS 场景替换 WebGL 画布（画布被隐藏）
+         ==================================================================== -->
+    <div class="theme-stage" aria-hidden="true">
+      <!-- Frutiger Aero & SolarPunk：天空 + 阳光 + 气泡 + 草坡 -->
+      <div class="bg-aero">
+        <span class="aero-sun"></span>
+        <span class="aero-hill aero-hill-far"></span>
+        <span class="aero-hill aero-hill-near"></span>
+        <span class="aero-bubble aero-bubble-1"></span>
+        <span class="aero-bubble aero-bubble-2"></span>
+        <span class="aero-bubble aero-bubble-3"></span>
+        <span class="aero-bubble aero-bubble-4"></span>
+        <span class="aero-bubble aero-bubble-5"></span>
+        <span class="aero-bubble aero-bubble-6"></span>
+        <span class="aero-leaf aero-leaf-1"></span>
+        <span class="aero-leaf aero-leaf-2"></span>
+      </div>
+      <!-- Y2K & Vaporwave：星空 + 棋盘地面 + 线框球 -->
+      <div class="bg-y2k">
+        <span class="y2k-stars"></span>
+        <span class="y2k-globe"></span>
+        <span class="y2k-floor"></span>
+        <span class="y2k-grid"></span>
+      </div>
+    </div>
+
+    <!-- 风格切换时的整屏扫过动画（不拦截点击） -->
+    <div id="theme-wipe" class="theme-wipe" data-to="synth" aria-hidden="true"></div>
+
     <!-- 画廊模式遮罩层 -->
     <div id="gallery-overlay" class="gallery-overlay hidden"></div>
     
@@ -49,14 +82,8 @@
       </div>
     </div>
     
-    <!-- 左侧垂直按钮组 - 开关按钮始终显示，播放控制可隐藏 -->
+    <!-- 左侧音乐播放控制组（总开关已移到右下角语言按钮左侧） -->
     <div class="left-button-group">
-      <!-- 开关按钮 - 始终显示 -->
-      <button id="toggle-ui-btn" class="toggle-ui-btn nes-btn is-success">
-        <span id="toggle-ui-icon" class="toggle-ui-text">🎛️</span>
-        <span class="notification-dot"></span>
-      </button>
-      
       <!-- 播放控制按钮 - 可以控制显示隐藏 -->
       <div class="music-controls playback-controls hidden">
         <button id="music-btn" class="control-btn nes-btn is-primary">
@@ -79,7 +106,7 @@
       <label for="audio-file" class="upload-btn nes-btn is-success">
         <span class="upload-music-text">🎵 上传音乐</span>
       </label>
-      <input type="file" id="audio-file" accept="audio/mp3" hidden>
+      <input type="file" id="audio-file" accept="audio/*,.mp3,.m4a,.ogg,.wav" hidden>
     </div>
     
     <!-- 正在播放的白字 - 歌名部分不翻译 -->
@@ -437,6 +464,11 @@
     </div>
     
     <div class="lang-switcher">
+      <!-- 音乐控件总开关：与语言按钮同层对齐，位于其左侧 -->
+      <button id="toggle-ui-btn" class="toggle-ui-btn" type="button" aria-label="显示或隐藏音乐控件">
+        <span id="toggle-ui-icon">🎛️</span>
+        <span class="notification-dot"></span>
+      </button>
       <button id="lang-btn" class="lang-btn" title="切换语言 / Change Language / 言語切り替え">
         🌐
       </button>
@@ -530,6 +562,24 @@
           </div>
         </div>
         <img class="crt-bezel racer-garage-bezel" src="/assets/crt/crt-frame.webp" alt="" aria-hidden="true">
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         风格拉杆 STYLE SWITCHER
+         三档：SYNTH / AERO / Y2K，拖动时跨过中点即切换，松手自动吸附
+         ==================================================================== -->
+    <div id="style-switcher" class="style-switcher" role="group" aria-label="视觉风格切换">
+      <div class="style-switcher-head">
+        <span class="style-switcher-caption">STYLE</span>
+        <span id="style-name" class="style-switcher-name">SYNTH</span>
+      </div>
+      <input id="style-range" class="style-range" type="range" min="0" max="2" step="0.001" value="0"
+             aria-label="在 SYNTH / AERO / Y2K 三种视觉风格间切换" aria-valuetext="SYNTH">
+      <div class="style-switcher-ticks">
+        <button type="button" class="style-tick active" data-style="synth">SYNTH</button>
+        <button type="button" class="style-tick" data-style="aero">AERO</button>
+        <button type="button" class="style-tick" data-style="y2k">Y2K</button>
       </div>
     </div>
     

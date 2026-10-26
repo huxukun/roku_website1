@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { isMobile } from './perfConfig.js'
 
 export default class MusicVisualizer {
   constructor(scene, camera) {
@@ -79,19 +80,11 @@ export default class MusicVisualizer {
   }
 
   setupAudio() {
-    this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
-    this.analyser = this.audioContext.createAnalyser()
-    this.analyser.fftSize = 256
-    this.analyser.smoothingTimeConstant = 0.0
-    this.dataArray = new Uint8Array(this.analyser.frequencyBinCount)
-    this.analyser.connect(this.audioContext.destination)
-
     /* 全程复用同一个 <audio> 元素：切歌只换 src。
        之前每首歌都新建 Audio + MediaElementSource，长时间播放歌单会不断堆积
        媒体节点并触发无限重试，最终拖垮渲染（表现为整屏黑掉）。
        元素复用后 ended 只绑定一次，交给 UIManager 的 onEnded 切下一首。 */
     this.audioElement = new Audio()
-    this.audioElement.crossOrigin = 'anonymous'
     this.audioElement.preload = 'auto'
     this.audioElement.loop = false
     this.audioElement.volume = 0.5
@@ -99,6 +92,20 @@ export default class MusicVisualizer {
       this.isPlaying = false
       this.onEnded?.()
     })
+
+    /* 移动端直接由 <audio> 输出声音：
+       MediaElementSource 接在被系统挂起的 AudioContext 上会整段静音，
+       而移动端本来也跑不动逐帧频谱。可视化退回空闲律动，保证「点了能听到」。 */
+    if (isMobile) return
+
+    /* 接 Web Audio 才需要 CORS 模式；移动端不设置，避免存储服务缺少 CORS 头时整首加载失败 */
+    this.audioElement.crossOrigin = 'anonymous'
+    this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
+    this.analyser = this.audioContext.createAnalyser()
+    this.analyser.fftSize = 256
+    this.analyser.smoothingTimeConstant = 0.0
+    this.dataArray = new Uint8Array(this.analyser.frequencyBinCount)
+    this.analyser.connect(this.audioContext.destination)
     this.source = this.audioContext.createMediaElementSource(this.audioElement)
     this.source.connect(this.analyser)
   }
@@ -128,7 +135,7 @@ export default class MusicVisualizer {
       let settled = false
       let timer = 0
       const onCanPlay = () => {
-        if (this.audioContext.state === 'suspended') this.audioContext.resume()
+        if (this.audioContext && this.audioContext.state === 'suspended') this.audioContext.resume()
         this.hasAudioData = true
         finish()
       }
@@ -157,8 +164,9 @@ export default class MusicVisualizer {
       audio.loop = loop
       audio.addEventListener('canplay', onCanPlay)
       audio.addEventListener('error', onError)
-      /* 超时兜底：canplay 迟迟不触发时主动失败，防止 Promise 永久挂起 */
-      timer = window.setTimeout(() => finish(new Error('音频加载超时')), 8000)
+      /* 超时兜底：canplay 迟迟不触发时主动失败，防止 Promise 永久挂起
+         移动端网络起播慢，留足 20 秒 */
+      timer = window.setTimeout(() => finish(new Error('音频加载超时')), 20000)
 
       audio.src = url
       audio.load()
@@ -184,8 +192,9 @@ export default class MusicVisualizer {
   play() {
     return new Promise((resolve, reject) => {
       if (this.audioElement) {
-        if (this.audioContext.state === 'suspended') {
-          this.audioContext.resume()
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+          const resume = this.audioContext.resume()
+          if (resume && typeof resume.catch === 'function') resume.catch(() => {})
         }
         
         this.audioElement.play().then(() => {
@@ -265,19 +274,10 @@ export default class MusicVisualizer {
         bar.mesh.scale.y = bar.currentScale
         bar.mesh.position.y = bar.currentScale * 0.05
         
-        // 保持霓虹蓝色的辉光效果
+        // 保持霓虹蓝色的辉光效果（颜色对象复用，避免逐帧分配引发 GC 卡顿）
         const intensity = 0.5 + normalizedValue * 0.5
         bar.mesh.material.emissiveIntensity = intensity
         bar.mesh.material.opacity = 0.8 + normalizedValue * 0.2
-        
-        // 霓虹蓝色渐变
-        const hue = 0.5 + (i / barCount) * 0.15  // 在蓝-青范围内变化
-        const saturation = 1.0
-        const lightness = 0.4 + normalizedValue * 0.2
-        const color = new THREE.Color()
-        color.setHSL(hue, saturation, lightness)
-        bar.mesh.material.color.copy(color)
-        bar.mesh.material.emissive.copy(color)
       }
     } else {
       for (let i = 0; i < this.bars.length; i++) {
@@ -293,13 +293,6 @@ export default class MusicVisualizer {
         
         bar.mesh.material.emissiveIntensity = 0.4 + bar.currentScale * 0.3
         bar.mesh.material.opacity = 0.8
-        
-        // 霓虹蓝色
-        const hue = 0.5 + (i / this.bars.length) * 0.15
-        const color = new THREE.Color()
-        color.setHSL(hue, 1.0, 0.4)
-        bar.mesh.material.color.copy(color)
-        bar.mesh.material.emissive.copy(color)
       }
     }
   }

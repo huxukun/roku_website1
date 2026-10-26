@@ -1,11 +1,12 @@
 import './style.css'
+import './themes.css'
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { VHSShader } from './VHSPass.js'
-import { bloomScale } from './perfConfig.js'
+import { bloomScale, maxPixelRatio } from './perfConfig.js'
 
 import Scene from './Scene.js'
 import Camera from './Camera.js'
@@ -25,6 +26,7 @@ import PinkOzoneFog from './PinkOzoneFog.js'
 import MusicVisualizer from './MusicVisualizer.js'
 import musicService from './MusicService.js'
 import { loadSavedLang, setCurrentLang, getLanguageList, getCurrentLang, t } from './i18n.js'
+import { initStyleSwitcher } from './styleSwitcher.js'
 
 // 励志语录初始化
 let motivationQuoteModule = null;
@@ -832,6 +834,13 @@ const tick = (time) => {
   prevTime = time
   const elapsedTime = clock.getElapsedTime()
 
+  /* AERO / Y2K 用纯 CSS 场景，WebGL 画布已被隐藏：
+     暂停整条 3D 更新与后处理链，省 GPU；切回 synth 时自动恢复 */
+  const activeStyle = document.documentElement.dataset.style
+  if (activeStyle === 'aero' || activeStyle === 'y2k') {
+    return
+  }
+
   // 赛车模式直接复用主场景与主相机；返回 true 时由它接管相机
   // 单帧异常不应中断整条后处理链，否则画布会一直黑屏
   let racerCaptured = false
@@ -1032,7 +1041,8 @@ const tick = (time) => {
   electronicDust.setMouse(mouse.x, mouse.y)
   leftMountain.update(time)
   rightMountain.update(time)
-  virtualAvatar.update(time)
+  /* 赛车期间虚拟形象被隐藏，跳过它的骨骼/材质更新，给游戏让出帧时间 */
+  if (virtualAvatar.group.visible) virtualAvatar.update(time)
   pinkOzoneFog.update(time)
   /* 音乐可视化异常不应阻断 composer.render()，否则播放歌单时会出现整屏黑 */
   try {
@@ -1068,9 +1078,19 @@ document.addEventListener('visibilitychange', () => {
 /* 统一同步画布与后处理链尺寸。
    浏览器地址栏收放、窗口缩放、跨屏导致 DPR 变化时，
    若绘制缓冲与显示尺寸脱节，画面上会出现一块黑色区域挡住游戏。 */
+let lastAppliedDpr = 0
 function syncViewportSize() {
-  sizes.width = window.innerWidth
-  sizes.height = window.innerHeight
+  const width = window.innerWidth
+  const height = window.innerHeight
+  const dpr = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
+
+  /* 尺寸与 DPR 都没变化就直接跳过：移动端地址栏收放会高频触发 resize，
+     每次都重建后处理缓冲会造成明显卡顿 */
+  if (width === sizes.width && height === sizes.height && dpr === lastAppliedDpr) return
+  lastAppliedDpr = dpr
+
+  sizes.width = width
+  sizes.height = height
 
   camera.resize()
   renderer.resize()
@@ -1081,9 +1101,19 @@ function syncViewportSize() {
   if (gridFloor) gridFloor.setResolution(sizes.width, sizes.height)
 }
 
-window.addEventListener('resize', syncViewportSize)
+/* resize 事件合并到下一帧执行，避免同帧内重复重建 */
+let viewportSyncRaf = 0
+function requestViewportSync() {
+  if (viewportSyncRaf) return
+  viewportSyncRaf = window.requestAnimationFrame(() => {
+    viewportSyncRaf = 0
+    syncViewportSize()
+  })
+}
+
+window.addEventListener('resize', requestViewportSync)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', syncViewportSize)
+  window.visualViewport.addEventListener('resize', requestViewportSync)
 }
 
 function cleanup() {
@@ -1266,6 +1296,9 @@ const init = async () => {
   loadSavedLang();
   setupLanguageSwitcher();
 
+  // 三风格切换（synth / aero / y2k）+ 底部拉杆，需在 UI 初始化前绑定导航结构
+  initStyleSwitcher();
+
   // 合成波赛车直接跑在主 3D 场景上：不依赖远端数据，尽早绑定 WELCOME 入口
   racerMode = initRacerMode({
     scene: scene.instance,
@@ -1316,12 +1349,12 @@ const init = async () => {
     },
   })
   
-  await musicService.fetchSongs();
-  /* BGM 歌单：MainSynthBGM = 3D 主场景，GameSynthBGM = 赛车游戏（MyFavor 暂不播放） */
-  await musicService.fetchBgmSongs();
-  
+  /* UI 先创建并绑定事件：歌单改为后台加载，
+     避免移动端刚进页面时网络慢、音乐按钮迟迟点不动 */
   console.log('Initializing UIManager...');
   uiManager = new UIManager();
+  /* 供风格切换器在回到 synth 时复位内容抽屉 */
+  window.__rokuUI = uiManager;
 
   // 初始化互联网图片收藏区
   initImageCollection();
@@ -1334,13 +1367,20 @@ const init = async () => {
   
   // 初始化励志语录
   initMotivationQuotes();
+
+  /* 歌单后台异步拉取（songs 表 + MainSynthBGM / GameSynthBGM 文件夹），
+     完成后同步进播放器；失败也不阻塞 UI 与点击 */
+  Promise.all([musicService.fetchSongs(), musicService.fetchBgmSongs()])
+    .then(() => uiManager.syncMusicLibrary())
+    .catch((error) => console.warn('歌单后台加载失败:', error));
 };
+
+/* 供 UIManager 直接复用同一个音乐服务与可视化实例（必须在 init 之前挂好） */
+window.musicService = musicService;
+window.musicVisualizer = musicVisualizer;
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
-
-window.musicService = musicService;
-window.musicVisualizer = musicVisualizer;

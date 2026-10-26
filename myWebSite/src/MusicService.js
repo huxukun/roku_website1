@@ -9,28 +9,6 @@ class MusicService {
     this.lastPlayedIndices = [];
   }
 
-  /* 用 HEAD 探测音频链接：404/403/400 视为失效直接跳过；其余情况保留 */
-  async isUrlReachable(url) {
-    if (!url) return false
-    try {
-      const response = await fetch(url, { method: 'HEAD' })
-      return !(response.status === 400 || response.status === 403 || response.status === 404)
-    } catch (error) {
-      return true
-    }
-  }
-
-  /* 过滤掉链接失效的曲目，避免播放时出现「URL 无效或不可访问」 */
-  async filterReachable(songs, source) {
-    const checks = await Promise.all(songs.map(song => this.isUrlReachable(song.url)))
-    const valid = songs.filter((song, index) => checks[index])
-    const dropped = songs.length - valid.length
-    if (dropped > 0) {
-      console.warn(`MusicService: ${source} 中有 ${dropped} 首链接失效，已跳过`)
-    }
-    return valid
-  }
-
   async fetchSongs() {
     console.log('MusicService: fetchSongs called');
     try {
@@ -46,7 +24,7 @@ class MusicService {
         ...song,
         url: song.file_path,
       }));
-      this.songs = await this.filterReachable(rows, 'songs 表');
+      this.songs = rows;
       this.songs = this.songs.map(({ url, ...song }) => song);
       console.log('MusicService: Fetched songs:', this.songs.length);
       return true;
@@ -83,9 +61,10 @@ class MusicService {
           }
         })
 
-      const valid = await this.filterReachable(list, `${folder} 文件夹`)
-      console.log(`MusicService: ${folder} songs:`, valid.length)
-      return valid
+      /* 不再逐首发 HEAD 预检：部分环境会返回 403/405，导致整张歌单被误判失效。
+         坏链接交给播放时的 error 事件自动跳下一首处理。 */
+      console.log(`MusicService: ${folder} songs:`, list.length)
+      return list
     } catch (error) {
       console.error(`MusicService: Exception listing ${folder} folder:`, error)
       return []

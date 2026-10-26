@@ -67,7 +67,7 @@ const CHASE_LOOK_Z = -18
 /* 超车连击：短时间内连续超车会叠加倍率 */
 const COMBO_WINDOW = 3.2
 const COMBO_STEP = 0.2
-const COMBO_MAX = 5
+const COMBO_MAX = 3
 const OVERTAKE_BONUS = 40
 const CLOSE_OVERTAKE_BONUS = 90
 const CLOSE_OVERTAKE_GAP = 2.6
@@ -79,6 +79,8 @@ const PLAYER_HIT_HALF_X = 1.5
 
 /* 火箭加速：持续时间与冷却按所选车辆属性取值；每次超车冷却缩短 0.5 秒 */
 const OVERTAKE_BOOST_CD_REWARD = 0.5
+/* 冲刺期间完成近距离超车，额外延长 0.5 秒冲刺时间 */
+const CLOSE_OVERTAKE_BOOST_EXTEND = 0.5
 const BOOST_MULT = 1.7
 const BOOST_FOV = 18
 
@@ -1475,21 +1477,38 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   const speedoMax = () => Math.max(66, currentStats().topSpeed + 2)
   const SPEEDO_KMH = 4.5
 
+  /* HUD 每帧都会刷新，先和上次的值比对再写 DOM，
+     避免移动端因反复样式重算产生掉帧 */
+  let shownBoostState = ''
+  let shownBoostTimer = ''
+  let shownBoostProgress = ''
   const refreshBoostUI = () => {
     const stats = currentStats()
     const cooling = boostTime <= 0 && boostCooldown > 0
-    boostBtn.classList.toggle('is-boosting', boostTime > 0)
-    boostBtn.classList.toggle('is-cooling', cooling)
-    boostBtn.classList.toggle('is-ready', boostTime <= 0 && boostCooldown <= 0)
+    const state = boostTime > 0 ? 'boosting' : cooling ? 'cooling' : 'ready'
+    if (state !== shownBoostState) {
+      shownBoostState = state
+      boostBtn.classList.toggle('is-boosting', state === 'boosting')
+      boostBtn.classList.toggle('is-cooling', state === 'cooling')
+      boostBtn.classList.toggle('is-ready', state === 'ready')
+    }
     const progress =
       boostTime > 0
-        ? boostTime / stats.boostDuration
+        ? Math.min(1, boostTime / stats.boostDuration)
         : cooling
           ? 1 - boostCooldown / stats.boostCooldown
           : 1
-    boostBtn.style.setProperty('--boost-progress', progress.toFixed(3))
-    boostTimerEl.textContent =
+    const progressText = progress.toFixed(2)
+    if (progressText !== shownBoostProgress) {
+      shownBoostProgress = progressText
+      boostBtn.style.setProperty('--boost-progress', progressText)
+    }
+    const timerText =
       boostTime > 0 ? boostTime.toFixed(1) : cooling ? boostCooldown.toFixed(1) : ''
+    if (timerText !== shownBoostTimer) {
+      shownBoostTimer = timerText
+      boostTimerEl.textContent = timerText
+    }
   }
 
   let shownLit = -1
@@ -1538,16 +1557,28 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   refreshBoostUI()
 
   /* ---------------- 超车连击 ---------------- */
-  /* 连击：从 1 倍起，每超一辆 +0.2，最高 5 倍；满 5 倍时撞车只清零倍率 */
+  /* 连击：从 1 倍起，每超一辆 +0.2，最高 3 倍；满 3 倍时撞车只清零倍率 */
   const comboMultiplier = () => Math.min(COMBO_MAX, 1 + combo * COMBO_STEP)
 
+  let shownComboState = 'none'
+  let shownComboText = ''
   const refreshComboUI = () => {
     if (combo >= 1) {
-      comboEl.classList.add('is-active')
-      comboEl.classList.toggle('is-fading', comboTimer < 1)
-      comboEl.classList.toggle('is-max', comboMultiplier() >= COMBO_MAX - 0.001)
-      comboValueEl.textContent = `x${comboMultiplier().toFixed(1)}`
-    } else {
+      const state = `${comboTimer < 1 ? 'fading' : 'active'}${comboMultiplier() >= COMBO_MAX - 0.001 ? ' max' : ''}`
+      if (state !== shownComboState) {
+        shownComboState = state
+        comboEl.classList.add('is-active')
+        comboEl.classList.toggle('is-fading', comboTimer < 1)
+        comboEl.classList.toggle('is-max', comboMultiplier() >= COMBO_MAX - 0.001)
+      }
+      const text = `x${comboMultiplier().toFixed(1)}`
+      if (text !== shownComboText) {
+        shownComboText = text
+        comboValueEl.textContent = text
+      }
+    } else if (shownComboState !== 'none') {
+      shownComboState = 'none'
+      shownComboText = ''
       comboEl.classList.remove('is-active', 'is-fading', 'is-max')
     }
   }
@@ -1573,10 +1604,11 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   }
 
   const registerOvertake = (gap) => {
+    const isClose = gap < CLOSE_OVERTAKE_GAP
     combo = comboTimer > 0 ? combo + 1 : 1
     comboTimer = COMBO_WINDOW
     const multiplier = comboMultiplier()
-    const base = gap < CLOSE_OVERTAKE_GAP ? CLOSE_OVERTAKE_BONUS : OVERTAKE_BONUS
+    const base = isClose ? CLOSE_OVERTAKE_BONUS : OVERTAKE_BONUS
     const gain = Math.round(base * multiplier)
     score += gain
     popScore(gain, multiplier)
@@ -1586,9 +1618,14 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       boostCooldown = Math.max(0, boostCooldown - OVERTAKE_BOOST_CD_REWARD)
       refreshBoostUI()
     }
+    /* 冲刺期间完成近距离超车：直接延长 0.5 秒冲刺 */
+    if (isClose && boostTime > 0) {
+      boostTime += CLOSE_OVERTAKE_BOOST_EXTEND
+      refreshBoostUI()
+    }
   }
 
-  /* 5 倍满连击时的护盾：撞车不结束游戏，只把倍率打回 1 倍 */
+  /* 满连击（最高 3 倍）时的护盾：撞车不结束游戏，只把倍率打回 1 倍 */
   const breakShield = () => {
     resetCombo()
     shieldTimer = 0.9
@@ -1630,7 +1667,6 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   let garageLastTime = 0
   let garageWidth = 0
   let garageHeight = 0
-  let garagePopupTimer = 0
 
   const initGarageScene = () => {
     if (garageRenderer || !garageCanvas) return
@@ -1756,12 +1792,6 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
     })
   }
 
-  const clearGaragePopup = () => {
-    if (!garagePopupTimer) return
-    window.clearTimeout(garagePopupTimer)
-    garagePopupTimer = 0
-  }
-
   /* ---------------- 车辆状态 ---------------- */
   const resetEnemies = () => {
     enemies.forEach((enemy) => {
@@ -1788,7 +1818,6 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   }
 
   const startRun = () => {
-    clearGaragePopup()
     closeGarage()
     resetEnemies()
     resetPlayer()
@@ -1812,7 +1841,6 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
   /* ---------------- 入场 / 出场 ---------------- */
   const enter = () => {
     if (phase !== 'off') return
-    clearGaragePopup()
     closeGarage()
 
     savedPos.copy(camera.position)
@@ -1876,7 +1904,6 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
 
   /* 退出第 1 步：游戏组件（道路 / 车辆 / HUD）立即消失，站点元素先还原 */
   const hideGameElements = () => {
-    clearGaragePopup()
     closeGarage()
     racerGroup.visible = false
     runway.scale.z = 0.001
@@ -1992,12 +2019,6 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
       `SCORE ${formatScore(score)} · HI ${formatScore(hiScore)} · TOTAL ${formatScore(totalScore)}`,
       'RETRY',
     )
-    /* 结算稍作停顿后弹出车库：展示四辆车与解锁按钮 */
-    clearGaragePopup()
-    garagePopupTimer = window.setTimeout(() => {
-      garagePopupTimer = 0
-      if (phase === 'over') openGarage()
-    }, 900)
   }
 
   const pause = () => {
@@ -2269,7 +2290,7 @@ export function initRacerMode({ scene, camera, gridFloor, onEnter, onExit }) {
         enemy.active = false
         enemy.mesh.visible = false
         if (shieldTimer > 0) continue
-        /* 满 5 倍连击时撞车：护盾破碎，只重置倍率不结束游戏 */
+        /* 满连击（最高 3 倍）撞车：护盾破碎，只重置倍率不结束游戏 */
         if (comboMultiplier() >= COMBO_MAX - 0.001) {
           breakShield()
           continue

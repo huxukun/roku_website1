@@ -369,6 +369,33 @@ export default class UIManager {
     ];
   }
 
+  /* 从 MusicService 重建歌单：主场景 / 游戏 / 当前激活 */
+  applySongLibrary() {
+    const allSongs = this.loadSongsFromService();
+    const mainSongs = allSongs.filter(song => song.playlist !== 'game');
+    const dbGameSongs = allSongs.filter(song => song.playlist === 'game');
+    /* 游戏歌单优先读取 storage 的 GameSynthBGM 文件夹，未配置时回退到数据库 playlist = game */
+    const bgmSongs = window.musicService?.getGameBgmSongs?.() || [];
+    this.gameSongs = bgmSongs.length > 0 ? bgmSongs : dbGameSongs;
+    this.songs = mainSongs.length > 0 ? mainSongs : allSongs;
+    this.activeSongs = this.isGameMode ? this.gameSongs : this.songs;
+    this.initPlaylist();
+  }
+
+  /* 远端歌单在后台加载完成后调用：
+     UI 与点击事件已经先绑定好，这里只负责补齐歌曲，
+     用户若在歌单到达前就点了播放，则拿到真实音源后自动接着播。 */
+  syncMusicLibrary() {
+    this.applySongLibrary();
+    if (this.playlist.length > 0) {
+      this.currentSongIndex = this.playlist.shift();
+    }
+    const hasPlayable = (this.activeSongs || []).some(song => song.url);
+    if (hasPlayable && this.musicRequested && !this.isMusicPlaying) {
+      this.playCurrentSong();
+    }
+  }
+
   constructor() {
     this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
     this.isLoadingMessages = false;
@@ -548,16 +575,10 @@ export default class UIManager {
     this.isMusicPlaying = false;
     this.audio = null;
     this.currentSongIndex = 0;
-    // 优先使用云端数据库的歌曲，没有则使用默认歌曲
-    const allSongs = this.loadSongsFromService();
-    const mainSongs = allSongs.filter(song => song.playlist !== 'game');
-    const dbGameSongs = allSongs.filter(song => song.playlist === 'game');
-    /* 游戏歌单优先读取 storage 的 GameBGM 文件夹，未配置时回退到数据库 playlist = game */
-    const bgmSongs = window.musicService?.getGameBgmSongs?.() || [];
-    this.gameSongs = bgmSongs.length > 0 ? bgmSongs : dbGameSongs;
-    this.songs = mainSongs.length > 0 ? mainSongs : allSongs;
     // 当前激活的歌单：默认歌单 / 游戏歌单
-    this.activeSongs = this.songs;
+    this.isGameMode = false;
+    this.musicRequested = false;
+    this.playFailures = 0;
     this.songRequestId = 0;
     /* 播放器复用同一个 <audio>，播完事件只绑定一次，避免重复监听导致连续切歌 */
     if (window.musicVisualizer) {
@@ -567,7 +588,8 @@ export default class UIManager {
     // 播放队列：确保一轮内完全不重复（每轮都是全新随机顺序）
     this.playlist = [];
     this.lastPlayedSongs = []; // 记录最近播放的歌曲索引
-    this.initPlaylist();
+    // 优先使用云端数据库的歌曲，没有则使用默认歌曲
+    this.applySongLibrary();
     // 第一次播放时从随机播放列表中取一首作为起始，而不是固定从 index=0 开始
     if (this.playlist.length > 0) {
       this.currentSongIndex = this.playlist.shift();
@@ -1586,9 +1608,8 @@ export default class UIManager {
     }
 
     if (this.toggleUiBtn) {
-      this.toggleUiBtn.classList.toggle('is-success', this.isMusicUiVisible);
-      this.toggleUiBtn.classList.toggle('is-primary', !this.isMusicUiVisible);
-      this.toggleUiBtn.style.opacity = this.isMusicUiVisible ? '1' : '0.5';
+      /* 与语言按钮统一为透明圆形按钮，这里只区分隐藏状态的暗淡效果 */
+      this.toggleUiBtn.style.opacity = this.isMusicUiVisible ? '' : '0.5';
     }
   }
 
@@ -1759,6 +1780,7 @@ export default class UIManager {
     if (list.length === 0) return
     /* 已经在播游戏歌单时不用重启当前歌曲 */
     if (this.activeSongs === list && this.isMusicPlaying) return
+    this.isGameMode = true
     this.activeSongs = list
     this.initPlaylist()
     this.currentSongIndex = this.getNextSongIndex()
@@ -1767,6 +1789,7 @@ export default class UIManager {
 
   // 退出游戏后切回默认歌单；正在播游戏曲目时立刻换成主歌单
   restoreDefaultPlaylist() {
+    this.isGameMode = false
     if (this.activeSongs === this.songs) return
     const wasPlaying = this.isMusicPlaying
     this.activeSongs = this.songs
@@ -1843,6 +1866,7 @@ export default class UIManager {
         
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
+        this.playFailures = 0;
         if (this.musicIcon) {
           this.musicIcon.textContent = '⏸';
         }
@@ -1866,6 +1890,7 @@ export default class UIManager {
         
         this.showNowPlaying(currentSong.title);
         this.isMusicPlaying = true;
+        this.playFailures = 0;
         if (this.musicIcon) {
           this.musicIcon.textContent = '⏸';
         }
@@ -1883,13 +1908,69 @@ export default class UIManager {
       console.error('UIManager: 播放失败:', error);
       const errorMessage = error.message || '加载失败';
       this.showNowPlaying(`${currentSong.title} - ${errorMessage}`);
-      
+
+      this.playFailures += 1;
+      /* 连续失败过多时停下，避免把整张歌单无限跳完还一直消耗流量 */
+      if (this.playFailures >= 3) {
+        this.playFailures = 0;
+        this.isMusicPlaying = false;
+        this.showNowPlaying('音乐加载失败，请检查网络或上传本地音乐');
+        return;
+      }
+
       // 自动尝试下一首歌曲
       console.log('UIManager: 自动尝试下一首歌曲');
-      setTimeout(() => {
+      window.setTimeout(() => {
         this.playRandomNextSong();
-      }, 2000);
+      }, 1500);
     }
+  }
+
+  /* 移动端关键：iOS/Android 只允许在用户手势的调用栈里启动播放。
+     先用一段静音 WAV 把 <audio> 解锁，之后再换正式音源就不会被拦截。 */
+  unlockAudio() {
+    if (this._unlockPromise) return this._unlockPromise;
+
+    const visualizer = window.musicVisualizer;
+    const audio = visualizer?.audioElement;
+    const context = visualizer?.audioContext;
+    if (context && context.state === 'suspended') {
+      const resume = context.resume();
+      if (resume && typeof resume.catch === 'function') resume.catch(() => {});
+    }
+    if (!audio) return (this._unlockPromise = Promise.resolve());
+
+    /* 已经加载过正式音源，说明该元素已被解锁过 */
+    if (audio.src && !audio.src.startsWith('data:audio/wav')) {
+      return (this._unlockPromise = Promise.resolve());
+    }
+
+    const silent =
+      'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    this._unlockPromise = new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        audio.removeEventListener('playing', finish);
+        /* 只有仍是静音源时才清理，避免把随后加载的正式音源清掉 */
+        if (audio.src.startsWith('data:audio/wav')) {
+          audio.pause();
+          audio.removeAttribute('src');
+        }
+        resolve();
+      };
+      audio.addEventListener('playing', finish);
+      audio.src = silent;
+      const promise = audio.play();
+      if (promise && typeof promise.then === 'function') {
+        promise.then(finish).catch(finish);
+      } else {
+        finish();
+      }
+      window.setTimeout(finish, 400);
+    });
+    return this._unlockPromise;
   }
 
   toggleMusic() {
@@ -1922,31 +2003,38 @@ export default class UIManager {
       } else {
         // 播放：若已有加载好的音源且播放过，原地继续，而不是从头开始
         console.log('Playing music');
+        /* 记录用户意图：歌单可能还在后台加载，到达后由 syncMusicLibrary 接着播 */
+        this.musicRequested = true;
 
-        const visualizerAudio = window.musicVisualizer && window.musicVisualizer.audioElement;
-        const canResumeVisualizer = !!(visualizerAudio && visualizerAudio.src && visualizerAudio.currentTime > 0);
-        const canResumeFallback = !window.musicVisualizer && !!(this.audio && this.audio.src && this.audio.currentTime > 0);
+        const start = () => {
+          const visualizerAudio = window.musicVisualizer && window.musicVisualizer.audioElement;
+          const canResumeVisualizer = !!(visualizerAudio && visualizerAudio.src && visualizerAudio.currentTime > 0);
+          const canResumeFallback = !window.musicVisualizer && !!(this.audio && this.audio.src && this.audio.currentTime > 0);
 
-        if (canResumeVisualizer) {
-          console.log('Resuming current playback');
-          window.musicVisualizer.play().then(() => {
-            this.setMusicPlayingState(true);
-          }).catch((e) => {
-            console.error('继续播放失败:', e);
+          if (canResumeVisualizer) {
+            console.log('Resuming current playback');
+            window.musicVisualizer.play().then(() => {
+              this.setMusicPlayingState(true);
+            }).catch((e) => {
+              console.error('继续播放失败:', e);
+              this.playCurrentSong();
+            });
+          } else if (canResumeFallback) {
+            console.log('Resuming fallback playback');
+            this.audio.play().then(() => {
+              this.setMusicPlayingState(true);
+            }).catch((e) => {
+              console.error('继续播放失败:', e);
+              this.playCurrentSong();
+            });
+          } else {
+            // 还没有音源，播放当前选择的歌曲
             this.playCurrentSong();
-          });
-        } else if (canResumeFallback) {
-          console.log('Resuming fallback playback');
-          this.audio.play().then(() => {
-            this.setMusicPlayingState(true);
-          }).catch((e) => {
-            console.error('继续播放失败:', e);
-            this.playCurrentSong();
-          });
-        } else {
-          // 还没有音源，播放当前选择的歌曲
-          this.playCurrentSong();
-        }
+          }
+        };
+
+        /* 第一次播放必须在用户手势内解锁 <audio>，否则移动端会点了没反应 */
+        this.unlockAudio().then(start);
       }
     } catch (error) {
       console.error('Error toggling music:', error);
@@ -2034,24 +2122,37 @@ export default class UIManager {
 
   // 加载个人信息
   async loadProfile() {
+    /* 本地缓存先作为基线：即使云端不可用或返回默认值，也不会丢用户资料 */
+    const local = loadProfileFromLocalStorage();
+    let remote = null;
+
     if (this.isSupabaseConfigured) {
       try {
-        const profile = await loadProfileFromSupabase();
-        if (profile) {
-          this.currentProfile = {
-            avatar: profile.avatar || DEFAULT_PROFILE.avatar,
-            bio: profile.bio || DEFAULT_PROFILE.bio
-          };
-          await this.renderProfile();
-          return;
-        }
+        remote = await loadProfileFromSupabase();
       } catch (error) {
-        console.error('Error loading profile from Supabase, falling back to localStorage:', error);
+        console.warn('加载云端个人信息失败，使用本地缓存:', error);
       }
     }
-    
-    // 回退到 localStorage
-    this.currentProfile = loadProfileFromLocalStorage();
+
+    if (!remote) {
+      this.currentProfile = local;
+      await this.renderProfile();
+      return;
+    }
+
+    /* 逐字段合并：只有云端确实存了「非默认」内容才覆盖本地，
+       避免远端默认头像 / 默认简介把用户自定义资料冲掉 */
+    const merged = { ...local };
+    const remoteIsDefaultAvatar = !remote.avatar || remote.avatar === DEFAULT_PROFILE.avatar;
+    if (!remoteIsDefaultAvatar) {
+      merged.avatar = remote.avatar;
+    }
+    if (remote.bio && !this.isDefaultProfileBio(remote.bio)) {
+      merged.bio = remote.bio;
+    }
+
+    this.currentProfile = merged;
+    saveProfileToLocalStorage(merged);
     await this.renderProfile();
   }
 
@@ -2149,11 +2250,18 @@ export default class UIManager {
 
     // 保存
     try {
-      if (this.isSupabaseConfigured) {
-        await saveProfileToSupabase(this.currentProfile);
-      }
+      /* 先写本地：云端失败时用户资料也不会丢 */
       saveProfileToLocalStorage(this.currentProfile);
-      
+
+      if (this.isSupabaseConfigured) {
+        try {
+          await saveProfileToSupabase(this.currentProfile);
+        } catch (error) {
+          console.warn('个人信息同步到云端失败，已保存到本地:', error);
+          this.showNotification('已保存到本地，云端同步失败');
+        }
+      }
+
       // 重新渲染并退出编辑模式
       await this.renderProfile();
       this.isProfileEditable = false;
@@ -2185,7 +2293,9 @@ export default class UIManager {
       
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const avatarData = e.target.result;
+        /* 先压到 256px 的 JPEG：原图 base64 很容易撑爆 localStorage 配额，
+           那会让头像“保存后在下次打开时消失” */
+        const avatarData = await this.compressAvatar(e.target.result);
         
         // 更新头像显示
         if (this.profileAvatar) {
@@ -2195,20 +2305,45 @@ export default class UIManager {
         // 更新当前数据
         this.currentProfile.avatar = avatarData;
         
-        // 保存
-        try {
-          if (this.isSupabaseConfigured) {
+        // 保存：本地优先，云端同步失败不影响本地头像
+        saveProfileToLocalStorage(this.currentProfile);
+        if (this.isSupabaseConfigured) {
+          try {
             await saveProfileToSupabase(this.currentProfile);
+          } catch (error) {
+            console.warn('头像同步到云端失败，已保存到本地:', error);
           }
-          saveProfileToLocalStorage(this.currentProfile);
-        } catch (error) {
-          console.error('Error saving avatar:', error);
         }
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading avatar:', error);
     }
+  }
+
+  /* 头像压缩：最长边 256px、JPEG 85%，避免 localStorage 配额溢出 */
+  compressAvatar(dataUrl) {
+    return new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => {
+        const maxSide = 256;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          resolve(dataUrl);
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      image.onerror = () => resolve(dataUrl);
+      image.src = dataUrl;
+    });
   }
 
   // ========== 管理员模式相关方法 ==========
@@ -2654,6 +2789,18 @@ export default class UIManager {
     }
     this.contentSheet.setAttribute('aria-hidden', 'false');
     this.updateSheetTexts();
+
+    /* AERO 是一整页连续滚动，不需要抽屉动画：直接置为全开并滚到目标分区 */
+    if (document.documentElement.dataset.style === 'aero') {
+      if (this.sheetProgress < 0.999) {
+        this.pendingSheetSection = null;
+        this.sheetTarget = 1;
+        this.applySheetProgress(1);
+        this.onSheetSettled();
+      }
+      this.scrollToSheetSection(section);
+      return;
+    }
 
     if (this.sheetProgress >= 0.999) {
       this.scrollToSheetSection(section);
