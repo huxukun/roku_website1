@@ -1,31 +1,31 @@
 {
-  "date": "2026-10-26",
-  "generated_at": "2026-10-25T23:51:41Z",
+  "date": "2026-10-27",
+  "generated_at": "2026-10-27T01:12:52Z",
   "apod": {
-    "title": "Dark Matter in a Simulated Universe",
-    "date": "2026-10-25",
+    "title": "M42: The Great Nebula in Orion",
+    "date": "2026-10-26",
     "media_type": "image",
-    "url": "https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg?w=1200&h=900&fit=clip&crop=faces%2Cfocalpoint",
-    "hdurl": "https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg?w=1200&h=900&fit=clip&crop=faces%2Cfocalpoint",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/OrionSword_Palaia_2000.jpg?w=2000&h=2090&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/OrionSword_Palaia_2000.jpg?w=2000&h=2090&fit=clip&crop=faces%2Cfocalpoint",
     "thumbnail_url": "",
-    "explanation": "Explanation: Is our universe haunted? It might look that way on this dark matter map. The gravity of unseen dark matter is the leading explanation for why galaxies rotate so fast , why galaxies orbit clusters so fast , why gravitational lenses so strongly deflect light, and how visible matter is distributed. The featured image from the American Museum of Natural History 's Hayden Planetarium Space Show, Dark Universe, highlights one example of how pervasive dark matter might haunt our universe. In this frame from a detailed computer simulation , complex filaments of dark matter, shown in black, are strewn about the universe like spider webs , while the relatively rare clumps of familiar baryon ic matter are colored orange. These simulations are good statistical matches to astronomical observations. In what is perhaps a scarier turn of events, dark matter -- although quite strange and in an unknown form -- is no longer thought to be the strangest source of gravity in the universe . That honor now falls to dark energy , a more uniform source of repulsive gravity that seems to now dominate the expansion of the entire universe . Tomorrow's picture: Orion the Great",
-    "copyright": "Tom Abel & Ralf Kaehler ( KIPAC , SLAC ), AMNH"
+    "explanation": "Explanation: The Great Nebula in Orion , an immense, nearby starbirth region , is one of the most famous of all astronomical nebulas . Here, glowing gas surrounds hot young stars at the edge of an immense interstellar molecular cloud only 1500 light-years away. In the featured deep image in assigned colors highlighted by emission in hydrogen , wisps and sheets of dust and gas are particularly evident. The Great Nebula in Orion can be found with the unaided eye near the easily identifiable belt of three stars in the popular constellation Orion . In addition to housing a bright open cluster of stars known as the Trapezium , the Orion Nebula contains many stellar nurseries . These nurseries contain much hydrogen gas, hot young stars, proplyds , and stellar jets spewing material at high speeds. Also known as M42 , the Orion Nebula spans about 40 light years and is located in the same spiral arm of our Galaxy as the Sun . Tomorrow's picture: open space",
+    "copyright": "Roberto Palaia"
   },
   "moon": {
-    "phase": 0.512,
-    "illumination": 0.999,
-    "name": "满月",
-    "emoji": "🌕"
+    "phase": 0.546,
+    "illumination": 0.98,
+    "name": "亏凸月",
+    "emoji": "🌖"
   },
   "sun": {
-    "sunrise": "06:16",
-    "sunset": "17:21"
+    "sunrise": "06:17",
+    "sunset": "17:20"
   },
   "planets": [
     {
       "name": "火星",
       "azimuth": "东",
-      "altitude": 59,
+      "altitude": 60,
       "time": "05:00"
     },
     {
@@ -44,7 +44,7 @@
   "event": {
     "name": "狮子座流星雨",
     "date": "2026-11-17",
-    "days": 22,
+    "days": 21,
     "zhr": 15
   }
 }
