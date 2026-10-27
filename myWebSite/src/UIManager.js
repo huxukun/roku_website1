@@ -582,12 +582,14 @@ export default class UIManager {
     this.currentBlogPost = null; // 当前预览的博客
     // 作品集状态
     this.portfolioItems = [];
-    this.portfolioInsertIndex = null;
     this.portfolioSelectedFile = null;
     this.portfolioPreviewUrl = '';
     this.portfolioBlobUrls = [];
     this.portfolioCloudReady = this.isSupabaseConfigured;
     this.isPortfolioSaving = false;
+    this.portfolioEditingItemId = null;        // 编辑模式：当前正改的作品 id（create 时为 null）
+    this.portfolioModelPreviews = new Map();   // cardId → { dispose }
+    this.portfolioDraggingId = null;           // 排序拖拽：正在被拖动的作品 id
 
     try {
       this.initElements();
@@ -829,26 +831,32 @@ export default class UIManager {
     this.deleteBlogBtn = document.getElementById('delete-blog-btn');
     this.cancelBlogEditBtn = document.getElementById('cancel-blog-edit-btn');
 
-    // 作品集上传相关元素
+    // 作品集上传 / 编辑相关元素
     this.portfolioGrid = document.getElementById('portfolio-grid');
     this.portfolioEmpty = document.getElementById('portfolio-empty');
     this.portfolioCount = document.getElementById('portfolio-count');
     this.portfolioUploadBtn = document.getElementById('portfolio-upload-btn');
     this.portfolioModal = document.getElementById('portfolio-upload-modal');
     this.closePortfolioModalBtn = document.getElementById('close-portfolio-modal');
-    this.portfolioStepLabel = document.getElementById('portfolio-step-label');
-    this.portfolioPositionStep = document.getElementById('portfolio-step-position');
-    this.portfolioDetailsStep = document.getElementById('portfolio-step-details');
-    this.portfolioPositionList = document.getElementById('portfolio-position-list');
+    this.portfolioModalTitle = document.getElementById('portfolio-modal-title');
+    this.portfolioDropZone = document.getElementById('portfolio-drop-zone');
+    this.portfolioDropLabel = document.getElementById('portfolio-drop-label');
     this.portfolioFileInput = document.getElementById('portfolio-file-input');
-    this.portfolioFilePickerText = document.getElementById('portfolio-file-picker-text');
     this.portfolioFilePreview = document.getElementById('portfolio-file-preview');
     this.portfolioTitleInput = document.getElementById('portfolio-title-input');
     this.portfolioDescInput = document.getElementById('portfolio-desc-input');
     this.portfolioLinkInput = document.getElementById('portfolio-link-input');
     this.portfolioUploadStatus = document.getElementById('portfolio-upload-status');
-    this.portfolioBackBtn = document.getElementById('portfolio-back-btn');
+    this.portfolioUploadProgress = document.getElementById('portfolio-upload-progress');
+    this.portfolioProgressFill = document.getElementById('portfolio-progress-fill');
+    this.portfolioProgressText = document.getElementById('portfolio-progress-text');
+    this.portfolioCancelBtn = document.getElementById('portfolio-cancel-btn');
     this.portfolioSaveBtn = document.getElementById('portfolio-save-btn');
+    // 灯箱
+    this.portfolioLightbox = document.getElementById('portfolio-lightbox');
+    this.portfolioLightboxImg = document.getElementById('portfolio-lightbox-img');
+    this.portfolioLightboxVideo = document.getElementById('portfolio-lightbox-video');
+    this.portfolioLightboxTitle = document.getElementById('portfolio-lightbox-title');
     
     this.isAboutModalOpen = false;
     this.isGalleryModalOpen = false;
@@ -1008,12 +1016,15 @@ export default class UIManager {
       this.cancelBlogEditBtn.addEventListener('click', () => this.cancelBlogEdit());
     }
 
-    // 作品集上传事件
+    // 作品集上传 / 编辑事件
     if (this.portfolioUploadBtn) {
       this.portfolioUploadBtn.addEventListener('click', () => this.openPortfolioUploadModal());
     }
     if (this.closePortfolioModalBtn) {
       this.closePortfolioModalBtn.addEventListener('click', () => this.closePortfolioUploadModal());
+    }
+    if (this.portfolioCancelBtn) {
+      this.portfolioCancelBtn.addEventListener('click', () => this.closePortfolioUploadModal());
     }
     if (this.portfolioModal) {
       this.portfolioModal.addEventListener('click', (e) => {
@@ -1023,21 +1034,94 @@ export default class UIManager {
     if (this.portfolioFileInput) {
       this.portfolioFileInput.addEventListener('change', (e) => this.handlePortfolioFileSelect(e));
     }
-    if (this.portfolioBackBtn) {
-      this.portfolioBackBtn.addEventListener('click', () => this.showPortfolioStep('position'));
+    if (this.portfolioDropZone) {
+      const dz = this.portfolioDropZone;
+      dz.addEventListener('dragenter', (e) => { e.preventDefault(); dz.classList.add('is-dragging'); });
+      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('is-dragging'); });
+      dz.addEventListener('dragleave', (e) => { if (e.target === dz) dz.classList.remove('is-dragging'); });
+      dz.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dz.classList.remove('is-dragging');
+        const file = e.dataTransfer?.files?.[0];
+        if (file) this.handlePortfolioFile(file);
+      });
     }
     if (this.portfolioSaveBtn) {
       this.portfolioSaveBtn.addEventListener('click', () => this.handlePortfolioSave());
     }
+    // 作品集网格：统一处理 删除 / 编辑 / 灯箱 / 拖拽排序
     if (this.portfolioGrid) {
       this.portfolioGrid.addEventListener('click', (e) => {
         const deleteBtn = e.target.closest('.portfolio-delete-btn');
-        if (deleteBtn) {
-          e.preventDefault();
-          this.deletePortfolioItem(deleteBtn.dataset.id);
+        if (deleteBtn) { e.preventDefault(); this.deletePortfolioItem(deleteBtn.dataset.id); return; }
+        const editBtn = e.target.closest('.portfolio-edit-btn');
+        if (editBtn) { e.preventDefault(); this.openPortfolioEditModal(editBtn.dataset.id); return; }
+        const media = e.target.closest('.portfolio-card-media');
+        if (media) {
+          const card = media.closest('.portfolio-card');
+          if (card) this.openPortfolioLightbox(card.dataset.id);
         }
       });
+      // 原生 HTML5 拖拽排序
+      this.portfolioGrid.addEventListener('dragstart', (e) => {
+        const handle = e.target.closest('.portfolio-drag-handle');
+        if (!handle) { e.preventDefault(); return; }
+        const card = handle.closest('.portfolio-card');
+        if (!card) return;
+        this.portfolioDraggingId = card.dataset.id;
+        card.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.id);
+      });
+      this.portfolioGrid.addEventListener('dragover', (e) => {
+        if (!this.portfolioDraggingId) return;
+        e.preventDefault();
+        const overCard = e.target.closest('.portfolio-card');
+        if (overCard && overCard.dataset.id !== this.portfolioDraggingId) {
+          const rect = overCard.getBoundingClientRect();
+          const before = (e.clientY - rect.top) < rect.height / 2;
+          overCard.classList.toggle('drop-before', before);
+          overCard.classList.toggle('drop-after', !before);
+        }
+      });
+      this.portfolioGrid.addEventListener('dragleave', (e) => {
+        const card = e.target.closest('.portfolio-card');
+        if (card) { card.classList.remove('drop-before', 'drop-after'); }
+      });
+      this.portfolioGrid.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const overCard = e.target.closest('.portfolio-card');
+        if (overCard && this.portfolioDraggingId && overCard.dataset.id !== this.portfolioDraggingId) {
+          const rect = overCard.getBoundingClientRect();
+          const before = (e.clientY - rect.top) < rect.height / 2;
+          this.handlePortfolioReorder(this.portfolioDraggingId, overCard.dataset.id, before);
+        }
+        this.portfolioGrid.querySelectorAll('.portfolio-card').forEach((c) => {
+          c.classList.remove('is-dragging', 'drop-before', 'drop-after');
+        });
+        this.portfolioDraggingId = null;
+      });
+      this.portfolioGrid.addEventListener('dragend', () => {
+        this.portfolioGrid.querySelectorAll('.portfolio-card').forEach((c) => {
+          c.classList.remove('is-dragging', 'drop-before', 'drop-after');
+        });
+        this.portfolioDraggingId = null;
+      });
     }
+    // 灯箱关闭
+    if (this.portfolioLightbox) {
+      const closeLightbox = () => this.closePortfolioLightbox();
+      const closeBtn = this.portfolioLightbox.querySelector('.portfolio-lightbox-close');
+      closeBtn?.addEventListener('click', closeLightbox);
+      this.portfolioLightbox.addEventListener('click', (e) => {
+        if (e.target === this.portfolioLightbox) closeLightbox();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.portfolioLightbox && !this.portfolioLightbox.classList.contains('hidden')) {
+        this.closePortfolioLightbox();
+      }
+    });
     
     document.addEventListener('languageChange', async (e) => {
       await this.handleLanguageChange(e.detail.lang);
@@ -1492,10 +1576,9 @@ export default class UIManager {
     }
   }
 
-  // ========== 作品集上传 ==========
+  // ========== 作品集上传 / 编辑 / 排序 / 灯箱 ==========
 
   async initPortfolio() {
-    // 有云端快照时先秒开，再请求最新列表
     if (this.isSupabaseConfigured) {
       const cached = readPortfolioCloudCache();
       if (cached.length > 0) {
@@ -1514,10 +1597,10 @@ export default class UIManager {
         const { data, error } = await supabase
           .from(PORTFOLIO_TABLE)
           .select('*')
-          .order('position', { ascending: true })
+          .order('position', { ascending: true, nullsFirst: true })
           .order('created_at', { ascending: true });
         if (error) throw error;
-        this.portfolioItems = data || [];
+        this.portfolioItems = (data || []).map((item, i) => ({ ...item, position: Number(item.position ?? i) }));
         this.portfolioCloudReady = true;
         writePortfolioCloudCache(this.portfolioItems);
         return;
@@ -1529,6 +1612,13 @@ export default class UIManager {
     this.portfolioItems = readPortfolioFromLocal();
   }
 
+  disposeAllModelPreviews() {
+    this.portfolioModelPreviews.forEach((p) => {
+      try { p.dispose?.(); } catch (e) { /* ignore */ }
+    });
+    this.portfolioModelPreviews.clear();
+  }
+
   revokePortfolioBlobUrls() {
     this.portfolioBlobUrls.forEach((url) => {
       try { URL.revokeObjectURL(url); } catch (error) { /* ignore */ }
@@ -1538,6 +1628,7 @@ export default class UIManager {
 
   async renderPortfolio() {
     if (!this.portfolioGrid) return;
+    this.disposeAllModelPreviews();
     this.revokePortfolioBlobUrls();
     this.portfolioGrid.innerHTML = '';
 
@@ -1573,53 +1664,90 @@ export default class UIManager {
     const link = normalizePortfolioLink(item.link);
     const fileName = item.file_name || '';
     const extension = (fileName.split('.').pop() || kind).toUpperCase();
-    const mediaHtml = this.buildPortfolioMediaHtml(kind, mediaUrl, title, extension);
     const typeLabel = kind === 'image' ? '照片' : kind === 'video' ? '视频' : '3D 模型';
+    const isGlb = kind === 'model' && /\.(glb|gltf)$/i.test(fileName || '');
+
     const linkHtml = link
-      ? `<a class="portfolio-card-link" href="${escapePortfolioHtml(link)}" target="_blank" rel="noopener noreferrer">🔗 作品链接</a>`
+      ? `<a class="portfolio-card-link" href="${escapePortfolioHtml(link)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">🔗 外部链接</a>`
       : '';
     const fileHtml = mediaUrl
-      ? `<a class="portfolio-card-file" href="${escapePortfolioHtml(mediaUrl)}" target="_blank" rel="noopener noreferrer"${kind === 'model' ? ' download' : ''}>${kind === 'model' ? '⬇️ 下载模型' : '↗ 打开原文件'}</a>`
+      ? `<a class="portfolio-card-file" href="${escapePortfolioHtml(mediaUrl)}" target="_blank" rel="noopener noreferrer"${kind === 'model' ? ' download' : ''} onclick="event.stopPropagation()">${kind === 'model' ? '⬇️ 下载模型' : '↗ 原文件'}</a>`
       : '';
+    // 拖拽手柄 + 编辑按钮 + 删除按钮（admin-only）
+    const adminHtml = document.body.classList.contains('admin-mode')
+      ? `
+        <span class="portfolio-drag-handle admin-only" draggable="true" title="拖动排序">⋮⋮</span>
+        <button class="portfolio-edit-btn admin-only" data-id="${escapePortfolioHtml(String(item.id))}" type="button" title="编辑">✏️</button>
+        <button class="portfolio-delete-btn admin-only" data-id="${escapePortfolioHtml(String(item.id))}" type="button" title="删除">🗑️</button>
+      ` : '';
 
     const card = document.createElement('article');
     card.className = 'portfolio-card';
     card.dataset.id = String(item.id);
     card.innerHTML = `
-      <div class="portfolio-card-media">${mediaHtml}</div>
+      <div class="portfolio-card-media" data-kind="${escapePortfolioHtml(kind)}">
+        ${this.buildPortfolioMediaHtml(kind, mediaUrl, title, extension, isGlb)}
+      </div>
       <div class="portfolio-card-body">
-        <div class="portfolio-card-meta">
+        <div class="portfolio-card-top">
           <span class="portfolio-type-badge" data-kind="${escapePortfolioHtml(kind)}">${typeLabel}</span>
+          <div class="portfolio-admin-tools">${adminHtml}</div>
         </div>
         <h3 class="portfolio-card-title">${escapePortfolioHtml(title)}</h3>
         ${description ? `<p class="portfolio-card-desc">${escapePortfolioHtml(description)}</p>` : ''}
         <div class="portfolio-card-actions">
           ${linkHtml}
           ${fileHtml}
-          <button class="portfolio-delete-btn admin-only" data-id="${escapePortfolioHtml(String(item.id))}" type="button">🗑️ 删除</button>
         </div>
       </div>
     `;
+
+    // GLB/GGTF 模型：延迟挂 Canvas（需要 Three.js 已加载）
+    if (isGlb && mediaUrl) {
+      const canvas = card.querySelector('.portfolio-model-canvas');
+      if (canvas && window.createModelPreview) {
+        try {
+          const p = window.createModelPreview(canvas, mediaUrl);
+          if (p && !p.error) {
+            this.portfolioModelPreviews.set(String(item.id), p);
+          } else {
+            canvas.remove();
+          }
+        } catch (error) {
+          console.warn('初始化作品模型预览失败:', error);
+          canvas.remove();
+        }
+      } else if (canvas) {
+        // 没有 Three.js（非 synth 模式），退化为占位符
+        canvas.remove();
+      }
+    }
+
     return card;
   }
 
-  buildPortfolioMediaHtml(kind, mediaUrl, title, extension) {
+  buildPortfolioMediaHtml(kind, mediaUrl, title, extension, isGlb) {
     if (!mediaUrl) {
-      return `<div class="portfolio-model-preview"><span class="portfolio-model-ext">${escapePortfolioHtml(extension)}</span><span class="portfolio-model-label">文件不可用</span></div>`;
+      return `<div class="portfolio-media-fallback"><span>文件不可用</span></div>`;
     }
     if (kind === 'video') {
-      return `<video src="${escapePortfolioHtml(mediaUrl)}" controls preload="metadata" playsinline></video>`;
+      return `<video src="${escapePortfolioHtml(mediaUrl)}" muted playsinline preload="metadata" poster=""></video>`;
     }
     if (kind === 'model') {
+      if (isGlb) {
+        return `<canvas class="portfolio-model-canvas" aria-label="3D 模型预览"></canvas>`;
+      }
       return `
-        <div class="portfolio-model-preview">
+        <div class="portfolio-model-placeholder">
           <span class="portfolio-model-ext">${escapePortfolioHtml(extension)}</span>
           <span class="portfolio-model-label">3D MODEL</span>
         </div>
       `;
     }
-    return `<img src="${escapePortfolioHtml(mediaUrl)}" alt="${escapePortfolioHtml(title)}" loading="lazy">`;
+    return `<img src="${escapePortfolioHtml(mediaUrl)}" alt="${escapePortfolioHtml(title)}" loading="lazy" decoding="async">`;
   }
+
+  /* ============== 模态框：打开 / 关闭 / 重置 ============== */
 
   openPortfolioUploadModal() {
     if (!document.body.classList.contains('admin-mode')) {
@@ -1627,29 +1755,71 @@ export default class UIManager {
       return;
     }
     this.resetPortfolioUploadForm();
-    this.renderPortfolioPositions();
-    this.showPortfolioStep('position');
+    this.setPortfolioModalMode('create');
     this.portfolioModal?.classList.remove('hidden');
+    // 首次进入给 drop zone 一个轻微高亮，引导用户
+    requestAnimationFrame(() => this.portfolioDropZone?.classList.add('is-focused'));
+  }
+
+  openPortfolioEditModal(id) {
+    if (!document.body.classList.contains('admin-mode')) return;
+    const item = (this.portfolioItems || []).find((e) => String(e.id) === String(id));
+    if (!item) return;
+    this.resetPortfolioUploadForm();
+    this.setPortfolioModalMode('edit', item);
+    // 回填表单
+    if (this.portfolioTitleInput) this.portfolioTitleInput.value = item.title || '';
+    if (this.portfolioDescInput) this.portfolioDescInput.value = item.description || '';
+    if (this.portfolioLinkInput) this.portfolioLinkInput.value = item.link || '';
+    // 现有文件预览（不重新选择）
+    let existingUrl = item.file_url || '';
+    if (item.local && !existingUrl) {
+      // 本地模式：从 IndexedDB 取 blob 做预览
+      getPortfolioBlob(item.id).then((blob) => {
+        if (blob) {
+          this.portfolioPreviewUrl = URL.createObjectURL(blob);
+          this.renderPortfolioPreviewUrl(this.portfolioPreviewUrl, item.file_type || 'image', item.file_name || '');
+        }
+      }).catch(() => {});
+    } else if (existingUrl) {
+      this.renderPortfolioPreviewUrl(existingUrl, item.file_type || 'image', item.file_name || '');
+    }
+    this.portfolioModal?.classList.remove('hidden');
+  }
+
+  setPortfolioModalMode(mode, editingItem = null) {
+    this.portfolioEditingItemId = mode === 'edit' ? (editingItem?.id ?? null) : null;
+    if (this.portfolioModal) {
+      this.portfolioModal.dataset.mode = mode;
+    }
+    if (this.portfolioModalTitle) {
+      this.portfolioModalTitle.textContent = mode === 'edit' ? '✏️ 编辑作品' : '⬆️ 上传作品';
+    }
+    if (this.portfolioDropLabel) {
+      this.portfolioDropLabel.textContent = mode === 'edit'
+        ? '选择新文件替换（留空则保留原文件）'
+        : '点击选择 或 拖拽文件到此处';
+    }
+    if (this.portfolioSaveBtn) {
+      this.portfolioSaveBtn.textContent = mode === 'edit' ? '💾 保存修改' : '⬆️ 上传并保存';
+    }
   }
 
   closePortfolioUploadModal() {
     if (!this.portfolioModal) return;
     this.portfolioModal.classList.add('hidden');
-    this.portfolioModal.classList.remove('visible');
     this.resetPortfolioUploadForm();
   }
 
   resetPortfolioUploadForm() {
-    this.portfolioInsertIndex = null;
     this.portfolioSelectedFile = null;
+    this.portfolioEditingItemId = null;
     if (this.portfolioPreviewUrl) {
       try { URL.revokeObjectURL(this.portfolioPreviewUrl); } catch (error) { /* ignore */ }
       this.portfolioPreviewUrl = '';
     }
     if (this.portfolioFileInput) this.portfolioFileInput.value = '';
-    if (this.portfolioFilePickerText) {
-      this.portfolioFilePickerText.textContent = '📁 选择文件（图片 / 视频 / 3D 模型）';
-    }
+    if (this.portfolioDropZone) this.portfolioDropZone.classList.remove('is-dragging', 'is-focused');
     if (this.portfolioFilePreview) {
       this.portfolioFilePreview.innerHTML = '';
       this.portfolioFilePreview.classList.add('hidden');
@@ -1657,76 +1827,20 @@ export default class UIManager {
     if (this.portfolioTitleInput) this.portfolioTitleInput.value = '';
     if (this.portfolioDescInput) this.portfolioDescInput.value = '';
     if (this.portfolioLinkInput) this.portfolioLinkInput.value = '';
+    this.hidePortfolioProgress();
     this.setPortfolioStatus('', 'info');
   }
 
-  showPortfolioStep(step) {
-    const isPosition = step === 'position';
-    this.portfolioPositionStep?.classList.toggle('hidden', !isPosition);
-    this.portfolioDetailsStep?.classList.toggle('hidden', isPosition);
-    if (this.portfolioStepLabel) {
-      if (isPosition) {
-        const total = (this.portfolioItems || []).length;
-        this.portfolioStepLabel.textContent = `STEP 1 / 2 · 选择插入位置（当前 ${total} 个作品）`;
-      } else {
-        const index = this.portfolioInsertIndex ?? 0;
-        this.portfolioStepLabel.textContent = `STEP 2 / 2 · 将插入到第 ${index + 1} 位`;
-      }
-    }
-  }
-
-  renderPortfolioPositions() {
-    const list = this.portfolioPositionList;
-    if (!list) return;
-    list.innerHTML = '';
-
-    const items = this.portfolioItems || [];
-    const total = items.length;
-    const options = [];
-
-    if (total === 0) {
-      options.push({ index: 0, label: '第 1 个作品', hint: '作品集为空，新作品会排在第一位' });
-    } else {
-      options.push({
-        index: 0,
-        label: '放在最前',
-        hint: `位于「${items[0].title || '未命名作品'}」之前`
-      });
-      for (let i = 1; i < total; i += 1) {
-        options.push({
-          index: i,
-          label: `第 ${i + 1} 位`,
-          hint: `「${items[i - 1].title || '未命名作品'}」之后、「${items[i].title || '未命名作品'}」之前`
-        });
-      }
-      options.push({
-        index: total,
-        label: '放在最后',
-        hint: `位于「${items[total - 1].title || '未命名作品'}」之后`
-      });
-    }
-
-    options.forEach((option) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'portfolio-position-option';
-      button.innerHTML = `
-        <span class="portfolio-position-index">${option.index + 1}</span>
-        <span class="portfolio-position-text">
-          <strong>${escapePortfolioHtml(option.label)}</strong>
-          <small>${escapePortfolioHtml(option.hint)}</small>
-        </span>
-      `;
-      button.addEventListener('click', () => {
-        this.portfolioInsertIndex = option.index;
-        this.showPortfolioStep('details');
-      });
-      list.appendChild(button);
-    });
-  }
+  /* ============== 文件选择：点击 + 拖拽 共用入口 ============== */
 
   handlePortfolioFileSelect(event) {
     const file = event.target.files?.[0];
+    if (file) this.handlePortfolioFile(file);
+  }
+
+  handlePortfolioFile(file) {
+    if (!file) return;
+    // 清理上一次
     this.portfolioSelectedFile = null;
     if (this.portfolioPreviewUrl) {
       try { URL.revokeObjectURL(this.portfolioPreviewUrl); } catch (error) { /* ignore */ }
@@ -1736,11 +1850,10 @@ export default class UIManager {
       this.portfolioFilePreview.innerHTML = '';
       this.portfolioFilePreview.classList.add('hidden');
     }
-    if (!file) return;
 
     const kind = detectPortfolioKind(file);
     if (!kind) {
-      this.setPortfolioStatus('❌ 不支持的文件类型，请选择图片、视频或 3D 模型文件', 'error');
+      this.setPortfolioStatus('❌ 不支持的文件类型，请选择图片、视频或 3D 模型', 'error');
       if (this.portfolioFileInput) this.portfolioFileInput.value = '';
       return;
     }
@@ -1752,33 +1865,45 @@ export default class UIManager {
 
     this.portfolioSelectedFile = file;
     this.setPortfolioStatus('', 'info');
-    if (this.portfolioFilePickerText) {
-      this.portfolioFilePickerText.textContent = `📄 ${file.name}`;
-    }
+
     if (this.portfolioTitleInput && !this.portfolioTitleInput.value.trim()) {
       this.portfolioTitleInput.value = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
     }
 
-    const extension = (file.name.split('.').pop() || kind).toUpperCase();
-    const sizeMb = (file.size / (1024 * 1024)).toFixed(file.size < 1024 * 1024 ? 2 : 1);
-    this.portfolioPreviewUrl = URL.createObjectURL(file);
+    // 编辑模式下：提示用户这是"替换文件"
+    if (this.portfolioEditingItemId) {
+      this.setPortfolioStatus('ℹ️ 将替换原文件；留空选择文件则保留原文件', 'info');
+    }
 
-    if (this.portfolioFilePreview) {
-      this.portfolioFilePreview.classList.remove('hidden');
-      if (kind === 'image') {
-        this.portfolioFilePreview.innerHTML = `<img src="${this.portfolioPreviewUrl}" alt="预览">`;
-      } else if (kind === 'video') {
-        this.portfolioFilePreview.innerHTML = `<video src="${this.portfolioPreviewUrl}" controls muted playsinline></video>`;
-      } else {
-        this.portfolioFilePreview.innerHTML = `
-          <div class="portfolio-model-preview">
-            <span class="portfolio-model-ext">${escapePortfolioHtml(extension)}</span>
-            <span class="portfolio-model-label">${escapePortfolioHtml(`${sizeMb} MB · 上传后将显示为 3D 模型卡片`)}</span>
-          </div>
-        `;
-      }
+    this.portfolioPreviewUrl = URL.createObjectURL(file);
+    this.renderPortfolioPreviewUrl(this.portfolioPreviewUrl, kind, file.name);
+  }
+
+  renderPortfolioPreviewUrl(url, kind, fileName) {
+    if (!this.portfolioFilePreview) return;
+    const extension = (fileName.split('.').pop() || kind).toUpperCase();
+    const sizeMb = this.portfolioSelectedFile
+      ? (this.portfolioSelectedFile.size / (1024 * 1024)).toFixed(this.portfolioSelectedFile.size < 1024 * 1024 ? 2 : 1)
+      : '';
+    this.portfolioFilePreview.classList.remove('hidden');
+    if (kind === 'image') {
+      this.portfolioFilePreview.innerHTML = `<img src="${url}" alt="预览">`;
+    } else if (kind === 'video') {
+      this.portfolioFilePreview.innerHTML = `<video src="${url}" controls muted playsinline></video>`;
+    } else {
+      const kindLabel = this.portfolioSelectedFile
+        ? `${sizeMb} MB · 上传后将显示为 3D 模型卡片`
+        : '原文件预览';
+      this.portfolioFilePreview.innerHTML = `
+        <div class="portfolio-model-placeholder">
+          <span class="portfolio-model-ext">${escapePortfolioHtml(extension)}</span>
+          <span class="portfolio-model-label">${escapePortfolioHtml(kindLabel)}</span>
+        </div>
+      `;
     }
   }
+
+  /* ============== 状态 / 进度 ============== */
 
   setPortfolioStatus(text, type = 'info') {
     if (!this.portfolioUploadStatus) return;
@@ -1792,22 +1917,50 @@ export default class UIManager {
     this.portfolioUploadStatus.dataset.type = type;
   }
 
+  showPortfolioProgress(label) {
+    if (!this.portfolioUploadProgress) return;
+    this.portfolioUploadProgress.classList.remove('hidden');
+    if (this.portfolioProgressFill) this.portfolioProgressFill.style.width = '0%';
+    if (this.portfolioProgressText) this.portfolioProgressText.textContent = '0%';
+    if (label) this.setPortfolioStatus(label, 'info');
+  }
+
+  setPortfolioProgress(pct, label) {
+    if (this.portfolioProgressFill) this.portfolioProgressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    if (this.portfolioProgressText) this.portfolioProgressText.textContent = `${Math.round(pct)}%`;
+    if (label) this.setPortfolioStatus(label, 'info');
+  }
+
+  hidePortfolioProgress() {
+    if (this.portfolioUploadProgress) this.portfolioUploadProgress.classList.add('hidden');
+  }
+
+  /* ============== 保存：create / edit ============== */
+
   async handlePortfolioSave() {
     if (this.isPortfolioSaving) return;
+
+    const isEdit = Boolean(this.portfolioEditingItemId);
     const file = this.portfolioSelectedFile;
-    if (!file) {
+    const existingItem = isEdit
+      ? (this.portfolioItems || []).find((e) => String(e.id) === String(this.portfolioEditingItemId))
+      : null;
+
+    if (!isEdit && !file) {
       this.setPortfolioStatus('❌ 请先选择要上传的文件', 'error');
       return;
     }
-    if (this.portfolioInsertIndex === null) {
-      this.setPortfolioStatus('❌ 请先选择插入位置', 'error');
-      return;
-    }
 
-    const kind = detectPortfolioKind(file);
-    if (!kind) {
-      this.setPortfolioStatus('❌ 不支持的文件类型', 'error');
-      return;
+    // 编辑模式下：file 可选（只改元数据）
+    let kind = 'image';
+    if (file) {
+      kind = detectPortfolioKind(file);
+      if (!kind) {
+        this.setPortfolioStatus('❌ 不支持的文件类型', 'error');
+        return;
+      }
+    } else if (isEdit && existingItem) {
+      kind = existingItem.file_type || 'image';
     }
 
     const rawLink = this.portfolioLinkInput?.value || '';
@@ -1818,64 +1971,91 @@ export default class UIManager {
     }
 
     const title = (this.portfolioTitleInput?.value || '').trim().slice(0, 80)
-      || file.name.replace(/\.[^.]+$/, '').slice(0, 80)
-      || '未命名作品';
+      || (file ? file.name.replace(/\.[^.]+$/, '').slice(0, 80) : '')
+      || (existingItem?.title || '未命名作品');
     const description = (this.portfolioDescInput?.value || '').trim().slice(0, 500);
 
     this.isPortfolioSaving = true;
     if (this.portfolioSaveBtn) this.portfolioSaveBtn.disabled = true;
 
     try {
-      // 图片先压缩再上传，避免把手机原图整张传上去
       let uploadFile = file;
-      if (kind === 'image') {
-        this.setPortfolioStatus('⏳ 正在压缩图片...', 'info');
+      if (file && kind === 'image') {
+        this.showPortfolioProgress('⏳ 正在压缩图片...');
+        this.setPortfolioProgress(10);
         uploadFile = await compressPortfolioImage(file);
+        this.setPortfolioProgress(35);
       }
 
-      this.setPortfolioStatus('⏳ 正在上传，请稍候...', 'info');
-      const item = await this.createPortfolioItem(uploadFile, kind, { title, description, link });
-      const insertIndex = this.portfolioInsertIndex;
-      this.portfolioItems.splice(insertIndex, 0, item);
-      if (item.local) {
-        writePortfolioToLocal(this.portfolioItems);
+      if (isEdit && existingItem) {
+        // ---------- 编辑模式 ----------
+        const item = await this.editPortfolioItem(existingItem, uploadFile, kind, { title, description, link }, (p, l) => this.setPortfolioProgress(p, l));
+        const idx = (this.portfolioItems || []).findIndex((e) => String(e.id) === String(item.id));
+        if (idx >= 0) this.portfolioItems[idx] = item;
+        if (item.local) writePortfolioToLocal(this.portfolioItems);
+      } else {
+        // ---------- 创建模式：追加到末尾 ----------
+        this.showPortfolioProgress(`⏳ 正在上传...（${this.portfolioItems.length + 1} 件作品）`);
+        const item = await this.createPortfolioItem(uploadFile, kind, { title, description, link }, this.portfolioItems.length, (p, l) => this.setPortfolioProgress(p, l));
+        this.portfolioItems.push(item);
+        if (item.local) writePortfolioToLocal(this.portfolioItems);
       }
+
+      this.hidePortfolioProgress();
       await this.renderPortfolio();
       this.closePortfolioUploadModal();
-      this.showNotification(item.local ? '✅ 作品已保存到本机（云端未配置）' : '✅ 作品上传成功');
+      this.showNotification(isEdit ? '✅ 修改已保存' : '✅ 作品上传成功');
     } catch (error) {
-      console.error('上传作品失败:', error);
-      this.setPortfolioStatus(`❌ 上传失败：${error.message || '未知错误'}`, 'error');
+      console.error('保存作品失败:', error);
+      this.hidePortfolioProgress();
+      this.setPortfolioStatus(`❌ 保存失败：${error.message || '未知错误'}`, 'error');
     } finally {
       this.isPortfolioSaving = false;
       if (this.portfolioSaveBtn) this.portfolioSaveBtn.disabled = false;
     }
   }
 
-  async createPortfolioItem(file, kind, meta) {
+  /** 通用的"上传 → 拿 file_url"，返回 { file_url, storage_path, file_name, file_type } */
+  async uploadPortfolioFile(file, kind, onProgress) {
+    if (!this.portfolioCloudReady) {
+      return { file_url: '', storage_path: '', file_name: file.name };
+    }
     const now = Date.now();
     const random = Math.random().toString(36).slice(2, 8);
-    const index = this.portfolioInsertIndex ?? 0;
+    const safeName = file.name.replace(/[^\w.-]+/g, '_').slice(-60);
+    const path = `portfolio/${now}-${random}-${safeName}`;
 
-    if (this.portfolioCloudReady) {
-      const safeName = file.name.replace(/[^\w.-]+/g, '_').slice(-60);
-      const path = `portfolio/${now}-${random}-${safeName}`;
+    // Supabase 无原生 onProgress：用假进度条给用户节奏感
+    const pseudoProgress = { current: 40, increment: 4, label: '⏳ 正在上传，请稍候...' };
+    const progressJob = setInterval(() => {
+      onProgress?.(Math.min(92, (pseudoProgress.current += pseudoProgress.increment)), pseudoProgress.label);
+    }, 250);
 
+    try {
       const { error: uploadError } = await supabase.storage
         .from(PORTFOLIO_BUCKET)
         .upload(path, file, { cacheControl: '31536000', upsert: false });
-      if (uploadError) {
-        throw new Error(`文件上传失败：${uploadError.message}`);
-      }
-
+      if (uploadError) throw new Error(`文件上传失败：${uploadError.message}`);
+      onProgress?.(98, '⏳ 保存作品信息...');
       const { data: urlData } = supabase.storage.from(PORTFOLIO_BUCKET).getPublicUrl(path);
+      return {
+        file_url: urlData.publicUrl,
+        storage_path: path,
+        file_name: file.name,
+        file_type: kind
+      };
+    } finally {
+      clearInterval(progressJob);
+      onProgress?.(100, '✅ 上传完成');
+    }
+  }
 
-      // 把插入点之后的条目统一后移一位，给新作品腾出位置
-      const shifted = (this.portfolioItems || []).slice(index);
-      await Promise.all(shifted.map((entry, offset) => {
-        const nextPosition = Number(entry.position ?? (index + offset)) + 1;
-        return supabase.from(PORTFOLIO_TABLE).update({ position: nextPosition }).eq('id', entry.id);
-      }));
+  async createPortfolioItem(file, kind, meta, position, onProgress) {
+    const now = Date.now();
+    const random = Math.random().toString(36).slice(2, 8);
+
+    if (this.portfolioCloudReady) {
+      const upload = await this.uploadPortfolioFile(file, kind, onProgress);
 
       const { data, error } = await supabase
         .from(PORTFOLIO_TABLE)
@@ -1884,21 +2064,25 @@ export default class UIManager {
           description: meta.description,
           link: meta.link || null,
           file_type: kind,
-          file_url: urlData.publicUrl,
-          storage_path: path,
-          position: index
+          file_url: upload.file_url,
+          storage_path: upload.storage_path,
+          position
         }])
         .select()
         .single();
 
       if (error) {
-        await supabase.storage.from(PORTFOLIO_BUCKET).remove([path]);
+        // 回滚上传的文件
+        if (upload.storage_path) {
+          await supabase.storage.from(PORTFOLIO_BUCKET).remove([upload.storage_path]).catch(() => {});
+        }
         throw new Error(`保存作品信息失败：${error.message}`);
       }
+      onProgress?.(100, '✅ 完成');
       return data;
     }
 
-    // 本地模式：文件进 IndexedDB，元数据进 localStorage
+    // 本地模式
     const id = `local-${now}-${random}`;
     await savePortfolioBlob(id, file);
     return {
@@ -1909,12 +2093,99 @@ export default class UIManager {
       file_type: kind,
       file_url: '',
       storage_path: '',
-      position: index,
+      position,
       file_name: file.name,
       local: true,
       created_at: new Date().toISOString()
     };
   }
+
+  async editPortfolioItem(item, file, kind, meta, onProgress) {
+    if (this.portfolioCloudReady) {
+      // 新文件 → 先传新的、删旧的；无新文件 → 保留旧文件
+      let patch = {
+        title: meta.title,
+        description: meta.description,
+        link: meta.link || null,
+      };
+
+      if (file) {
+        const upload = await this.uploadPortfolioFile(file, kind, onProgress);
+        patch = {
+          ...patch,
+          file_type: kind,
+          file_url: upload.file_url,
+          storage_path: upload.storage_path,
+        };
+        // 删除旧文件（异步，失败不阻塞）
+        if (item.storage_path && item.storage_path !== upload.storage_path) {
+          supabase.storage.from(PORTFOLIO_BUCKET).remove([item.storage_path]).catch(() => {});
+        }
+      }
+
+      const { data, error } = await supabase
+        .from(PORTFOLIO_TABLE)
+        .update(patch)
+        .eq('id', item.id)
+        .select()
+        .single();
+      if (error) throw new Error(`更新作品信息失败：${error.message}`);
+      onProgress?.(100, '✅ 完成');
+      return data;
+    }
+
+    // 本地模式
+    if (file) {
+      await savePortfolioBlob(item.id, file);
+    }
+    return {
+      ...item,
+      title: meta.title,
+      description: meta.description,
+      link: meta.link || '',
+      file_name: file?.name || item.file_name,
+      file_type: file ? kind : item.file_type,
+    };
+  }
+
+  /* ============== 排序：拖拽调序 ============== */
+
+  async handlePortfolioReorder(draggingId, targetId, before) {
+    const items = (this.portfolioItems || []).slice();
+    const fromIndex = items.findIndex((e) => String(e.id) === String(draggingId));
+    let toIndex = items.findIndex((e) => String(e.id) === String(targetId));
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+
+    const [moved] = items.splice(fromIndex, 1);
+    if (before) {
+      toIndex -= fromIndex < toIndex ? 1 : 0;  // splice 后 toIndex 可能前移
+      items.splice(toIndex, 0, moved);
+    } else {
+      toIndex -= fromIndex < toIndex ? 1 : 0;
+      items.splice(toIndex + 1, 0, moved);
+    }
+
+    // 统一 position
+    const reordered = items.map((item, i) => ({ ...item, position: i }));
+
+    // 云端：批量 update position
+    if (this.portfolioCloudReady) {
+      const updates = reordered.map((item) =>
+        supabase.from(PORTFOLIO_TABLE).update({ position: item.position }).eq('id', item.id)
+      );
+      try {
+        await Promise.all(updates);
+      } catch (error) {
+        console.warn('同步云端排序失败（本地仍会保持）:', error);
+      }
+    }
+
+    this.portfolioItems = reordered;
+    if (!this.portfolioCloudReady) writePortfolioToLocal(reordered);
+    await this.renderPortfolio();
+  }
+
+  /* ============== 删除 ============== */
 
   async deletePortfolioItem(id) {
     if (!document.body.classList.contains('admin-mode')) return;
@@ -1941,6 +2212,62 @@ export default class UIManager {
       console.error('删除作品失败:', error);
       this.showNotification(`删除失败：${error.message || '未知错误'}`);
     }
+  }
+
+  /* ============== 灯箱：点击卡片媒体区放大 ============== */
+
+  openPortfolioLightbox(id) {
+    const item = (this.portfolioItems || []).find((e) => String(e.id) === String(id));
+    if (!item) return;
+    const kind = item.file_type || 'image';
+    if (!['image', 'video'].includes(kind)) return; // 模型不进灯箱
+
+    let mediaUrl = item.file_url || '';
+    if (item.local && !mediaUrl) {
+      getPortfolioBlob(item.id).then((blob) => {
+        if (!blob) return;
+        mediaUrl = URL.createObjectURL(blob);
+        this.attachLightbox(kind, mediaUrl, item.title);
+      }).catch(() => {});
+    } else if (mediaUrl) {
+      this.attachLightbox(kind, mediaUrl, item.title);
+    }
+  }
+
+  attachLightbox(kind, url, title) {
+    if (!this.portfolioLightbox) return;
+    this.portfolioLightbox.classList.remove('hidden');
+    this.portfolioLightbox.setAttribute('aria-hidden', 'false');
+
+    const img = this.portfolioLightboxImg;
+    const video = this.portfolioLightboxVideo;
+    const titleEl = this.portfolioLightboxTitle;
+    img.hidden = true; img.src = '';
+    video.hidden = true; video.src = ''; video.load();
+    titleEl.classList.add('hidden'); titleEl.textContent = '';
+
+    if (kind === 'image') {
+      img.src = url;
+      img.hidden = false;
+    } else if (kind === 'video') {
+      video.src = url;
+      video.hidden = false;
+      video.play().catch(() => {});
+    }
+    if (title) {
+      titleEl.textContent = title;
+      titleEl.classList.remove('hidden');
+    }
+  }
+
+  closePortfolioLightbox() {
+    if (!this.portfolioLightbox) return;
+    this.portfolioLightbox.classList.add('hidden');
+    this.portfolioLightbox.setAttribute('aria-hidden', 'true');
+    this.portfolioLightboxImg.src = '';
+    this.portfolioLightboxVideo.pause?.();
+    this.portfolioLightboxVideo.src = '';
+    this.portfolioLightboxVideo.load?.();
   }
 
   async createBlogList() {

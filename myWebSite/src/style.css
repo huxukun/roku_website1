@@ -5810,7 +5810,7 @@ body.racer-garage-open #now-playing {
 }
 
 /* ==========================================================================
- * 作品集：上传入口 + 卡片网格 + 上传向导
+ * 作品集：上传入口 + 卡片网格 + 拖拽排序 + 灯箱 + 上传/编辑模态框
  * ========================================================================== */
 .portfolio-upload-btn {
   font-size: 0.62rem !important;
@@ -5862,6 +5862,7 @@ body.racer-garage-open #now-playing {
   display: none;
 }
 
+/* ---------- 卡片网格 ---------- */
 .portfolio-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
@@ -5872,12 +5873,13 @@ body.racer-garage-open #now-playing {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
   background: var(--semi-transparent-bg);
   border: 1px solid rgba(0, 255, 255, 0.28);
   box-shadow:
     inset 0 0 18px rgba(0, 220, 255, 0.08),
     0 0 0 1px rgba(255, 0, 255, 0.06);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, opacity 0.25s ease;
 }
 
 .portfolio-card:hover {
@@ -5888,15 +5890,33 @@ body.racer-garage-open #now-playing {
   transform: translateY(-2px);
 }
 
+.portfolio-card.is-dragging {
+  opacity: 0.35;
+  transform: scale(0.96);
+}
+
+.portfolio-card.drop-before {
+  box-shadow: inset 0 4px 0 rgba(0, 255, 255, 0.8);
+}
+.portfolio-card.drop-after {
+  box-shadow: inset 0 -4px 0 rgba(0, 255, 255, 0.8);
+}
+
 .portfolio-card-media {
   position: relative;
   aspect-ratio: 16 / 10;
   overflow: hidden;
   background: #05050f;
+  cursor: zoom-in;
 }
 
-.portfolio-card-media img,
-.portfolio-card-media video {
+.portfolio-card-media canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.portfolio-card-media img {
   display: block;
   width: 100%;
   height: 100%;
@@ -5904,20 +5924,68 @@ body.racer-garage-open #now-playing {
 }
 
 .portfolio-card-media video {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   background: #000;
+}
+
+.portfolio-media-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.52rem;
+  color: #ff8fb8;
+  letter-spacing: 0.1em;
+  background: rgba(255, 0, 100, 0.08);
+}
+
+.portfolio-model-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  padding: 1rem;
+  background:
+    linear-gradient(rgba(0, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.07) 1px, transparent 1px),
+    radial-gradient(ellipse at center, rgba(0, 180, 255, 0.16), transparent 70%);
+  background-size: 18px 18px, 18px 18px, 100% 100%;
+}
+
+.portfolio-model-ext {
+  padding: 0.3rem 0.62rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  color: #eafeff;
+  border: 1px dashed rgba(0, 255, 255, 0.55);
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.75);
+}
+
+.portfolio-model-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  color: rgba(160, 235, 245, 0.8);
+  text-align: center;
 }
 
 .portfolio-card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.4rem;
   padding: 0.75rem 0.8rem 0.8rem;
 }
 
-.portfolio-card-meta {
+.portfolio-card-top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.4rem;
 }
 
@@ -5941,6 +6009,49 @@ body.racer-garage-open #now-playing {
   background: #ffd166;
   color: #1d1400;
   box-shadow: 0 0 10px rgba(255, 209, 102, 0.45);
+}
+
+.portfolio-admin-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.portfolio-drag-handle,
+.portfolio-edit-btn,
+.portfolio-delete-btn {
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 0.2rem 0.3rem;
+  color: rgba(180, 215, 220, 0.75);
+  background: transparent;
+  border: 1px solid rgba(0, 255, 255, 0.18);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  font-family: var(--font-main);
+  touch-action: none;
+  user-select: none;
+}
+
+.portfolio-drag-handle {
+  cursor: grab;
+  letter-spacing: -0.1em;
+}
+.portfolio-drag-handle:hover {
+  color: #fff;
+  border-color: rgba(0, 255, 255, 0.5);
+}
+
+.portfolio-edit-btn:hover {
+  color: var(--neon-pink);
+  border-color: rgba(255, 0, 255, 0.5);
+}
+
+.portfolio-delete-btn:hover {
+  color: #ff5a96;
+  border-color: rgba(255, 90, 150, 0.5);
+  background: rgba(255, 0, 100, 0.1);
 }
 
 .portfolio-card-title {
@@ -5991,60 +6102,10 @@ body.racer-garage-open #now-playing {
   border-color: var(--neon-cyan);
 }
 
-.portfolio-delete-btn {
-  margin-left: auto;
-  padding: 0.28rem 0.5rem;
-  font-size: 0.54rem;
-  font-family: var(--font-main);
-  color: #ff8fb8;
-  background: rgba(255, 0, 100, 0.08);
-  border: 1px solid rgba(255, 90, 150, 0.4);
-  cursor: pointer;
-}
-
-.portfolio-delete-btn:hover {
-  background: rgba(255, 0, 100, 0.18);
-  border-color: #ff5a96;
-}
-
-/* 3D 模型占位 / 预览 */
-.portfolio-model-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  width: 100%;
-  height: 100%;
-  min-height: 120px;
-  padding: 1rem;
-  background:
-    linear-gradient(rgba(0, 255, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 255, 0.07) 1px, transparent 1px),
-    radial-gradient(ellipse at center, rgba(0, 180, 255, 0.16), transparent 70%);
-  background-size: 18px 18px, 18px 18px, 100% 100%;
-}
-
-.portfolio-model-ext {
-  padding: 0.3rem 0.62rem;
-  font-size: 0.82rem;
-  letter-spacing: 0.16em;
-  color: #eafeff;
-  border: 1px dashed rgba(0, 255, 255, 0.55);
-  text-shadow: 0 0 12px rgba(0, 255, 255, 0.75);
-}
-
-.portfolio-model-label {
-  font-size: 0.5rem;
-  letter-spacing: 0.12em;
-  color: rgba(160, 235, 245, 0.8);
-  text-align: center;
-}
-
-/* ---------- 上传向导模态框 ---------- */
+/* ---------- 上传 / 编辑模态框 ---------- */
 .portfolio-modal-content {
   width: 92%;
-  max-width: 560px;
+  max-width: 520px;
   max-height: 86vh;
   overflow-y: auto;
   transform: scale(0.95);
@@ -6063,7 +6124,7 @@ body.racer-garage-open #now-playing {
 
 .portfolio-dialog {
   width: 100%;
-  padding: 1.2rem 1.2rem 1.3rem !important;
+  padding: 1.1rem 1.15rem 1.2rem !important;
   background: var(--semi-purple-bg);
   border: 3px solid var(--neon-cyan) !important;
   box-shadow:
@@ -6076,8 +6137,8 @@ body.racer-garage-open #now-playing {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding-bottom: 0.7rem;
-  margin-bottom: 0.8rem;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.7rem;
   border-bottom: 2px solid var(--neon-pink);
 }
 
@@ -6088,104 +6149,63 @@ body.racer-garage-open #now-playing {
   text-shadow: 0 0 10px var(--neon-pink);
 }
 
-.portfolio-step-label {
-  margin: 0 0 0.9rem;
-  font-size: 0.52rem;
-  letter-spacing: 0.18em;
-  color: var(--neon-cyan);
-}
-
-.portfolio-step.hidden {
-  display: none;
-}
-
-.portfolio-position-list {
+/* 拖拽区：即点击选择，也是 drop zone */
+.portfolio-drop-zone {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-height: 48vh;
-  overflow-y: auto;
-  padding-right: 0.15rem;
-}
-
-.portfolio-position-option {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  text-align: left;
-  font-family: var(--font-main);
-  color: #e8ffff;
-  background: rgba(0, 255, 255, 0.04);
-  border: 1px solid rgba(0, 255, 255, 0.28);
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.portfolio-position-option:hover,
-.portfolio-position-option:focus-visible {
-  background: rgba(0, 255, 255, 0.12);
-  border-color: var(--neon-cyan);
-  box-shadow: 0 0 14px rgba(0, 255, 255, 0.32);
-  outline: none;
-}
-
-.portfolio-position-index {
-  display: grid;
-  place-items: center;
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
-  font-size: 0.58rem;
-  color: var(--neon-cyan);
-  border: 1px solid var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
-}
-
-.portfolio-position-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.16rem;
-  min-width: 0;
-}
-
-.portfolio-position-text strong {
-  font-size: 0.66rem;
-  font-weight: 400;
-  color: #ffffff;
-}
-
-.portfolio-position-text small {
-  font-size: 0.52rem;
-  line-height: 1.5;
-  color: rgba(170, 215, 225, 0.8);
-}
-
-.portfolio-file-picker {
-  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.85rem 0.7rem;
+  gap: 0.4rem;
+  padding: 1rem 0.8rem;
   margin-bottom: 0.7rem;
   font-size: 0.62rem;
   color: var(--neon-cyan);
   text-align: center;
-  word-break: break-all;
-  border: 1px dashed rgba(0, 255, 255, 0.5);
-  background: rgba(0, 255, 255, 0.05);
+  border: 2px dashed rgba(0, 255, 255, 0.4);
+  background: rgba(0, 255, 255, 0.04);
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
 }
 
-.portfolio-file-picker:hover {
-  background: rgba(0, 255, 255, 0.12);
+.portfolio-drop-zone.is-focused {
+  border-color: rgba(0, 255, 255, 0.75);
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.22);
+}
+
+.portfolio-drop-zone.is-dragging {
+  border-color: var(--neon-pink);
+  color: var(--neon-pink);
+  background: rgba(255, 0, 255, 0.08);
+  box-shadow: 0 0 22px rgba(255, 0, 255, 0.3);
+}
+
+.portfolio-drop-zone:hover,
+.portfolio-drop-zone:focus-visible {
+  background: rgba(0, 255, 255, 0.1);
   border-color: var(--neon-cyan);
+  outline: none;
+}
+
+.portfolio-drop-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.portfolio-drop-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  color: var(--neon-cyan);
+}
+
+.portfolio-drop-hint {
+  font-size: 0.5rem;
+  color: var(--silver);
+  letter-spacing: 0.08em;
 }
 
 .portfolio-file-preview {
-  margin-bottom: 0.7rem;
+  margin-bottom: 0.65rem;
   border: 1px solid rgba(0, 255, 255, 0.28);
   background: rgba(0, 0, 0, 0.45);
 }
@@ -6198,32 +6218,78 @@ body.racer-garage-open #now-playing {
 .portfolio-file-preview video {
   display: block;
   max-width: 100%;
-  max-height: 220px;
+  max-height: 200px;
   margin: 0 auto;
 }
 
-.portfolio-file-hint {
-  margin: 0 0 0.7rem;
-  font-size: 0.5rem;
-  line-height: 1.7;
-  color: var(--silver);
+.portfolio-form-row {
+  margin-bottom: 0.55rem;
 }
 
 #portfolio-upload-modal .nes-input,
 #portfolio-upload-modal .nes-textarea {
   width: 100%;
-  margin-bottom: 0.6rem;
 }
 
 #portfolio-upload-modal .nes-textarea {
   resize: vertical;
-  min-height: 70px;
+  min-height: 60px;
+}
+
+.portfolio-modal-tip {
+  margin: 0.5rem 0 0.5rem;
+  font-size: 0.5rem;
+  line-height: 1.6;
+  color: rgba(180, 215, 220, 0.75);
+}
+
+.portfolio-upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  background: rgba(0, 255, 255, 0.05);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.portfolio-upload-progress.hidden {
+  display: none;
+}
+
+.portfolio-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(0, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.portfolio-progress-bar > span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+  transition: width 0.2s linear;
+}
+
+.portfolio-upload-progress.hidden {
+  display: none;
+}
+
+.portfolio-progress-text {
+  flex: 0 0 2.2rem;
+  font-size: 0.54rem;
+  color: var(--neon-cyan);
+  letter-spacing: 0.1em;
+  text-align: right;
 }
 
 .portfolio-upload-status {
-  margin-bottom: 0.6rem;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.56rem;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.54rem;
   line-height: 1.6;
   color: var(--neon-cyan);
   border: 1px solid rgba(0, 255, 255, 0.3);
@@ -6247,30 +6313,114 @@ body.racer-garage-open #now-playing {
 }
 
 .portfolio-modal-actions {
-  position: sticky;
-  bottom: -1.3rem;
-  z-index: 2;
   display: flex;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: 0.6rem;
-  padding: 0.7rem 0 1.3rem;
-  background: linear-gradient(to top, var(--semi-purple-bg) 72%, transparent);
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
 }
 
 .portfolio-modal-actions .nes-btn {
   font-size: 0.62rem !important;
-  padding: 0.45rem 0.8rem !important;
+  padding: 0.42rem 0.75rem !important;
 }
 
+/* ---------- 灯箱 ---------- */
+.portfolio-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9900;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(4px);
+  animation: lightbox-fade-in 0.2s ease-out;
+}
+
+.portfolio-lightbox.hidden {
+  display: none;
+}
+
+@keyframes lightbox-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.portfolio-lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: #e8ffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.portfolio-lightbox-close:hover {
+  background: rgba(255, 0, 100, 0.5);
+  transform: rotate(90deg);
+}
+
+.portfolio-lightbox-stage {
+  position: relative;
+  max-width: 90vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.portfolio-lightbox-stage img {
+  max-width: 90vw;
+  max-height: 80vh;
+  object-fit: contain;
+  box-shadow: 0 0 60px rgba(0, 255, 255, 0.25);
+}
+
+.portfolio-lightbox-stage video {
+  max-width: 90vw;
+  max-height: 80vh;
+  box-shadow: 0 0 60px rgba(0, 255, 255, 0.25);
+}
+
+.portfolio-lightbox-title {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #e8ffff;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+/* ---------- 移动端 ---------- */
 @media (max-width: 520px) {
   .portfolio-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 0.75rem;
   }
 
   .portfolio-card-body {
-    padding: 0.6rem 0.65rem 0.7rem;
+    padding: 0.55rem 0.6rem 0.7rem;
+  }
+
+  .portfolio-card-title {
+    font-size: 0.68rem;
+  }
+
+  .portfolio-card-desc {
+    font-size: 0.5rem;
+  }
+
+  .portfolio-drag-handle,
+  .portfolio-edit-btn,
+  .portfolio-delete-btn {
+    font-size: 0.55rem;
+    padding: 0.18rem 0.25rem;
   }
 }
 

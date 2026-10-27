@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
@@ -1195,3 +1196,140 @@ racerMode = initRacerMode({
 })
 
 window.__rokuSceneReady = true
+
+/* ==========================================================================
+ * 作品集 3D 模型内联预览：用 GLTFLoader 加载 GLB / GLTF，
+ * 渲染到卡片里的 <canvas> 上。自动居中、自适应相机距离、缓慢自转动画。
+ * 调用方：portfolio UIManager
+ *
+ *   const preview = createModelPreview(canvas, url)
+ *   // 之后当 canvas 进入视口时调用 preview.start()
+ *   // 页面销毁或卡片移除时调用 preview.dispose()
+ * ========================================================================== */
+export function createModelPreview(canvas, url) {
+  if (!canvas || !url) return null
+
+  const ext = (url.split('.').pop() || '').toLowerCase().replace(/\?.*$/, '')
+  if (!['glb', 'gltf'].includes(ext)) {
+    // 非 glb/gltf 暂不支持：调用方可回退为扩展名占位卡片
+    return { error: 'UNSUPPORTED_FORMAT', dispose: () => {} }
+  }
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+    powerPreference: 'low-power' // 卡片预览省电
+  })
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+
+  const scene = new THREE.Scene()
+  scene.background = null
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000)
+  camera.position.set(2.2, 1.6, 3.2)
+  camera.lookAt(0, 0, 0)
+
+  // 极简光照：环境光 + 两盏方向光，够看清材质
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7))
+  const dirA = new THREE.DirectionalLight(0xffffff, 0.9)
+  dirA.position.set(3, 5, 2)
+  scene.add(dirA)
+  const dirB = new THREE.DirectionalLight(0xa0c8ff, 0.35)
+  dirB.position.set(-3, 2, -3)
+  scene.add(dirB)
+
+  let model = null
+  let disposed = false
+  let rafId = 0
+  let isHover = false
+  let startTime = performance.now()
+
+  const resize = () => {
+    const w = canvas.clientWidth || 200
+    const h = canvas.clientHeight || 200
+    renderer.setSize(w, h, false)
+    camera.aspect = w / Math.max(h, 1)
+    camera.updateProjectionMatrix()
+  }
+  resize()
+  const ro = new ResizeObserver(resize)
+  ro.observe(canvas)
+
+  const loader = new GLTFLoader()
+  loader.load(
+    url,
+    (gltf) => {
+      if (disposed) return
+      model = gltf.scene
+
+      // 居中 + 自适应相机（Experience 316835 的策略）
+      const box = new THREE.Box3().setFromObject(model)
+      const size = box.getSize(new THREE.Vector3())
+      const center = box.getCenter(new THREE.Vector3())
+      model.position.sub(center)           // 几何中心归零
+      // 贴地：如果盒子 min.y > 0（物体站在 y>0 平面），整体下移贴到 y=0
+      if (box.min.y > 0) model.position.y -= box.min.y
+      scene.add(model)
+
+      const maxDim = Math.max(size.x, size.y, size.z) || 1
+      const fov = camera.fov * (Math.PI / 180)
+      const dist = (maxDim / 2) / Math.tan(fov / 2) * 1.55
+      camera.position.set(dist, dist * 0.6, dist * 0.9)
+      camera.lookAt(0, 0, 0)
+      camera.near = maxDim / 100
+      camera.far = maxDim * 100
+      camera.updateProjectionMatrix()
+
+      renderLoop()
+    },
+    undefined,
+    (err) => {
+      console.warn('作品集模型预览加载失败:', url, err)
+      canvas.remove()
+    }
+  )
+
+  // 鼠标悬停时稍微加速旋转，离开恢复慢速
+  const onEnter = () => { isHover = true }
+  const onLeave = () => { isHover = false }
+  canvas.addEventListener('mouseenter', onEnter)
+  canvas.addEventListener('mouseleave', onLeave)
+
+  function renderLoop() {
+    if (disposed) return
+    rafId = requestAnimationFrame(renderLoop)
+    if (model) {
+      const speed = isHover ? 0.6 : 0.15
+      const t = (performance.now() - startTime) * 0.0001
+      model.rotation.y += speed * 0.02
+      model.rotation.x = Math.sin(t) * 0.15
+    }
+    renderer.render(scene, camera)
+  }
+
+  return {
+    dispose() {
+      disposed = true
+      cancelAnimationFrame(rafId)
+      ro.disconnect()
+      canvas.removeEventListener('mouseenter', onEnter)
+      canvas.removeEventListener('mouseleave', onLeave)
+      if (model) {
+        scene.remove(model)
+        model.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose?.()
+          if (obj.material) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+            mats.forEach((m) => m.dispose?.())
+          }
+        })
+      }
+      renderer.dispose()
+    }
+  }
+}
+
+// 让 UI 层（UIManager）在 synth 模式下可访问
+window.createModelPreview = createModelPreview

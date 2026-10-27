@@ -54,6 +54,18 @@
         <p id="loading-text">0%</p>
       </div>
     </div>
+
+    <!-- 主包本身加载失败/卡住时的兜底：10 秒后仍停在加载屏就提示点击重试 -->
+    <script>
+      window.setTimeout(function () {
+        var screen = document.getElementById('loading-screen')
+        if (!screen || screen.classList.contains('hidden')) return
+        var text = document.getElementById('loading-text')
+        if (text) text.textContent = '加载超时，点击此处重试'
+        screen.style.cursor = 'pointer'
+        screen.addEventListener('click', function () { location.reload() }, { once: true })
+      }, 10000)
+    </script>
     
     <!-- 语言切换加载动画 -->
     <div id="language-loading" class="language-loading hidden">
@@ -154,41 +166,58 @@
       </div>
     </div>
 
-    <!-- 作品集上传向导：先选位置，再上传文件并填写描述 / 链接 -->
-    <div id="portfolio-upload-modal" class="modal-overlay hidden">
+    <!-- 作品集上传 / 编辑：单步表单，先选文件再填详情；默认追加到末尾，排序交给卡片拖拽 -->
+    <div id="portfolio-upload-modal" class="modal-overlay hidden" data-mode="create">
       <div class="portfolio-modal-content">
         <div class="nes-dialog portfolio-dialog">
           <div class="portfolio-modal-head">
-            <h2 class="modal-title">⬆️ 上传作品</h2>
+            <h2 id="portfolio-modal-title" class="modal-title">⬆️ 上传作品</h2>
             <button id="close-portfolio-modal" class="nes-btn is-error close-btn" type="button">×</button>
           </div>
-          <p id="portfolio-step-label" class="portfolio-step-label">STEP 1 / 2 · 选择插入位置</p>
 
-          <div id="portfolio-step-position" class="portfolio-step">
-            <div id="portfolio-position-list" class="portfolio-position-list"></div>
+          <label id="portfolio-drop-zone" class="portfolio-drop-zone" for="portfolio-file-input">
+            <span class="portfolio-drop-icon">📦</span>
+            <span id="portfolio-drop-label" class="portfolio-drop-label">点击选择 或 拖拽文件到此处</span>
+            <span class="portfolio-drop-hint">支持 图片 / 视频 / 3D 模型 · 单个 ≤ 120MB</span>
+          </label>
+          <input type="file" id="portfolio-file-input"
+                 accept="image/*,video/*,.glb,.gltf,.fbx,.obj,.stl,.ply,.usdz,.blend" hidden>
+
+          <div id="portfolio-file-preview" class="portfolio-file-preview hidden"></div>
+
+          <div class="portfolio-form-row">
+            <input type="text" id="portfolio-title-input" class="nes-input" maxlength="80" placeholder="作品标题 *">
+          </div>
+          <div class="portfolio-form-row">
+            <textarea id="portfolio-desc-input" class="nes-textarea" rows="3" maxlength="500" placeholder="作品描述（可选）"></textarea>
+          </div>
+          <div class="portfolio-form-row">
+            <input type="url" id="portfolio-link-input" class="nes-input" maxlength="500" placeholder="作品链接 https://...（可选）">
           </div>
 
-          <div id="portfolio-step-details" class="portfolio-step hidden">
-            <label class="portfolio-file-picker" for="portfolio-file-input">
-              <span id="portfolio-file-picker-text">📁 选择文件（图片 / 视频 / 3D 模型）</span>
-            </label>
-            <input type="file" id="portfolio-file-input"
-                   accept="image/*,video/*,.glb,.gltf,.fbx,.obj,.stl,.ply,.usdz,.blend" hidden>
-            <div id="portfolio-file-preview" class="portfolio-file-preview hidden"></div>
-            <p class="portfolio-file-hint">支持 JPG / PNG / WebP / GIF、MP4 / WebM / MOV、GLB / GLTF / FBX / OBJ / STL / PLY / USDZ / BLEND，单个文件不超过 120MB。</p>
+          <div id="portfolio-upload-progress" class="portfolio-upload-progress hidden">
+            <div class="portfolio-progress-bar"><span id="portfolio-progress-fill"></span></div>
+            <span id="portfolio-progress-text">0%</span>
+          </div>
+          <div id="portfolio-upload-status" class="portfolio-upload-status hidden"></div>
 
-            <input type="text" id="portfolio-title-input" class="nes-input" maxlength="80" placeholder="作品标题">
-            <textarea id="portfolio-desc-input" class="nes-textarea" rows="3" maxlength="500" placeholder="作品描述（可选）"></textarea>
-            <input type="url" id="portfolio-link-input" class="nes-input" maxlength="500" placeholder="作品链接 https://...（可选）">
+          <div class="portfolio-modal-tip admin-only">💡 新作品默认追加到末尾，排序可在卡片上拖拽手柄调整</div>
 
-            <div id="portfolio-upload-status" class="portfolio-upload-status hidden"></div>
-
-            <div class="portfolio-modal-actions">
-              <button id="portfolio-back-btn" class="nes-btn is-primary" type="button">← 上一步</button>
-              <button id="portfolio-save-btn" class="nes-btn is-success" type="button">⬆️ 上传并保存</button>
-            </div>
+          <div class="portfolio-modal-actions">
+            <button id="portfolio-cancel-btn" class="nes-btn" type="button">取消</button>
+            <button id="portfolio-save-btn" class="nes-btn is-success" type="button">⬆️ 上传并保存</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 图片 / 视频灯箱：点击卡片主体放大查看 -->
+    <div id="portfolio-lightbox" class="portfolio-lightbox hidden" aria-hidden="true">
+      <button class="portfolio-lightbox-close" type="button" aria-label="关闭">×</button>
+      <div class="portfolio-lightbox-stage">
+        <img id="portfolio-lightbox-img" alt="" hidden>
+        <video id="portfolio-lightbox-video" controls playsinline hidden></video>
+        <div id="portfolio-lightbox-title" class="portfolio-lightbox-title hidden"></div>
       </div>
     </div>
 

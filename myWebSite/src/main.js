@@ -16,6 +16,21 @@ import { initStyleSwitcher } from './styleSwitcher.js'
 const STYLE_STORAGE_KEY = 'roku-site-style'
 const SYNTH = 'synth'
 
+/* 先探测 WebGL 是否可用：不可用时直接放 UI，避免卡在「加载 3D」这一步 */
+function canUseWebGL() {
+  try {
+    const test = document.createElement('canvas')
+    const gl = test.getContext('webgl2') || test.getContext('webgl')
+    if (!gl) return false
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+const WEBGL_SUPPORTED = canUseWebGL()
+
 function readSavedStyle() {
   try {
     const saved = localStorage.getItem(STYLE_STORAGE_KEY)
@@ -26,26 +41,79 @@ function readSavedStyle() {
 }
 
 const loadingScreen = document.getElementById('loading-screen')
+const loadingProgressEl = document.getElementById('loading-progress')
+const loadingTextEl = document.getElementById('loading-text')
+
+function setLoadingProgress(value, label) {
+  if (loadingProgressEl) loadingProgressEl.value = value
+  if (loadingTextEl) loadingTextEl.textContent = label || `${Math.round(value)}%`
+}
+
 function hideLoadingScreen() {
   if (loadingScreen) loadingScreen.classList.add('hidden')
 }
 
+// 一开始就给出进度，避免长时间停在 0% 让人以为卡死
+setLoadingProgress(15)
+
+/* 加载屏保底逻辑：
+   - 至少显示 MIN_LOADING_TIME，避免一闪而过
+   - 最多等 SCENE_WAIT_BEFORE_REVEAL 让 3D 先加载；超时则先放 UI，场景稍后补上
+   - LOADING_HARD_TIMEOUT 兜底：任何异常都不允许加载屏永久盖住页面 */
+const MIN_LOADING_TIME = 500
+const SCENE_WAIT_BEFORE_REVEAL = 2500
+const LOADING_HARD_TIMEOUT = 8000
+const bootStartedAt = performance.now()
+
+let uiRevealed = false
+function revealUI() {
+  if (uiRevealed) return
+  uiRevealed = true
+  const wait = Math.max(0, MIN_LOADING_TIME - (performance.now() - bootStartedAt))
+  window.setTimeout(hideLoadingScreen, wait)
+}
+window.setTimeout(hideLoadingScreen, LOADING_HARD_TIMEOUT)
+
+let resolveSceneReady = null
+const sceneReadyPromise = new Promise((resolve) => {
+  resolveSceneReady = resolve
+})
+
 let sceneModulePromise = null
 // 仅在合成波风格下加载 3D 场景；重复调用复用同一个 import Promise
-function loadScene() {
+async function loadScene(allowRetry = true) {
   if (sceneModulePromise) return sceneModulePromise
-  sceneModulePromise = import('./sceneApp.js').catch((error) => {
-    // 加载失败时清空缓存，允许下一次切回 synth 时重试
-    sceneModulePromise = null
-    hideLoadingScreen()
-    console.error('3D 场景加载失败:', error)
-    throw error
-  })
+  sceneModulePromise = (async () => {
+    try {
+      const module = await import('./sceneApp.js')
+      setLoadingProgress(90)
+      resolveSceneReady?.()
+      return module
+    } catch (error) {
+      sceneModulePromise = null
+      // 弱网或临时 404：等一会儿自动重试一次，避免用户只能手动刷新
+      if (allowRetry) {
+        setLoadingProgress(25, '网络较慢，正在重试...')
+        await new Promise((resolve) => window.setTimeout(resolve, 1200))
+        return loadScene(false)
+      }
+      hideLoadingScreen()
+      console.error('3D 场景加载失败:', error)
+      throw error
+    }
+  })()
   return sceneModulePromise
 }
 
+// 构建产物地址变化时浏览器会派发该事件（Vite 运行时），顺手重试一次
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  console.warn('静态资源加载失败，正在重试...')
+  loadScene().catch(() => {})
+})
+
 // 首屏就是 synth 时立刻开始下载场景 chunk，与 UI 初始化并行
-if (readSavedStyle() === SYNTH) {
+if (WEBGL_SUPPORTED && readSavedStyle() === SYNTH) {
   loadScene().catch(() => {})
 }
 
@@ -229,24 +297,38 @@ const init = async () => {
     .catch((error) => console.warn('歌单后台加载失败:', error))
 
   const style = document.documentElement.dataset.style || SYNTH
-  if (style === SYNTH) {
+  if (style === SYNTH && WEBGL_SUPPORTED) {
     loadScene().catch(() => {})
-  } else {
-    // 非 synth 没有 3D 启动流程，加载屏由 UI 直接收掉
-    hideLoadingScreen()
+    // 给 3D 一点先发优势；超过 2.5s 还没好就先放 UI，场景就绪后再补进画面
+    await Promise.race([
+      sceneReadyPromise,
+      new Promise((resolve) => window.setTimeout(resolve, SCENE_WAIT_BEFORE_REVEAL))
+    ])
+  } else if (style === SYNTH) {
+    console.warn('当前浏览器不支持 WebGL，跳过 3D 场景')
   }
+  revealUI()
 
   document.addEventListener('siteStyleChange', (event) => {
     if (event.detail?.style === SYNTH) {
-      loadScene().catch(() => {})
+      if (WEBGL_SUPPORTED) loadScene().catch(() => {})
+      revealUI()
     }
   })
 }
 
+const boot = () => {
+  init().catch((error) => {
+    // 初始化异常时也要收起加载屏，保证用户能看到可用界面
+    console.error('初始化失败:', error)
+    revealUI()
+  })
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init)
+  document.addEventListener('DOMContentLoaded', boot)
 } else {
-  init()
+  boot()
 }
 
 /* 生产环境注册 Service Worker：二次访问时静态资源直接走本地缓存 */

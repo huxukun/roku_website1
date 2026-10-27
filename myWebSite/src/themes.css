@@ -57,6 +57,12 @@ html[data-style="synth"] .bg-y2k {
   display: none;
 }
 
+/* synth 下 3D 尚未就绪或加载失败时，用静态霓虹渐变兜底，避免整屏纯黑 */
+html[data-style="synth"] body {
+  background:
+    radial-gradient(ellipse 120% 78% at 50% 74%, #1b0038 0%, #0b0122 45%, #050510 78%);
+}
+
 /* 非 synth 风格隐藏 3D 画布与 CRT 叠加层，避免视觉打架 */
 html[data-style="aero"] .webgl,
 html[data-style="y2k"] .webgl,
