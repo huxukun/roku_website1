@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-30",
+  "generated_at": "2026-10-30T01:36:17Z",
+  "apod": {
+    "title": "The Horns of Venus",
+    "date": "2026-10-29",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/venus_20261024a.jpg?w=744&h=744&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/venus_20261024a.jpg?w=744&h=744&fit=clip&crop=faces%2Cfocalpoint",
+    "thumbnail_url": "",
+    "explanation": "Explanation: That's no moon. But you could be forgiven for thinking it was a crescent Moon in the sky. It is a lesser known fact that Venus also has phases . (What about other planets? ) The featured image shows Venus seen almost directly between the Sun and the Earth. This happens once every year and a half , and it is like the alignment that happens every month during a new Moon. But the new Moon is dark, while Venus' backlit atmosphere refracts and scatters the sunlight, creating a glowing crescent arc that extends beyond 180 degrees: the tips of this arc are called the \"horns\". The crescent can be seen with a small telescope or binoculars during twilight, but those with exceptionally acute eyesight may be able to see it with the unaided eye. Ancient Babylonian astronomers may have been the first to study Venus' brightness changes, which are related to its phases . Many other cultures have similar astronomical records, including the oldest surviving Maya book . Tomorrow's picture: a cosmic haunting",
+    "copyright": "Thierry Legault"
+  },
+  "moon": {
+    "phase": 0.647,
+    "illumination": 0.801,
+    "name": "亏凸月",
+    "emoji": "🌖"
+  },
+  "sun": {
+    "sunrise": "06:19",
+    "sunset": "17:17"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 60,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "22:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东",
+      "altitude": 54,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 18,
+    "zhr": 15
+  }
+}
