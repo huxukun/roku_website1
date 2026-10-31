@@ -1,31 +1,31 @@
 {
-  "date": "2026-10-30",
-  "generated_at": "2026-10-30T01:36:17Z",
+  "date": "2026-10-31",
+  "generated_at": "2026-10-31T01:26:10Z",
   "apod": {
-    "title": "The Horns of Venus",
-    "date": "2026-10-29",
+    "title": "Haunting the Cepheus Flare",
+    "date": "2026-10-30",
     "media_type": "image",
-    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/venus_20261024a.jpg?w=744&h=744&fit=clip&crop=faces%2Cfocalpoint",
-    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/venus_20261024a.jpg?w=744&h=744&fit=clip&crop=faces%2Cfocalpoint",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/CepheusFlare_Tondinelli.jpg?w=6000&h=4076&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/CepheusFlare_Tondinelli.jpg?w=6000&h=4076&fit=clip&crop=faces%2Cfocalpoint",
     "thumbnail_url": "",
-    "explanation": "Explanation: That's no moon. But you could be forgiven for thinking it was a crescent Moon in the sky. It is a lesser known fact that Venus also has phases . (What about other planets? ) The featured image shows Venus seen almost directly between the Sun and the Earth. This happens once every year and a half , and it is like the alignment that happens every month during a new Moon. But the new Moon is dark, while Venus' backlit atmosphere refracts and scatters the sunlight, creating a glowing crescent arc that extends beyond 180 degrees: the tips of this arc are called the \"horns\". The crescent can be seen with a small telescope or binoculars during twilight, but those with exceptionally acute eyesight may be able to see it with the unaided eye. Ancient Babylonian astronomers may have been the first to study Venus' brightness changes, which are related to its phases . Many other cultures have similar astronomical records, including the oldest surviving Maya book . Tomorrow's picture: a cosmic haunting",
-    "copyright": "Thierry Legault"
+    "explanation": "Explanation: Spooky shapes seem to haunt this dusty expanse, drifting through the night in the royal constellation Cepheus . Of course, the shapes are cosmic dust clouds visible in dimly reflected starlight. Far from your own neighborhood , they lurk above the plane of the Milky Way at the edge of the Cepheus Flare molecular cloud complex some 1,200 light-years away. Over 2 light-years across and brighter than most of the other ghostly apparitions, vdB 141 or Sh2-136 is also known as the Ghost Nebula . It lies at lower right in the starry field of view. Inside the Ghost Nebula are reddish telltale signs of dense cores collapsing in the early stages of star formation . With the eerie hue of interstellar dust reflecting bluish light from hot young stars of NGC 7023, the Iris Nebula stands out against the dark just left of center. In the broad telescopic frame , these fertile interstellar dust fields stretch almost six full moons across the sky. Tomorrow's picture: night on a spooky planet",
+    "copyright": "Mirko Tondinelli"
   },
   "moon": {
-    "phase": 0.647,
-    "illumination": 0.801,
+    "phase": 0.681,
+    "illumination": 0.71,
     "name": "亏凸月",
     "emoji": "🌖"
   },
   "sun": {
-    "sunrise": "06:19",
-    "sunset": "17:17"
+    "sunrise": "06:20",
+    "sunset": "17:16"
   },
   "planets": [
     {
       "name": "火星",
       "azimuth": "东南",
-      "altitude": 60,
+      "altitude": 61,
       "time": "05:00"
     },
     {
@@ -36,15 +36,15 @@
     },
     {
       "name": "木星",
-      "azimuth": "东",
-      "altitude": 54,
+      "azimuth": "东南",
+      "altitude": 55,
       "time": "05:00"
     }
   ],
   "event": {
     "name": "狮子座流星雨",
     "date": "2026-11-17",
-    "days": 18,
+    "days": 17,
     "zhr": 15
   }
 }
