@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-01",
+  "generated_at": "2026-11-01T00:44:51Z",
+  "apod": {
+    "title": "Night on a Spooky Planet",
+    "date": "2026-10-31",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/Hverir_Vetter_1300.jpg?w=1300&h=867&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/Hverir_Vetter_1300.jpg?w=1300&h=867&fit=clip&crop=faces%2Cfocalpoint",
+    "thumbnail_url": "",
+    "explanation": "Explanation: What spooky planet is this? Planet Earth on a dark and stormy night, of course. The ghostly scene was photographed at Hverir , a geothermally active area found along northeastern Iceland's volcanic landscape . Triggered by solar activity , geomagnetic storms have unleashed energetic particles trapped in Earth's magnetic field. Penetrating the planet's upper atmosphere at high latitudes, the particles create auroral displays in the starry night sky. Ghostly towers of steam and gas are venting from local fumaroles to dance against the eerie, greenish northern lights. For now, auroral activity on planet Earth remains in a high state as the Sun is only in early phases of decline from the peak of its solar activity cycle . And soon, other ghostly apparitions may dance in your neighborhood. Happy Halloween ! Tomorrow's picture: many moons",
+    "copyright": "Stéphane Vetter ( Nuits sacrées )"
+  },
+  "moon": {
+    "phase": 0.715,
+    "illumination": 0.609,
+    "name": "亏凸月",
+    "emoji": "🌖"
+  },
+  "sun": {
+    "sunrise": "06:21",
+    "sunset": "17:15"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 61,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "22:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 56,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 16,
+    "zhr": 15
+  }
+}
