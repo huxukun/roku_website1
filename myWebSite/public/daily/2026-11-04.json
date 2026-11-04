@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-04",
+  "generated_at": "2026-11-04T01:55:46Z",
+  "apod": {
+    "title": "Comet PanSTARRs and Rainbow Meteor",
+    "date": "2026-11-03",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/CometMeteor_Metais_1934.jpg?w=0&h=0&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/CometMeteor_Metais_1934.jpg?w=0&h=0&fit=clip&crop=faces%2Cfocalpoint",
+    "thumbnail_url": "",
+    "explanation": "Explanation: Did this meteor come from that comet? Probably not. Although many meteors do originate from comets, there are thousands of comets that have visited the inner Solar System recently, and matching meteors to them can be tricky. And to be clear, the pictured comet is far behind the streaking meteor . Comet C/2025 R3 (PanSTARRS) was captured from Hautacam , France in April when the giant space iceberg sported impressive ion (blue) and dust tails . Sand-sized rocky debris that enters Earth’s atmosphere typically appears as meteors , while the colorful foreground streak here may indicate a complicated composition. This month three notable meteor showers will reach their peaks. Over the next few days, the Southern Taurids will be reaching their apex, while the Northern Taurids will top out about a week later. Both originate from Comet 2P/Encke . November is most famous for the Leonids Meteor Shower , though, which originates from Comet 55P/Tempel-Tuttle and will reach its crescendo in about two weeks. Tomorrow's picture: a hidden gem",
+    "copyright": "Eddy Metais"
+  },
+  "moon": {
+    "phase": 0.817,
+    "illumination": 0.297,
+    "name": "残月",
+    "emoji": "🌘"
+  },
+  "sun": {
+    "sunrise": "06:23",
+    "sunset": "17:12"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 62,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "22:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 58,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 13,
+    "zhr": 15
+  }
+}
