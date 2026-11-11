@@ -1,25 +1,25 @@
 {
-  "date": "2026-11-10",
-  "generated_at": "2026-11-10T03:58:08Z",
+  "date": "2026-11-11",
+  "generated_at": "2026-11-11T01:43:25Z",
   "apod": {
-    "title": "Rigel and the Witch Head Nebula",
-    "date": "2026-11-09",
+    "title": "Saturn Behind the Moon",
+    "date": "2026-11-10",
     "media_type": "image",
-    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/WitchHead_Czerski_3000.jpg?w=3000&h=1990&fit=clip&crop=faces%2Cfocalpoint",
-    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/WitchHead_Czerski_3000.jpg?w=3000&h=1990&fit=clip&crop=faces%2Cfocalpoint",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Moonsaturn6_Ortu_2124.jpg?w=2124&h=1582&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Moonsaturn6_Ortu_2124.jpg?w=2124&h=1582&fit=clip&crop=faces%2Cfocalpoint",
     "thumbnail_url": "",
-    "explanation": "Explanation: Does the blue nebula look like the head of a witch? The nebula is known popularly as the Witch Head Nebula because, it is said, the nebula's shape resembles a Halloween-style caricature of a witch's head. Exactly how, though, can be a topic of imaginative speculation . What is clear is that IC 2118 is about 50 light-years across and made of gas and dust that points to -- because it has been partly eroded by -- the nearby star Rigel . One of the brighter stars in the constellation Orion, Rigel lies just below the center of the featured image . The blue color of the Witch Head Nebula and is caused not only by Rigel's intense blue starlight but also because the dust grains scatter blue light more efficiently than red. The same physical process causes Earth's daytime sky to appear blue , although the scatterers in planet Earth's atmosphere are molecules of nitrogen and oxygen . Tomorrow's picture: suddenly Saturn",
-    "copyright": "Piotr Czerski"
+    "explanation": "Explanation: Sometimes Saturn disappears. It doesn't really go away, of course -- it just disappears from our view when Earth's Moon moves in front. Such a Saturn ian eclipse, more formally called an occultation , was visible in early 2025 along a small swath of Earth -- from Greenland through central Europe and into northern Africa . The featured image is a digital fusion of three images, the first of just Saturn before it disappeared, and then two more of the Moon with different exposure lengths. The images were taken from Sardinia , Italy , after sunset. The bright dot near Saturn is not a moon of Saturn , but rather the star 85 Aquarii , which is further behind Saturn than Saturn is behind the Moon. The next time the Moon moves in front of Saturn, as visible from some place on Earth , will be in 2031. Tomorrow's picture: small but mighty",
+    "copyright": "Roberto Ortu"
   },
   "moon": {
-    "phase": 0.02,
-    "illumination": 0.004,
-    "name": "新月",
-    "emoji": "🌑"
+    "phase": 0.054,
+    "illumination": 0.028,
+    "name": "蛾眉月",
+    "emoji": "🌒"
   },
   "sun": {
-    "sunrise": "06:28",
-    "sunset": "17:08"
+    "sunrise": "06:29",
+    "sunset": "17:07"
   },
   "planets": [
     {
@@ -31,20 +31,20 @@
     {
       "name": "木星",
       "azimuth": "东南",
-      "altitude": 61,
+      "altitude": 62,
       "time": "05:00"
     },
     {
       "name": "土星",
       "azimuth": "南",
-      "altitude": 58,
+      "altitude": 59,
       "time": "21:00"
     }
   ],
   "event": {
     "name": "狮子座流星雨",
     "date": "2026-11-17",
-    "days": 7,
+    "days": 6,
     "zhr": 15
   }
 }
