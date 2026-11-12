@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-12",
+  "generated_at": "2026-11-12T02:43:03Z",
+  "apod": {
+    "title": "NGC 4449: Small Galaxy, Big Impact",
+    "date": "2026-11-11",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/missions/hubble/galaxies/irregular/NGC%204449.jpg?w=2048&h=1320&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/missions/hubble/galaxies/irregular/NGC%204449.jpg?w=2048&h=1320&fit=clip&crop=faces%2Cfocalpoint",
+    "thumbnail_url": "",
+    "explanation": "Explanation: Don’t judge a galaxy by its size. Our home galaxy, the Milky Way , is about 100,000 light years across. This huge expanse of space contains hundreds of billions of stars! The smallest galaxies, called dwarf galaxies , are about 1/10th the size of the Milky Way and only contain a few billion stars. They are also the most common type of galaxy in the whole universe. Today’s image shows one such dwarf galaxy, NGC 4449 , captured by the Hubble Space Telescope . NGC 4449 and similar dwarf galaxies are missing more oxygen than models predict. This suggests their stellar winds and supernovae are surprisingly effective at blowing away oxygen and other heavy elements. Turns out these tiny galaxies may play a big role in spreading heavy elements — the building blocks of stars, planets, and life — throughout the universe! Tomorrow's picture: a date in Poland",
+    "copyright": "NASA, ESA, A. Aloisi (STScI/ESA), and the Hubble Heritage (STScI/AURA)-ESA/Hubble Collaboration"
+  },
+  "moon": {
+    "phase": 0.088,
+    "illumination": 0.074,
+    "name": "蛾眉月",
+    "emoji": "🌒"
+  },
+  "sun": {
+    "sunrise": "06:30",
+    "sunset": "17:07"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 64,
+      "time": "05:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 63,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "21:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 5,
+    "zhr": 15
+  }
+}
