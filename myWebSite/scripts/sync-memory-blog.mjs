@@ -22,7 +22,11 @@ const API = 'https://api.github.com'
 const REPO = process.env.MEMORY_REPO || 'huxukun/second-brain-memory'
 const REF = process.env.MEMORY_REF || 'main'
 const TOKEN = process.env.MEMORY_TOKEN
-const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '')
+// 容错：允许误填带 /rest/v1 的 API URL
+const SB_URL = (process.env.SUPABASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(/\/rest\/v1$/, '')
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
 
 // 只扫这三个目录，而且还要卡片自己写 公开: true
