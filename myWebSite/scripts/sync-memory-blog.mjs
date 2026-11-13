@@ -126,8 +126,10 @@ async function supabase(path, init = {}) {
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
     ...init,
     headers: {
-      apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
+      // 旧版 service_role 是 JWT，需要 Bearer；新版 sb_secret_ 只能放 apikey
+      ...(SB_KEY.startsWith('eyJ')
+        ? { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
+        : { apikey: SB_KEY }),
       'Content-Type': 'application/json',
       ...(init.headers || {})
     },
