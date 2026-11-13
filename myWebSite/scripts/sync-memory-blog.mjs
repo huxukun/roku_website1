@@ -84,12 +84,23 @@ async function listMarkdown() {
     .filter((n) => n.type === 'blob' && n.path.endsWith('.md'))
     .map((n) => n.path)
     .filter((p) => SOURCE_DIRS.some((d) => p.startsWith(d)))
-    .filter((p) => !/\/README\.md$/i.test(p) && !p.endsWith('/.gitkeep'))
+    .filter((p) => !/\/README\.md$/i.test(p) && !p.endsWith('/.gitkeep') && !p.split('/').pop().startsWith('_'))
 }
 
 async function readFile(path) {
   const res = await gh(`/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${REF}`, 'application/vnd.github.raw')
   return res.text()
+}
+
+function firstParagraph(md) {
+  for (const raw of md.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    if (/^[#>\-|*`]|^\d+\./.test(line)) continue
+    const plain = line.replace(/[*`]/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    return plain.length > 90 ? `${plain.slice(0, 90)}…` : plain
+  }
+  return ''
 }
 
 function toPost(path, raw) {
@@ -99,7 +110,7 @@ function toPost(path, raw) {
   const fallbackTitle = /^#\s+(.+)$/m.exec(body)?.[1]?.trim()
   const title = (meta['标题'] || fallbackTitle || path.split('/').pop().replace(/\.md$/, '')).trim()
   const date = (meta['日期'] || /(\d{4}-\d{2}-\d{2})/.exec(path)?.[1] || new Date().toISOString().slice(0, 10)).trim()
-  const summary = (meta['摘要'] || '').trim()
+  const summary = (meta['摘要'] || firstParagraph(body)).trim()
   const content = (summary ? `> ${summary}\n\n` : '') + body.trim()
 
   return {
