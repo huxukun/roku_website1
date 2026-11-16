@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-16",
+  "generated_at": "2026-11-16T01:36:24Z",
+  "apod": {
+    "title": "Leonid Meteors Through Orion",
+    "date": "2026-11-15",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Leonids2022_Hongyang_2880.jpg?w=2880&h=3600&fit=clip&crop=faces%2Cfocalpoint",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Leonids2022_Hongyang_2880.jpg?w=2880&h=3600&fit=clip&crop=faces%2Cfocalpoint",
+    "thumbnail_url": "",
+    "explanation": "Explanation: Where will the next meteor appear? Even during a meteor shower, it is practically impossible to know. Therefore, a good way to enjoy a meteor shower is to find a place where you can sit comfortably and monitor a great expanse of dark sky. And it may be satisfying to share this experience with a friend. The meteor shower depicted was the 2022 Leonids and the view is from Hainan , China looking out over the South China Sea . Meteor streaks captured over a few hours were isolated and added to a foreground image recorded earlier. Leonid meteor streaks trace back to the constellation of Leo and were here seen streaking across the constellation of Orion. The bright red planet Mars appears near the top of the image. The Leonids peak in mid-November every year and so will peak again this week. Bonding over their love of astronomy, the two pictured meteor enthusiasts, shown celebrating their common birthday this month, were later married. Tomorrow's picture: open space",
+    "copyright": "Luo Hongyang"
+  },
+  "moon": {
+    "phase": 0.223,
+    "illumination": 0.416,
+    "name": "上弦",
+    "emoji": "🌓"
+  },
+  "sun": {
+    "sunrise": "06:34",
+    "sunset": "17:04"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 65,
+      "time": "05:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 65,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "21:00"
+    },
+    {
+      "name": "金星",
+      "azimuth": "东",
+      "altitude": 10,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 1,
+    "zhr": 15
+  }
+}
