@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-17",
+  "generated_at": "2026-11-17T04:20:24Z",
+  "apod": {
+    "title": "NGC 7129: Star Formation with Jets from Webb",
+    "date": "2026-11-16",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/content/dam/science/missions/webb/science/2026/10/weic2620a.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "hdurl": "https://assets.science.nasa.gov/content/dam/science/missions/webb/science/2026/10/weic2620a.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "thumbnail_url": "",
+    "explanation": "Explanation: How do stars form? To help answer this question, NASA used the James Webb Space Telescope to take the featured detailed image of the star-forming region NGC 7129 in infrared light . Star formation progresses when gravity pulls together massive amounts of gas, but soon things can get complicated when previously formed stars emit powerful jets and winds -- and some then explode . Opaque dust can form in the cool atmospheres of stars and, when dispersed, can obstruct visible-light images. Many stars can be seen to be forming in the featured image , with the young stars on the left, in the gold-colored gas, typically being more mature than the young stars on the right -- in the red region. Jets and wind s likely cause the filamentary nature of the red-colored gas. Studying stars at different stages of development bolsters understanding about what physical processes are most important and when. Tomorrow's picture: sky duel",
+    "copyright": "NASA , ESA , CSA , STScI , JWST ; Processing: A. Pagan ( STScI )"
+  },
+  "moon": {
+    "phase": 0.257,
+    "illumination": 0.521,
+    "name": "上弦",
+    "emoji": "🌓"
+  },
+  "sun": {
+    "sunrise": "06:35",
+    "sunset": "17:04"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 65,
+      "time": "05:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 65,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "21:00"
+    },
+    {
+      "name": "金星",
+      "azimuth": "东",
+      "altitude": 11,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "狮子座流星雨",
+    "date": "2026-11-17",
+    "days": 0,
+    "zhr": 15
+  }
+}
