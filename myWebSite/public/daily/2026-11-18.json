@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-18",
+  "generated_at": "2026-11-18T03:20:55Z",
+  "apod": {
+    "title": "Milky Way versus Aurora",
+    "date": "2026-11-17",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/GalaxyVsAurora_Scheib_960.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "hdurl": "https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/GalaxyVsAurora_Scheib_960.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "thumbnail_url": "",
+    "explanation": "Explanation: Are these two giant arches battling for control of the sky? No, but it sure looks like it! The arch on the left is the central band of our Milky Way Galaxy , an ancient system of stars, gas, and dust that predates our Earth and is very far away. The arch on the right, by contrast, is an auroral ribbon that is only hours old, composed of energized atoms and molecules , and is close by -- right in Earth's upper atmosphere . These chance-superposed titan s have our Sun in common, a stellar member of the Milky Way that ejects energetic particles which create aurora s. Far behind the middle of the auroral arch is the Big Dipper . Even farther in the distance is the Andromeda galaxy -- the bright spot near the top of the frame, just left of center. The featured image was taken about a month ago from Kvaløya in northern Norway . Tomorrow's picture: open space",
+    "copyright": "Guillaume Scheib"
+  },
+  "moon": {
+    "phase": 0.291,
+    "illumination": 0.626,
+    "name": "盈凸月",
+    "emoji": "🌔"
+  },
+  "sun": {
+    "sunrise": "06:35",
+    "sunset": "17:03"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 66,
+      "time": "05:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 66,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "21:00"
+    },
+    {
+      "name": "金星",
+      "azimuth": "东",
+      "altitude": 12,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "双子座流星雨",
+    "date": "2026-12-14",
+    "days": 26,
+    "zhr": 150
+  }
+}
