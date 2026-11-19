@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-19",
+  "generated_at": "2026-11-19T02:57:09Z",
+  "apod": {
+    "title": "A Medium-Sized Solar Flare",
+    "date": "2026-11-18",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/solar_M_flare.jpg?w=3000&h=2759&fit=clip",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/solar_M_flare.jpg?w=3000&h=2759&fit=clip",
+    "thumbnail_url": "",
+    "explanation": "Explanation: What a flare for the chromatic ! Today’s image combines a series of images taken over ten minutes capturing the Sun ’s chromosphere , the layer of the Sun ’s atmosphere above its surface where the temperature rises . Why would the Sun become hotter farther away from its core ? This is potentially due to energy from the swirling magnetic fields extending up through the Sun’s atmosphere. Those same magnetic fields can twist and snap , releasing light and energetic particles as a solar flare . The H-alpha filter used for today’s image captures light from energized hydrogen atoms as they travel off the Sun’s surface during a flare on May 14, 2025. This flare was classified as an M1 based on GOES observations , meaning it was moderately bright in X-rays . M-class flares can cause radio blackouts at Earth’s poles and minor radiation storms that can harm astronauts. They aren’t even the most powerful flares ! NASA, NOAA , and other agencies monitor the Sun to predict and identify such storms so we can protect humans on Earth and in space. Tomorrow's picture: a horse of a different color",
+    "copyright": "Mario Cogo"
+  },
+  "moon": {
+    "phase": 0.325,
+    "illumination": 0.726,
+    "name": "盈凸月",
+    "emoji": "🌔"
+  },
+  "sun": {
+    "sunrise": "06:36",
+    "sunset": "17:03"
+  },
+  "planets": [
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 66,
+      "time": "05:00"
+    },
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 66,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 59,
+      "time": "21:00"
+    },
+    {
+      "name": "金星",
+      "azimuth": "东",
+      "altitude": 12,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "双子座流星雨",
+    "date": "2026-12-14",
+    "days": 25,
+    "zhr": 150
+  }
+}
