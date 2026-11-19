@@ -2305,7 +2305,11 @@ export default class UIManager {
   // 初始化留言板
   async initGuestbook() {
     this.hideError();
-    this.updateStorageStatus(this.isSupabaseConfigured);
+    // 连接状态以真实请求结果为准，不能仅凭环境变量就显示「Supabase 在线」
+    if (this.storageStatus) {
+      this.storageStatus.classList.remove('online', 'offline');
+      this.updateStorageStatusTexts();
+    }
     
     if (this.isSupabaseConfigured) {
       // 先渲染上次缓存的留言，云端结果回来后再覆盖，避免进页面时留言区空白
