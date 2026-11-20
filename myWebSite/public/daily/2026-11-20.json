@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-20",
+  "generated_at": "2026-11-20T02:52:01Z",
+  "apod": {
+    "title": "The Horsehead and Flame Nebulas",
+    "date": "2026-11-19",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Horsehead_Nebula_Killion.jpg?w=6000&h=4800&fit=clip",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Horsehead_Nebula_Killion.jpg?w=6000&h=4800&fit=clip",
+    "thumbnail_url": "",
+    "explanation": "Explanation: Today's image could have been a painting. But what do these colors mean? The brightest star, left of the center, is blue Alnitak (the Girdle): a triple star system best known for being the easternmost star in Orion's Belt . The instantly recognizable shape of a dark horse's head at the center is the aptly named Horsehead Nebula . It is about five light-years tall and lies approximately 1,500 light-years away. It is made of dust and gas that obscure the red glow behind it, which is caused by hydrogen gas being ionized by the bright star Sigma Orionis at the top. The orange nebula with dark filaments on the left is the Flame Nebula . Closer to the Horsehead, the blue reflection nebula NGC 2023 is actively forming stars. The data for this \"painting\" were collected for almost six hours at the Utah Desert Remote Observatories , but the equipment was remotely controlled by the astrophotographer from his home, over 2,000 km away in Illinois . Tomorrow's picture: V-G-R",
+    "copyright": "Mark E. Killion"
+  },
+  "moon": {
+    "phase": 0.358,
+    "illumination": 0.815,
+    "name": "盈凸月",
+    "emoji": "🌔"
+  },
+  "sun": {
+    "sunrise": "06:37",
+    "sunset": "17:02"
+  },
+  "planets": [
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 67,
+      "time": "05:00"
+    },
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 66,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 58,
+      "time": "21:00"
+    },
+    {
+      "name": "金星",
+      "azimuth": "东",
+      "altitude": 13,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "双子座流星雨",
+    "date": "2026-12-14",
+    "days": 24,
+    "zhr": 150
+  }
+}
