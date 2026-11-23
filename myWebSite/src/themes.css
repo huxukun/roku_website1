@@ -733,7 +733,7 @@ html[data-style="aero"] .sheet-panel::after {
 html[data-style="aero"] .sheet-header {
   position: fixed;
   left: 50%;
-  bottom: 100px;
+  bottom: 118px;
   top: auto;
   z-index: 8;
   width: auto;
@@ -1361,6 +1361,10 @@ html[data-style="y2k"] .sheet-panel::after {
   animation: none;
   pointer-events: none;
   text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
+  /* 窄屏不允许换行撑高，超出部分省略，避免文字压出状态栏 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 左侧竖排导航栏 = 早期 Windows 应用的银色工具侧板 */
@@ -1932,7 +1936,7 @@ html[data-style="y2k"] .loading-screen {
     left: 14px;
     right: auto;
     transform: none;
-    width: calc(100vw - 98px);
+    width: calc(100vw - 160px);
     bottom: 102px;
     padding: 7px 12px 6px;
   }
@@ -2026,6 +2030,40 @@ html[data-style="y2k"] .loading-screen {
 
   html[data-style="y2k"] .sheet-section-title {
     font-size: 1.05rem;
+  }
+
+  /* 右下角悬浮控件：避开底部导航 / 胶囊 dock / 状态栏 */
+  html[data-style="aero"] #quote-trigger-btn,
+  html[data-style="y2k"] #quote-trigger-btn {
+    bottom: 190px;
+  }
+
+  /* aero 胶囊导航压缩按钮，6 项才能在 390px 宽度内完整放下 */
+  html[data-style="aero"] .sheet-header {
+    max-width: calc(100vw - 16px);
+    padding: 0.4rem 0.35rem;
+  }
+
+  html[data-style="aero"] .sheet-nav-btn {
+    padding: 0.42rem 0.4rem;
+    font-size: 0.58rem;
+  }
+
+  html[data-style="y2k"] .sheet-panel::after {
+    content: '◈ ROKU.EXE  ·  800×600  ·  56K';
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* synth 抽屉导航在窄屏/竖屏下贴底，把右侧悬浮控件整体抬到导航上方 */
+@media (max-width: 1100px), (max-aspect-ratio: 1 / 1) {
+  html[data-style="synth"] .lang-switcher {
+    bottom: calc(10vh + 24px);
+  }
+
+  html[data-style="synth"] #quote-trigger-btn {
+    bottom: calc(10vh + 88px);
   }
 }
 
