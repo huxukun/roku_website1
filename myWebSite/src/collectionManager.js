@@ -463,6 +463,8 @@ function render() {
     card.addEventListener('click', () => openLightbox(item));
     grid.appendChild(card);
   });
+
+  updateCollapseAvailability();
 }
 
 // 只刷新文字（空状态、按钮提示），不重建卡片
@@ -482,32 +484,51 @@ function applyTexts() {
   });
 }
 
-/* 折叠区文字随展开/收起状态与语言切换同步 */
+/* 折叠区文字随「前三行预览 / 展开」状态与语言切换同步 */
 function syncCollapseText() {
   const text = document.querySelector('.collection-toggle-text');
   const body = el('collection-body');
   if (!text || !body) return;
-  text.textContent = t(body.classList.contains('is-collapsed') ? 'collection-expand' : 'collection-collapse');
+  text.textContent = t(body.classList.contains('is-preview') ? 'collection-expand' : 'collection-collapse');
+}
+
+/* 卡片不足三行（没有可折叠内容）时隐藏按钮，避免点了没反应 */
+function updateCollapseAvailability() {
+  const toggle = el('collection-toggle');
+  const grid = el('collection-grid');
+  if (!toggle || !grid) return;
+
+  const card = grid.querySelector('.collection-card');
+  const rowGap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+  const limit = card ? card.offsetHeight * 3 + rowGap * 2 : 0;
+  const hasMore = limit > 0 && grid.scrollHeight > limit + 2;
+  toggle.classList.toggle('hidden', !hasMore);
 }
 
 function initCollectionCollapse() {
   const toggle = el('collection-toggle');
   const body = el('collection-body');
+  const grid = el('collection-grid');
   if (!toggle || !body) return;
 
-  const apply = (collapsed) => {
-    body.classList.toggle('is-collapsed', collapsed);
-    toggle.classList.toggle('is-open', !collapsed);
-    toggle.setAttribute('aria-expanded', String(!collapsed));
+  const apply = (preview) => {
+    body.classList.toggle('is-preview', preview);
+    toggle.classList.toggle('is-open', !preview);
+    toggle.setAttribute('aria-expanded', String(!preview));
     syncCollapseText();
   };
 
   toggle.addEventListener('click', () => {
-    apply(!body.classList.contains('is-collapsed'));
+    apply(!body.classList.contains('is-preview'));
   });
 
-  // 默认折叠状态写在 HTML 上，这里只对齐按钮文案与 aria
-  apply(body.classList.contains('is-collapsed'));
+  // 默认「前三行预览」写在 HTML 上，这里对齐按钮文案与 aria
+  apply(body.classList.contains('is-preview'));
+
+  // 列数/宽度变化会改变三行对应的像素高度，重新判断是否需要折叠
+  if (grid && typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => updateCollapseAvailability()).observe(grid);
+  }
 }
 
 async function handleFiles(fileList) {
