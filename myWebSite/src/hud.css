@@ -136,7 +136,7 @@ body.racer-active .hud-layer {
 }
 
 .hud-left {
-  left: 20px;
+  left: 12px;
   bottom: 96px;
   max-height: 44vh;
   display: flex;
@@ -157,7 +157,7 @@ body.racer-active .hud-layer {
   overflow: hidden;
   transform: perspective(900px) rotateY(-7deg);
   transform-origin: right center;
-  background: linear-gradient(270deg, rgba(0, 7, 11, 0.72) 0%, rgba(0, 7, 11, 0.34) 72%, transparent 100%);
+  background: linear-gradient(270deg, rgba(0, 7, 11, 0.3) 0%, rgba(0, 7, 11, 0.12) 72%, transparent 100%);
 }
 
 .hud-block {
@@ -295,8 +295,8 @@ body.racer-active .hud-layer {
 .hud-card {
   position: relative;
   padding: 9px 12px 10px;
-  border: 1px solid rgba(50, 234, 255, 0.2);
-  background: linear-gradient(180deg, rgba(0, 14, 22, 0.72), rgba(0, 6, 10, 0.46));
+  border: 1px solid rgba(50, 234, 255, 0.18);
+  background: linear-gradient(180deg, rgba(0, 14, 22, 0.3), rgba(0, 6, 10, 0.12));
 }
 
 .hud-card .hud-corner {

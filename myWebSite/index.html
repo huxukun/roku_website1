@@ -424,15 +424,23 @@
           <section id="sheet-collection" class="sheet-section">
             <div class="sheet-section-head">
               <h2 class="modal-title sheet-section-title">🖼️ 互联网收藏</h2>
-              <label for="collection-file-input" class="nes-btn is-success admin-only collection-upload-btn">
-                <span class="collection-upload-text">⬆️ 上传图片</span>
-              </label>
-              <input type="file" id="collection-file-input" accept="image/*" multiple hidden>
+              <div class="sheet-section-actions">
+                <label for="collection-file-input" class="nes-btn is-success admin-only collection-upload-btn">
+                  <span class="collection-upload-text">⬆️ 上传图片</span>
+                </label>
+                <input type="file" id="collection-file-input" accept="image/*" multiple hidden>
+                <button id="collection-toggle" class="sheet-collapse-btn" type="button" aria-expanded="false" aria-controls="collection-body">
+                  <span class="collection-toggle-text">展开</span>
+                  <span class="collection-toggle-icon" aria-hidden="true">▾</span>
+                </button>
+              </div>
             </div>
-            <p class="collection-subtitle">这里是我从互联网上捡到的图片收藏。</p>
             <div id="collection-upload-status" class="collection-upload-status hidden"></div>
-            <div id="collection-grid" class="collection-grid"></div>
-            <p id="collection-empty" class="collection-empty">还没有收藏，去互联网上捡点图吧。</p>
+            <div id="collection-body" class="collection-body is-collapsed">
+              <p class="collection-subtitle">这里是我从互联网上捡到的图片收藏。</p>
+              <div id="collection-grid" class="collection-grid"></div>
+              <p id="collection-empty" class="collection-empty">还没有收藏，去互联网上捡点图吧。</p>
+            </div>
           </section>
 
           <!-- ===== 06 留言板 ===== -->
