@@ -3727,8 +3727,14 @@ img.crt-bezel {
   transform: rotate(180deg);
 }
 
-/* 折叠后只保留标题行，图片网格彻底移出布局，懒加载图片也不会被提前下载 */
-.collection-body.is-collapsed {
+/* 折叠后只保留前三行卡片（卡片跨 2 个网格行，三行 = 6 行 + 5 个行间距） */
+.collection-body.is-preview .collection-grid {
+  max-height: calc(6 * var(--collection-row-h) + 5 * var(--collection-row-gap));
+  overflow: hidden;
+}
+
+/* 卡片不足三行时折叠按钮自动隐藏 */
+.sheet-collapse-btn.hidden {
   display: none;
 }
 
@@ -3756,11 +3762,13 @@ img.crt-bezel {
 
 /* 收藏网格：bento 式错落排布，避免整齐划一的图片墙 */
 .collection-grid {
+  --collection-row-h: 104px;
+  --collection-row-gap: 0.9rem;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  grid-auto-rows: 104px;
+  grid-auto-rows: var(--collection-row-h);
   grid-auto-flow: dense;
-  gap: 0.9rem;
+  gap: var(--collection-row-gap);
 }
 
 .collection-card {
@@ -4081,9 +4089,9 @@ img.crt-bezel {
   }
 
   .collection-grid {
+    --collection-row-h: 84px;
+    --collection-row-gap: 0.6rem;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    grid-auto-rows: 84px;
-    gap: 0.6rem;
   }
 
   /* 移动端关闭持续动画，只保留静态纹理 */
