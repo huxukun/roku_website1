@@ -3690,13 +3690,6 @@ img.crt-bezel {
   cursor: pointer;
 }
 
-/* 分区标题右侧的操作按钮组（上传 / 折叠） */
-.sheet-section-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
 /* 互联网收藏折叠开关 */
 .sheet-collapse-btn {
   display: inline-flex;
@@ -3725,6 +3718,43 @@ img.crt-bezel {
 
 .sheet-collapse-btn.is-open .collection-toggle-icon {
   transform: rotate(180deg);
+}
+
+/* 预览态：展开按钮浮在最后一行卡片的渐隐遮罩上 */
+.collection-grid-wrap {
+  position: relative;
+  --collection-fade: rgba(2, 4, 10, 0.88);
+}
+
+.collection-more {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 104px;
+  padding-bottom: 0.15rem;
+  background: linear-gradient(180deg, transparent 0%, var(--collection-fade) 92%);
+  pointer-events: none;
+}
+
+.collection-more .sheet-collapse-btn {
+  pointer-events: auto;
+}
+
+/* 展开后按钮落到网格下方，遮罩退场 */
+.collection-body:not(.is-preview) .collection-more {
+  position: static;
+  height: auto;
+  margin-top: 0.9rem;
+  padding: 0;
+  background: none;
+}
+
+.collection-more.is-empty {
+  display: none;
 }
 
 /* 折叠后只保留前三行卡片（卡片跨 2 个网格行，三行 = 6 行 + 5 个行间距） */

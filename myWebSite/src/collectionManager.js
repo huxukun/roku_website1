@@ -496,13 +496,25 @@ function syncCollapseText() {
 function updateCollapseAvailability() {
   const toggle = el('collection-toggle');
   const grid = el('collection-grid');
-  if (!toggle || !grid) return;
+  const body = el('collection-body');
+  const more = document.querySelector('.collection-more');
+  const count = document.querySelector('.collection-toggle-count');
+  if (!toggle || !grid || !body) return;
 
   const card = grid.querySelector('.collection-card');
   const rowGap = parseFloat(getComputedStyle(grid).rowGap) || 0;
   const limit = card ? card.offsetHeight * 3 + rowGap * 2 : 0;
   const hasMore = limit > 0 && grid.scrollHeight > limit + 2;
+  const previewing = body.classList.contains('is-preview');
+
   toggle.classList.toggle('hidden', !hasMore);
+  if (more) more.classList.toggle('is-empty', !hasMore);
+
+  // 与留言板一致，折叠时在按钮上显示被收起的数量
+  const hiddenCount = hasMore && previewing
+    ? Array.from(grid.children).filter((node) => node.offsetTop >= limit - 1).length
+    : 0;
+  if (count) count.textContent = hiddenCount > 0 ? `(+${hiddenCount})` : '';
 }
 
 function initCollectionCollapse() {
@@ -516,6 +528,7 @@ function initCollectionCollapse() {
     toggle.classList.toggle('is-open', !preview);
     toggle.setAttribute('aria-expanded', String(!preview));
     syncCollapseText();
+    updateCollapseAvailability();
   };
 
   toggle.addEventListener('click', () => {
