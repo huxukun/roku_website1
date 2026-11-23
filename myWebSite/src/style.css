@@ -3712,18 +3712,22 @@ img.crt-bezel {
   border-color: rgba(0, 255, 255, 0.6);
 }
 
-.sheet-collapse-btn .collection-toggle-icon {
+.sheet-collapse-btn .collapse-toggle-icon {
   transition: transform 0.25s ease;
 }
 
-.sheet-collapse-btn.is-open .collection-toggle-icon {
+.sheet-collapse-btn.is-open .collapse-toggle-icon {
   transform: rotate(180deg);
 }
 
-/* 预览态：展开按钮浮在最后一行卡片的渐隐遮罩上 */
+/* 折叠预览遮罩：默认取合成波深色底，aero / y2k 在 themes.css 覆盖 */
+:root {
+  --collapse-fade: rgba(2, 4, 10, 0.88);
+}
+
+/* 预览态：展开按钮浮在最后一行内容的渐隐遮罩上 */
 .collection-grid-wrap {
   position: relative;
-  --collection-fade: rgba(2, 4, 10, 0.88);
 }
 
 .collection-more {
@@ -3736,7 +3740,7 @@ img.crt-bezel {
   justify-content: center;
   height: 104px;
   padding-bottom: 0.15rem;
-  background: linear-gradient(180deg, transparent 0%, var(--collection-fade) 92%);
+  background: linear-gradient(180deg, transparent 0%, var(--collapse-fade) 92%);
   pointer-events: none;
 }
 
@@ -3754,6 +3758,45 @@ img.crt-bezel {
 }
 
 .collection-more.is-empty {
+  display: none;
+}
+
+/* 博客列表：默认只展开前 6 篇，其余折叠 */
+.blog-list-wrap {
+  position: relative;
+}
+
+.blog-list-wrap.is-preview .blog-list .blog-item:nth-child(n + 7) {
+  display: none;
+}
+
+.blog-more {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 72px;
+  padding-bottom: 0.15rem;
+  background: linear-gradient(180deg, transparent 0%, var(--collapse-fade) 92%);
+  pointer-events: none;
+}
+
+.blog-more .sheet-collapse-btn {
+  pointer-events: auto;
+}
+
+.blog-list-wrap:not(.is-preview) .blog-more {
+  position: static;
+  height: auto;
+  margin-top: 0.6rem;
+  padding: 0;
+  background: none;
+}
+
+.blog-list-wrap.is-empty .blog-more {
   display: none;
 }
 

@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
  * 三风格主题 THEMES
  *  - html[data-style="synth"]  合成波（默认，沿用原 style.css 的 3D 霓虹）
  *  - html[data-style="aero"]   Frutiger Aero & SolarPunk（明亮 / 玻璃 / 天空 / 绿植）
@@ -2427,12 +2427,13 @@ html[data-style="y2k"] .portfolio-modal-actions {
 }
 
 /* --------------------------------------------------------------------------
- * 收藏预览遮罩：与各主题抽屉底色对齐，展开按钮叠在渐隐区上
+ * 折叠预览遮罩：与各主题抽屉底色对齐，展开按钮叠在渐隐区上
  * -------------------------------------------------------------------------- */
-html[data-style="aero"] .collection-grid-wrap {
-  --collection-fade: rgba(246, 253, 255, 0.94);
+html[data-style="aero"] {
+  --collapse-fade: rgba(246, 253, 255, 0.94);
 }
 
-html[data-style="y2k"] .collection-grid-wrap {
-  --collection-fade: var(--win-face, #d9d9e3);
+html[data-style="y2k"] {
+  --collapse-fade: var(--win-face, #d9d9e3);
 }
+

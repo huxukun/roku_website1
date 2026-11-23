@@ -391,7 +391,16 @@
                   <h3 class="article-list-label">📌 文章列表</h3>
                   <button id="add-blog-btn" class="nes-btn is-success admin-only" style="font-size: 0.6rem; padding: 0.3rem 0.5rem;"><span class="add-blog-text">➕ 新建</span></button>
                 </div>
-                <div id="blog-list" class="blog-list"></div>
+                <div class="blog-list-wrap is-preview">
+                  <div id="blog-list" class="blog-list"></div>
+                  <div class="blog-more">
+                    <button id="blog-toggle" class="sheet-collapse-btn" type="button" aria-expanded="false" aria-controls="blog-list">
+                      <span class="blog-toggle-text">展开</span>
+                      <span class="blog-toggle-count"></span>
+                      <span class="collapse-toggle-icon" aria-hidden="true">▾</span>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="blog-content">
                 <div id="blog-preview" class="blog-preview blog-content-loading">
@@ -438,7 +447,7 @@
                   <button id="collection-toggle" class="sheet-collapse-btn" type="button" aria-expanded="false" aria-controls="collection-grid">
                     <span class="collection-toggle-text">展开</span>
                     <span class="collection-toggle-count"></span>
-                    <span class="collection-toggle-icon" aria-hidden="true">▾</span>
+                    <span class="collapse-toggle-icon" aria-hidden="true">▾</span>
                   </button>
                 </div>
               </div>
