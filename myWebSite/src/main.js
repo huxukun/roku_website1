@@ -1,5 +1,6 @@
 import './style.css'
 import './themes.css'
+import './hud.css'
 import UIManager from './UIManager.js'
 import { initImageCollection } from './collectionManager.js'
 import { initSkillsManager } from './skillsManager.js'
@@ -7,6 +8,8 @@ import { initDailySky } from './dailySky.js'
 import musicService from './MusicService.js'
 import { loadSavedLang, setCurrentLang, getCurrentLang } from './i18n.js'
 import { initStyleSwitcher } from './styleSwitcher.js'
+import { initBootScreen, markBootStep, finishBoot, minBootVisibleRemaining } from './bootSequence.js'
+import { initHud } from './hud.js'
 
 /* ==========================================================================
  * 入口模块只负责 UI，3D 场景按需动态加载（见 sceneApp.js）。
@@ -66,13 +69,30 @@ const LOADING_HARD_TIMEOUT = 8000
 const bootStartedAt = performance.now()
 
 let uiRevealed = false
+
+function completeBoot() {
+  finishBoot()
+  // HUD 在自检结束后淡入，避免和加载屏叠在一起
+  document.body.classList.add('hud-live')
+}
+
 function revealUI() {
   if (uiRevealed) return
   uiRevealed = true
-  const wait = Math.max(0, MIN_LOADING_TIME - (performance.now() - bootStartedAt))
+  const minRemaining = Math.max(0, MIN_LOADING_TIME - (performance.now() - bootStartedAt))
+  const wait = Math.max(minRemaining, minBootVisibleRemaining())
+  // 自检最后一行在收起前完成并闪烁，不额外增加等待
+  if (wait > 240) {
+    window.setTimeout(completeBoot, wait - 100)
+  } else {
+    completeBoot()
+  }
   window.setTimeout(hideLoadingScreen, wait)
 }
-window.setTimeout(hideLoadingScreen, LOADING_HARD_TIMEOUT)
+window.setTimeout(() => {
+  completeBoot()
+  hideLoadingScreen()
+}, LOADING_HARD_TIMEOUT)
 
 let resolveSceneReady = null
 const sceneReadyPromise = new Promise((resolve) => {
@@ -87,6 +107,7 @@ async function loadScene(allowRetry = true) {
     try {
       const module = await import('./sceneApp.js')
       setLoadingProgress(90)
+      markBootStep('scene', 'RENDER PIPELINE', 'ok')
       resolveSceneReady?.()
       return module
     } catch (error) {
@@ -97,7 +118,9 @@ async function loadScene(allowRetry = true) {
         await new Promise((resolve) => window.setTimeout(resolve, 1200))
         return loadScene(false)
       }
+      completeBoot()
       hideLoadingScreen()
+      markBootStep('scene', 'RENDER PIPELINE', 'fail')
       console.error('3D 场景加载失败:', error)
       throw error
     }
@@ -266,6 +289,8 @@ function preconnectFirstSong() {
 let uiManager = null
 
 const init = async () => {
+  initBootScreen()
+  markBootStep('core', 'BOOTING CORE', 'ok')
   loadSavedLang()
   setupLanguageSwitcher()
 
@@ -276,10 +301,19 @@ const init = async () => {
   window.musicService = musicService
   // 先读上次的歌单缓存，让音乐按钮与列表立即可用，云端刷新在后台进行
   musicService.loadCache()
+  markBootStep('music', 'MUSIC CACHE', 'ok')
 
   uiManager = new UIManager()
+  markBootStep('ui', 'UI MODULES', 'ok')
   // 供风格切换器在回到 synth 时复位内容抽屉
   window.__rokuUI = uiManager
+
+  // 赛博终端 HUD：仅 synth 显示，异常不影响主界面
+  try {
+    initHud()
+  } catch (error) {
+    console.warn('HUD 初始化失败:', error)
+  }
 
   initImageCollection()
   initSkillsManager()

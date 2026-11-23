@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase.js';
 import { t, tf, getCurrentLang } from './i18n.js';
+import { markCache, setCounts, notifyActivity, logEvent } from './hudTelemetry.js';
 
 const TABLE = 'collection_items';
 const BUCKET = 'collection-images';
@@ -18,6 +19,8 @@ let items = [];
 let initialized = false;
 let lightbox = null;
 let likedIds = readLikedIds();
+// 上一次已知的最新上传时间，用于识别新增收藏并通知 HUD
+let lastActivityAt = 0;
 
 const el = (id) => document.getElementById(id);
 
@@ -150,6 +153,7 @@ function blobToDataUrl(blob) {
 async function loadItems() {
   if (!isSupabaseConfigured) {
     items = readLocalItems();
+    setCounts({ collection: items.length });
     return items;
   }
   const { data, error } = await supabase
@@ -159,7 +163,28 @@ async function loadItems() {
   if (error) throw error;
   items = data || [];
   saveCloudCache(items);
+  markCache('collection', false, items.length);
+  reportCollection(items);
   return items;
+}
+
+// 上报收藏数量，并在出现新上传时推一条 HUD 活动
+function reportCollection(list) {
+  try {
+    const newest = list.reduce((max, item) => {
+      const time = Date.parse(item?.created_at || '') || 0;
+      return time > max ? time : max;
+    }, 0);
+    if (newest > lastActivityAt) {
+      if (lastActivityAt > 0) {
+        notifyActivity({ type: 'collection', label: 'COLLECTION +1', at: newest });
+      }
+      lastActivityAt = newest;
+    }
+    logEvent('ok', `ARCHIVE COLLECTION ${list.length}`);
+  } catch (error) {
+    /* 遥测失败不影响收藏列表 */
+  }
 }
 
 // 上传前压缩：最长边 2000px，WebP 0.85，显著降低流量与 Storage 占用
@@ -507,6 +532,7 @@ export async function refreshImageCollection() {
     const cached = readCloudCache();
     if (cached.length > 0) {
       items = cached;
+      markCache('collection', true, cached.length);
       render();
     }
   }
@@ -516,10 +542,13 @@ export async function refreshImageCollection() {
     render();
   } catch (error) {
     console.error('加载图片收藏失败:', error);
-    const empty = el('collection-empty');
-    if (empty) {
-      empty.classList.remove('hidden');
-      empty.textContent = '加载失败，请检查云端配置';
+    // 已有云端快照时保留卡片，弱网失败不再把列表清空成“加载失败”
+    if (items.length === 0) {
+      const empty = el('collection-empty');
+      if (empty) {
+        empty.classList.remove('hidden');
+        empty.textContent = '加载失败，请检查网络后重试';
+      }
     }
   }
 }
