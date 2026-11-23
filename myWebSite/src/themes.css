@@ -2425,3 +2425,14 @@ html[data-style="y2k"] .portfolio-upload-status {
 html[data-style="y2k"] .portfolio-modal-actions {
   background: linear-gradient(to top, #d8cbe4 72%, transparent);
 }
+
+/* --------------------------------------------------------------------------
+ * 收藏预览遮罩：与各主题抽屉底色对齐，展开按钮叠在渐隐区上
+ * -------------------------------------------------------------------------- */
+html[data-style="aero"] .collection-grid-wrap {
+  --collection-fade: rgba(246, 253, 255, 0.94);
+}
+
+html[data-style="y2k"] .collection-grid-wrap {
+  --collection-fade: var(--win-face, #d9d9e3);
+}
