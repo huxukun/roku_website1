@@ -3999,7 +3999,7 @@ img.crt-bezel {
   .sheet-header {
     flex-wrap: nowrap;
     gap: 0.6rem;
-    padding: 0.55rem 0.7rem;
+    padding: 0.45rem 0.6rem;
   }
 
   .sheet-title {
@@ -4016,7 +4016,7 @@ img.crt-bezel {
   }
 
   .sheet-nav-btn {
-    padding: 0.4rem 0.1rem 0.5rem;
+    padding: 0.34rem 0.08rem 0.4rem;
     font-size: clamp(0.5rem, 2.9vw, 0.65rem);
     letter-spacing: 0;
     text-align: center;
@@ -6166,6 +6166,9 @@ body.racer-garage-open #now-playing {
 
 .portfolio-dialog {
   width: 100%;
+  /* 移动端 .nes-dialog 的左右 margin / max-width 会把弹窗挤出容器 */
+  max-width: 100% !important;
+  margin: 0 !important;
   padding: 1.1rem 1.15rem 1.2rem !important;
   background: var(--semi-purple-bg);
   border: 3px solid var(--neon-cyan) !important;
@@ -6463,6 +6466,20 @@ body.racer-garage-open #now-playing {
   .portfolio-delete-btn {
     font-size: 0.55rem;
     padding: 0.18rem 0.25rem;
+  }
+}
+
+/* 中等宽度（约 1024–1180）：6 个导航项一行放不下时会横向溢出，
+   压缩间距与字号让它们完整落在抽屉标题栏内 */
+@media (min-width: 769px) and (max-width: 1180px) and (min-aspect-ratio: 1 / 1) {
+  .sheet-nav {
+    gap: 0.35rem;
+  }
+
+  .sheet-nav-btn {
+    padding: 0.55rem 0.68rem 0.65rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
   }
 }
 
