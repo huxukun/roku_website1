@@ -3523,6 +3523,7 @@ export default class UIManager {
   // 初始化博客
   async initBlogs() {
     this.blogsFromCloudCache = false;
+    this.initBlogCollapse();
     // 先用上次的云端快照渲染，网络慢时列表不必空着等接口
     if (this.isSupabaseConfigured) {
       const cached = readBlogsCloudCache();
@@ -3535,6 +3536,43 @@ export default class UIManager {
     }
     await this.loadBlogs();
     await this.createBlogList();
+  }
+
+  // 博客列表折叠：默认展示前 6 篇，其余通过底部遮罩按钮展开
+  initBlogCollapse() {
+    const toggle = document.getElementById('blog-toggle');
+    const wrap = document.querySelector('.blog-list-wrap');
+    if (!toggle || !wrap) return;
+
+    toggle.addEventListener('click', () => {
+      const preview = !wrap.classList.contains('is-preview');
+      wrap.classList.toggle('is-preview', preview);
+      toggle.classList.toggle('is-open', !preview);
+      toggle.setAttribute('aria-expanded', String(!preview));
+      this.updateBlogCollapse();
+    });
+
+    this.updateBlogCollapse();
+  }
+
+  updateBlogCollapse() {
+    const wrap = document.querySelector('.blog-list-wrap');
+    const toggle = document.getElementById('blog-toggle');
+    if (!wrap || !toggle || !this.blogListContainer) return;
+
+    const previewLimit = 6;
+    const total = this.blogListContainer.querySelectorAll('.blog-item').length;
+    const hasMore = total > previewLimit;
+    const previewing = wrap.classList.contains('is-preview');
+
+    wrap.classList.toggle('is-empty', !hasMore);
+    toggle.classList.toggle('hidden', !hasMore);
+
+    const text = toggle.querySelector('.blog-toggle-text');
+    if (text) text.textContent = t(previewing ? 'blog-expand' : 'blog-collapse');
+
+    const count = toggle.querySelector('.blog-toggle-count');
+    if (count) count.textContent = hasMore && previewing ? `(+${total - previewLimit})` : '';
   }
 
   // 加载博客文章
@@ -3596,6 +3634,8 @@ export default class UIManager {
         });
         this.blogListContainer.appendChild(item);
       });
+
+      this.updateBlogCollapse();
     } catch (error) {
       console.error('Error creating blog list:', error);
     } finally {
