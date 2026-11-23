@@ -3690,6 +3690,48 @@ img.crt-bezel {
   cursor: pointer;
 }
 
+/* 分区标题右侧的操作按钮组（上传 / 折叠） */
+.sheet-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* 互联网收藏折叠开关 */
+.sheet-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--neon-cyan);
+  background: rgba(0, 255, 255, 0.06);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.sheet-collapse-btn:hover {
+  background: rgba(0, 255, 255, 0.14);
+  border-color: rgba(0, 255, 255, 0.6);
+}
+
+.sheet-collapse-btn .collection-toggle-icon {
+  transition: transform 0.25s ease;
+}
+
+.sheet-collapse-btn.is-open .collection-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* 折叠后只保留标题行，图片网格彻底移出布局，懒加载图片也不会被提前下载 */
+.collection-body.is-collapsed {
+  display: none;
+}
+
 .collection-upload-status {
   margin-bottom: 0.9rem;
   padding: 0.5rem 0.7rem;

@@ -470,6 +470,8 @@ function applyTexts() {
   const empty = el('collection-empty');
   if (empty) empty.textContent = t('collection-empty');
 
+  syncCollapseText();
+
   document.querySelectorAll('.collection-like').forEach((btn) => {
     btn.title = t('collection-like');
     btn.setAttribute('aria-label', t('collection-like'));
@@ -478,6 +480,34 @@ function applyTexts() {
   document.querySelectorAll('.collection-delete').forEach((btn) => {
     btn.title = t('collection-delete');
   });
+}
+
+/* 折叠区文字随展开/收起状态与语言切换同步 */
+function syncCollapseText() {
+  const text = document.querySelector('.collection-toggle-text');
+  const body = el('collection-body');
+  if (!text || !body) return;
+  text.textContent = t(body.classList.contains('is-collapsed') ? 'collection-expand' : 'collection-collapse');
+}
+
+function initCollectionCollapse() {
+  const toggle = el('collection-toggle');
+  const body = el('collection-body');
+  if (!toggle || !body) return;
+
+  const apply = (collapsed) => {
+    body.classList.toggle('is-collapsed', collapsed);
+    toggle.classList.toggle('is-open', !collapsed);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    syncCollapseText();
+  };
+
+  toggle.addEventListener('click', () => {
+    apply(!body.classList.contains('is-collapsed'));
+  });
+
+  // 默认折叠状态写在 HTML 上，这里只对齐按钮文案与 aria
+  apply(body.classList.contains('is-collapsed'));
 }
 
 async function handleFiles(fileList) {
@@ -563,6 +593,8 @@ export function initImageCollection() {
     await handleFiles(input.files);
     input.value = '';
   });
+
+  initCollectionCollapse();
 
   refreshImageCollection();
 
