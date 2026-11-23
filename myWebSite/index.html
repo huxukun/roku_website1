@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 尽早与 Supabase 建立 DNS/TLS 连接：不等主包下载完就开始握手，首个数据请求少一次往返 -->
+    <script>
+      (function () {
+        var url = '%VITE_SUPABASE_URL%'
+        if (!url || url.indexOf('http') !== 0) return
+        try {
+          var origin = new URL(url).origin
+          ;[['preconnect', 'anonymous'], ['dns-prefetch', '']].forEach(function (item) {
+            var link = document.createElement('link')
+            link.rel = item[0]
+            link.href = origin
+            if (item[1]) link.crossOrigin = item[1]
+            document.head.appendChild(link)
+          })
+        } catch (error) {
+          /* 环境变量异常时忽略 */
+        }
+      })()
+    </script>
     <link rel="preload" href="/fonts/pixel-zh.woff2" as="font" type="font/woff2" crossorigin>
     <link href="/vendor/nes-core.min.css" rel="stylesheet">
     <title>ROKU HERE</title>
@@ -49,6 +68,7 @@
     
     <div id="loading-screen" class="loading-screen">
       <div class="loading-content">
+        <ul id="boot-log" class="boot-log" aria-hidden="true"></ul>
         <h1 class="loading-title">加载中...</h1>
         <progress id="loading-progress" class="nes-progress is-success" value="0" max="100"></progress>
         <p id="loading-text">0%</p>
@@ -225,6 +245,15 @@
 
 
     <!-- Blog：内容已迁移至 #content-sheet > #sheet-blog -->
+
+    <!-- ====================================================================
+         赛博终端 HUD (L3, z:130)
+         仅 synth 风格显示，位于内容面板之下，pointer-events:none 不拦截交互
+         ==================================================================== -->
+    <div id="hud-layer" class="hud-layer" aria-hidden="true">
+      <aside id="hud-left" class="hud-rail hud-left"></aside>
+      <aside id="hud-right" class="hud-rail hud-right"></aside>
+    </div>
 
     <!-- ====================================================================
          内容面板层 SHEET (L3.5, z:150)

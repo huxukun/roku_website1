@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { markCache, setCounts, logEvent } from './hudTelemetry.js';
 
 /* 歌单清单缓存：先渲染上次的列表，再后台刷新。
    云端慢或暂时离线时，音乐按钮依然可以立即点开。 */
@@ -32,7 +33,20 @@ class MusicService {
     if (Array.isArray(cached.songs)) this.songs = cached.songs;
     if (Array.isArray(cached.mainBgmSongs)) this.mainBgmSongs = cached.mainBgmSongs;
     if (Array.isArray(cached.gameBgmSongs)) this.gameBgmSongs = cached.gameBgmSongs;
+    markCache('music', true);
+    this.reportLibrary();
     return true;
+  }
+
+  // 曲库总数上报给 HUD 的 MUSIC 卡
+  reportLibrary() {
+    try {
+      setCounts({
+        songs: this.songs.length + this.mainBgmSongs.length + this.gameBgmSongs.length
+      });
+    } catch (error) {
+      /* 遥测失败不影响播放 */
+    }
   }
 
   saveCache() {
@@ -66,6 +80,9 @@ class MusicService {
       this.songs = rows;
       this.songs = this.songs.map(({ url, ...song }) => song);
       this.saveCache();
+      markCache('music', false);
+      this.reportLibrary();
+      logEvent('ok', `MUSIC LIBRARY ${this.songs.length}`);
       console.log('MusicService: Fetched songs:', this.songs.length);
       return true;
     } catch (error) {
@@ -75,7 +92,8 @@ class MusicService {
   }
 
   /* 列出桶内某个 BGM 文件夹下的音频，转成播放列表项；
-     传歌时只需把 mp3 放进对应文件夹，无需再往数据库插记录 */
+     传歌时只需把 mp3 放进对应文件夹，无需再往数据库插记录。
+     请求失败时返回 null（区别于“文件夹为空”的 []），调用方保留旧缓存。 */
   async fetchBgmFolder(folder, playlist) {
     try {
       const { data, error } = await supabase.storage.from('music-files').list(folder, {
@@ -85,7 +103,7 @@ class MusicService {
 
       if (error) {
         console.error(`MusicService: Error listing ${folder} folder:`, error)
-        return []
+        return null
       }
 
       const list = (data || [])
@@ -107,15 +125,22 @@ class MusicService {
       return list
     } catch (error) {
       console.error(`MusicService: Exception listing ${folder} folder:`, error)
-      return []
+      return null
     }
   }
 
   /* MainSynthBGM = 3D 主场景歌单，GameSynthBGM = 赛车游戏歌单（MyFavor 暂不播放） */
   async fetchBgmSongs() {
-    this.mainBgmSongs = await this.fetchBgmFolder('MainSynthBGM', 'main')
-    this.gameBgmSongs = await this.fetchBgmFolder('GameSynthBGM', 'game')
+    // 两个文件夹并行请求，弱网下少等一轮往返
+    const [main, game] = await Promise.all([
+      this.fetchBgmFolder('MainSynthBGM', 'main'),
+      this.fetchBgmFolder('GameSynthBGM', 'game'),
+    ])
+    // 请求失败时保留上次缓存，避免弱网下歌单被清空成默认占位
+    if (main) this.mainBgmSongs = main
+    if (game) this.gameBgmSongs = game
     this.saveCache()
+    this.reportLibrary()
     return this.mainBgmSongs.length + this.gameBgmSongs.length
   }
 

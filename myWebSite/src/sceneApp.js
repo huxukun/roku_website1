@@ -5,7 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { VHSShader } from './VHSPass.js'
-import { bloomScale, maxPixelRatio } from './perfConfig.js'
+import { bloomScale, maxPixelRatio, isMobile } from './perfConfig.js'
 
 import Scene from './Scene.js'
 import Camera from './Camera.js'
@@ -19,6 +19,8 @@ import WireframeMountain from './WireframeMountain.js'
 import VirtualAvatar from './VirtualAvatar.js'
 import PinkOzoneFog from './PinkOzoneFog.js'
 import MusicVisualizer from './MusicVisualizer.js'
+import DataConstellation from './DataConstellation.js'
+import { setSpectrumProvider } from './hudTelemetry.js'
 import { t } from './i18n.js'
 
 const canvas = document.querySelector('canvas.webgl')
@@ -63,6 +65,10 @@ const rightMountain = new WireframeMountain(scene.instance, 'right')
 const virtualAvatar = new VirtualAvatar(scene.instance, camera.instance, canvas)
 const pinkOzoneFog = new PinkOzoneFog(scene.instance, camera.instance)
 const musicVisualizer = new MusicVisualizer(scene.instance, camera.instance)
+// HUD 频谱直接复用 MusicVisualizer 的 AnalyserNode
+setSpectrumProvider(() => musicVisualizer.getSpectrum())
+// 悬浮在网格上方的数据星图（真实技能/留言/作品数据驱动）
+const dataConstellation = new DataConstellation(scene.instance, { mobile: isMobile })
 
 let composer
 /* 默认辉光强度；游戏内压到 BLOOM_STRENGTH_GAME，退出后还原 */
@@ -692,6 +698,7 @@ requestAnimationFrame(animate)
 const clock = new THREE.Clock();
 let racerUpdateFailed = false
 let musicVisualizerFailed = false
+let constellationUpdateFailed = false
 let normalRotationY = 0;
 let normalRotationX = 0;
 let galleryRotationY = 0;
@@ -925,6 +932,21 @@ const tick = (time) => {
       console.error('Music visualizer update failed:', error)
     }
   }
+
+  /* 数据星图：赛车与画廊模式隐藏；单帧异常不影响主渲染 */
+  const racerRunning = typeof racerMode?.isActive === 'function' ? racerMode.isActive() : !!racerMode
+  const constellationVisible = !racerRunning && !isGalleryMode
+  dataConstellation.setVisible(constellationVisible)
+  if (constellationVisible) {
+    try {
+      dataConstellation.update(time, delta)
+    } catch (error) {
+      if (!constellationUpdateFailed) {
+        constellationUpdateFailed = true
+        console.error('Data constellation update failed:', error)
+      }
+    }
+  }
   
   // 更新 VHS 后处理时间（驱动扫描线/抖动/噪点动画）
   vhsPass.uniforms.time.value = elapsedTime
@@ -1029,6 +1051,10 @@ function cleanup() {
 
   if (musicVisualizer) {
     musicVisualizer.dispose()
+  }
+
+  if (dataConstellation) {
+    dataConstellation.dispose()
   }
 
   if (scene) {

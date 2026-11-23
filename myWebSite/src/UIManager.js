@@ -64,8 +64,9 @@ const blogData = [
 ];
 
 // Supabase 导入
-import { supabase } from './supabase.js';
+import { supabase, isSupabaseConfigured } from './supabase.js';
 import { refreshSkills } from './skillsManager.js';
+import { markCache, setCounts, notifyActivity, logEvent } from './hudTelemetry.js';
 import { DEFAULT_PROFILE, LOCAL_STORAGE_PROFILE_KEY, getDefaultBio } from './profileConfig.js';
 import { 
   ADMIN_PASSWORD, 
@@ -471,6 +472,25 @@ async function deleteBlogFromSupabase(id) {
 
 // LocalStorage 博客存储键名
 const LOCAL_STORAGE_BLOG_KEY = 'synthwave_blogs';
+// 云端博客的只读快照：先渲染上次结果，弱网时不必等接口返回
+const BLOG_CLOUD_CACHE_KEY = 'synthwave-blogs-cloud-cache';
+
+function readBlogsCloudCache() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(BLOG_CLOUD_CACHE_KEY) || '[]');
+    return Array.isArray(stored) ? stored : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeBlogsCloudCache(blogs) {
+  try {
+    localStorage.setItem(BLOG_CLOUD_CACHE_KEY, JSON.stringify(blogs));
+  } catch (error) {
+    /* 配额不足时忽略，不影响线上数据 */
+  }
+}
 
 // 从 localStorage 加载博客
 function loadBlogsFromLocalStorage() {
@@ -575,7 +595,8 @@ export default class UIManager {
   }
 
   constructor() {
-    this.isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
+    // 与 supabase.js 保持一致：URL 与 Anon Key 都配置好才走云端
+    this.isSupabaseConfigured = isSupabaseConfigured;
     this.isLoadingMessages = false;
     this.isSubmitting = false;
     this.isSavingProfile = false;
@@ -1584,6 +1605,7 @@ export default class UIManager {
       if (cached.length > 0) {
         this.portfolioItems = cached;
         this.portfolioCloudReady = true;
+        markCache('portfolio', true, cached.length);
         await this.renderPortfolio();
       }
     }
@@ -1593,6 +1615,7 @@ export default class UIManager {
 
   async loadPortfolio() {
     if (this.isSupabaseConfigured) {
+      const previousTopId = this.portfolioItems?.[0]?.id;
       try {
         const { data, error } = await supabase
           .from(PORTFOLIO_TABLE)
@@ -1603,10 +1626,18 @@ export default class UIManager {
         this.portfolioItems = (data || []).map((item, i) => ({ ...item, position: Number(item.position ?? i) }));
         this.portfolioCloudReady = true;
         writePortfolioCloudCache(this.portfolioItems);
+        markCache('portfolio', false, this.portfolioItems.length);
+        logEvent('ok', `ARCHIVE PORTFOLIO ${this.portfolioItems.length}`);
+        const nextTopId = this.portfolioItems[0]?.id;
+        if (previousTopId && nextTopId && String(previousTopId) !== String(nextTopId)) {
+          notifyActivity({ type: 'portfolio', label: 'PORTFOLIO +1', at: Date.now() });
+        }
         return;
       } catch (error) {
         console.error('从 Supabase 加载作品集失败，已切换为本地存储:', error);
         this.portfolioCloudReady = false;
+        // 已经有云端快照时保留快照，别让弱网超时把作品集清空
+        if (Array.isArray(this.portfolioItems) && this.portfolioItems.length > 0) return;
       }
     }
     this.portfolioItems = readPortfolioFromLocal();
@@ -2312,12 +2343,14 @@ export default class UIManager {
       const cached = loadMessagesFromLocalStorage();
       if (cached.length > 0) {
         guestbookMessages = cached;
+        markCache('messages', true, cached.length);
         this.renderMessages(cached);
       }
       await this.loadMessagesFromSupabase();
     } else {
       console.warn('Supabase is not configured. Using localStorage.');
       guestbookMessages = loadMessagesFromLocalStorage();
+      setCounts({ messages: guestbookMessages.length });
       this.renderMessages(guestbookMessages);
     }
   }
@@ -2331,15 +2364,23 @@ export default class UIManager {
     this.hideError();
 
     try {
+      const previousTopId = guestbookMessages?.[0]?.id;
       guestbookMessages = await loadGuestbookMessagesFromSupabase();
       this.renderMessages(guestbookMessages);
       // 写入本地缓存，下次启动可先秒开
       saveMessagesToLocalStorage(guestbookMessages);
+      markCache('messages', false, guestbookMessages.length);
+      logEvent('ok', `ARCHIVE GUESTBOOK ${guestbookMessages.length}`);
+      const nextTopId = guestbookMessages?.[0]?.id;
+      if (previousTopId && nextTopId && String(previousTopId) !== String(nextTopId)) {
+        notifyActivity({ type: 'message', label: 'GUESTBOOK SIGNAL', at: Date.now() });
+      }
       this.updateStorageStatus(true);
     } catch (error) {
       console.error('Error loading from Supabase, falling back to localStorage:', error);
       this.updateStorageStatus(false);
       guestbookMessages = loadMessagesFromLocalStorage();
+      setCounts({ messages: guestbookMessages.length });
       this.renderMessages(guestbookMessages);
       this.showError(`连接 Supabase 失败: ${error.message || '未知错误'}\n已切换到本地存储模式`);
     } finally {
@@ -3142,6 +3183,9 @@ export default class UIManager {
   // 初始化个人信息
   async initProfile() {
     try {
+      // 本地缓存先渲染，云端资料回来后再覆盖；弱网时不会长时间停在默认头像/简介
+      this.currentProfile = loadProfileFromLocalStorage();
+      this.renderProfile().catch(() => {});
       await this.loadProfile();
     } catch (error) {
       console.error('Error initializing profile:', error);
@@ -3478,6 +3522,17 @@ export default class UIManager {
 
   // 初始化博客
   async initBlogs() {
+    this.blogsFromCloudCache = false;
+    // 先用上次的云端快照渲染，网络慢时列表不必空着等接口
+    if (this.isSupabaseConfigured) {
+      const cached = readBlogsCloudCache();
+      if (cached.length > 0) {
+        this.currentBlogs = cached;
+        this.blogsFromCloudCache = true;
+        markCache('blogs', true, cached.length);
+        await this.createBlogList();
+      }
+    }
     await this.loadBlogs();
     await this.createBlogList();
   }
@@ -3487,13 +3542,19 @@ export default class UIManager {
     if (this.isSupabaseConfigured) {
       try {
         const blogs = await loadBlogsFromSupabase();
-        if (blogs && blogs.length > 0) {
+        if (Array.isArray(blogs)) {
           this.currentBlogs = blogs;
+          this.blogsFromCloudCache = true;
+          writeBlogsCloudCache(blogs);
+          markCache('blogs', false, blogs.length);
+          logEvent('ok', `ARCHIVE BLOG ${blogs.length}`);
           return;
         }
       } catch (error) {
         console.error('Error loading blogs from Supabase, falling back to localStorage:', error);
       }
+      // 弱网/超时后保留已渲染的云端快照，避免把数据库文章换成默认示例
+      if (this.blogsFromCloudCache && this.currentBlogs?.length > 0) return;
     }
     // 回退到 localStorage
     this.currentBlogs = loadBlogsFromLocalStorage();

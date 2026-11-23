@@ -245,6 +245,14 @@ export default class MusicVisualizer {
     }
   }
 
+  /* HUD 频谱复用同一个 AnalyserNode：
+     不能为同一个 <audio> 再建第二个 MediaElementSource，否则会静音/报错 */
+  getSpectrum() {
+    if (!this.analyser || !this.isPlaying) return null
+    this.analyser.getByteFrequencyData(this.dataArray)
+    return this.dataArray
+  }
+
   update(time) {
     if (this.hasAudioData && this.analyser && this.isPlaying) {
       this.analyser.getByteFrequencyData(this.dataArray)

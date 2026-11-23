@@ -1,9 +1,40 @@
 import { supabase, isSupabaseConfigured } from './supabase.js';
 import { t } from './i18n.js';
+import { markCache, setCounts, setDataset, logEvent } from './hudTelemetry.js';
 
 const TABLE = 'skills_items';
 const LOCAL_STORAGE_KEY = 'synthwave-skills';
 const SEED_FLAG_KEY = 'synthwave-skills-seeded';
+/* 云端技能列表的只读快照：先渲染上次结果，弱网时不必空着等接口 */
+const CLOUD_CACHE_KEY = 'synthwave-skills-cloud-cache';
+
+function readCloudCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CLOUD_CACHE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeCloudCache(next) {
+  try {
+    localStorage.setItem(CLOUD_CACHE_KEY, JSON.stringify(next));
+  } catch (error) {
+    /* 配额不足时忽略 */
+  }
+}
+
+// 把技能数量与等级上报给 HUD / 数据星图
+function reportSkills() {
+  try {
+    setCounts({ skills: items.length });
+    setDataset('skills', items);
+    logEvent('ok', `ARCHIVE SKILLS ${items.length}`);
+  } catch (error) {
+    /* 遥测失败不影响技能列表 */
+  }
+}
 
 const DEFAULT_SKILLS = [
   { name: 'Blender', level: 90 },
@@ -89,6 +120,8 @@ async function seedDefaults() {
 async function loadItems() {
   if (!isSupabaseConfigured) {
     items = readLocal();
+    setCounts({ skills: items.length });
+    setDataset('skills', items);
     return items;
   }
 
@@ -99,17 +132,25 @@ async function loadItems() {
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.warn('技能表读取失败，使用本地回退：', error.message);
-    items = readLocal();
+    console.warn('技能表读取失败，使用本地缓存：', error.message);
+    // 已渲染的云端快照优先保留，避免弱网时回退成默认技能
+    if (items.length === 0) items = readLocal();
+    reportSkills();
     return items;
   }
 
   if (!data || data.length === 0) {
     items = (await seedDefaults()) || [];
+    writeCloudCache(items);
+    markCache('skills', false, items.length);
+    reportSkills();
     return items;
   }
 
   items = data;
+  writeCloudCache(items);
+  markCache('skills', false, items.length);
+  reportSkills();
   return items;
 }
 
@@ -301,6 +342,17 @@ function render() {
 export async function refreshSkills() {
   const container = el('skills-container');
   if (!container) return;
+
+  // 先用上次的云端快照渲染，网络请求在后台继续
+  if (isSupabaseConfigured && items.length === 0) {
+    const cached = readCloudCache();
+    if (cached.length > 0) {
+      items = cached;
+      markCache('skills', true, cached.length);
+      render();
+    }
+  }
+
   try {
     await loadItems();
     render();
