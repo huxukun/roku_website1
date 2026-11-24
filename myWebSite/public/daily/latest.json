@@ -1,31 +1,31 @@
 {
-  "date": "2026-11-23",
-  "generated_at": "2026-11-23T02:18:35Z",
+  "date": "2026-11-24",
+  "generated_at": "2026-11-24T05:44:55Z",
   "apod": {
-    "title": "Swirls and Colors on Jupiter from Juno",
-    "date": "2026-11-22",
+    "title": "Galaxies Battle in the NGC 7771 Group",
+    "date": "2026-11-24",
     "media_type": "image",
-    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/JupiterSwirls_JunoBrealey_3709.jpg?w=3709&h=2772&fit=clip",
-    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/JupiterSwirls_JunoBrealey_3709.jpg?w=3709&h=2772&fit=clip",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/NGC7771group_Marinoni_1179.jpg?w=1179&h=1422&fit=clip",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/NGC7771group_Marinoni_1179.jpg?w=1179&h=1422&fit=clip",
     "thumbnail_url": "",
-    "explanation": "Explanation: What creates the colors in Jupiter's clouds? No one is sure. The thick atmosphere of Jupiter is mostly hydrogen and helium , elements which are colorless at the low temperatures of the Jovian cloud tops . Which trace molecules provide the colors remains a topic of research , although small amounts of ammonium hydrosulfide are one leading candidate . What is clear from the featured color-enhanced image -- and many similar images -- is that lighter clouds are typically higher up than darker ones. Pictured, light clouds swirl around reddish regions toward the lower right, while they appear to cover over some darker domains on the upper right. The featured image was taken by the robotic Juno spacecraft in 2018 during its 14th low pass over Jupiter . Juno continues in its looping elliptical orbit, swooping near the huge planet every 33 days and exploring a slightly different sector each time around. Tomorrow's picture: emerging darkness",
-    "copyright": "NASA , Juno , SwRI , MSSS ; Processing & License : Matt Brealey , Seán Doran"
+    "explanation": "Explanation: After this galaxy battle, only one galaxy will remain. Already visible in the featured picture are rings and faint star swirls from previous gravitational encounters . Known collectively as the NGC 7771 Group , these galaxies lie almost 200 million light-years away toward the high-flying constellation Pegasus . The largest galaxy, barred spiral NGC 7771 on the lower right, is itself about 75,000 light-years across, and the galaxy on the upper left is spiral NGC 7769 , which is almost as large. As these and other smaller galaxies make repeated close passages, they will all likely merge into one very large galaxy. Playing out over billions of years, the merger process is understood to be a normal part of the evolution of galaxies . Studying galaxy clashes like this helps humanity to better understand the possible merger between our own Milky Way and Andromeda galaxies. Tomorrow's picture: open space",
+    "copyright": "Roberto Marinoni"
   },
   "moon": {
-    "phase": 0.46,
-    "illumination": 0.984,
-    "name": "盈凸月",
-    "emoji": "🌔"
+    "phase": 0.494,
+    "illumination": 1,
+    "name": "满月",
+    "emoji": "🌕"
   },
   "sun": {
-    "sunrise": "06:40",
+    "sunrise": "06:41",
     "sunset": "17:01"
   },
   "planets": [
     {
       "name": "木星",
       "azimuth": "东南",
-      "altitude": 68,
+      "altitude": 69,
       "time": "05:00"
     },
     {
@@ -43,14 +43,14 @@
     {
       "name": "金星",
       "azimuth": "东",
-      "altitude": 14,
+      "altitude": 15,
       "time": "05:00"
     }
   ],
   "event": {
     "name": "双子座流星雨",
     "date": "2026-12-14",
-    "days": 21,
+    "days": 20,
     "zhr": 150
   }
 }

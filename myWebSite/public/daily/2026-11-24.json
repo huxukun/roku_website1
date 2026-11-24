@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-24",
+  "generated_at": "2026-11-24T05:44:55Z",
+  "apod": {
+    "title": "Galaxies Battle in the NGC 7771 Group",
+    "date": "2026-11-24",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/NGC7771group_Marinoni_1179.jpg?w=1179&h=1422&fit=clip",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/NGC7771group_Marinoni_1179.jpg?w=1179&h=1422&fit=clip",
+    "thumbnail_url": "",
+    "explanation": "Explanation: After this galaxy battle, only one galaxy will remain. Already visible in the featured picture are rings and faint star swirls from previous gravitational encounters . Known collectively as the NGC 7771 Group , these galaxies lie almost 200 million light-years away toward the high-flying constellation Pegasus . The largest galaxy, barred spiral NGC 7771 on the lower right, is itself about 75,000 light-years across, and the galaxy on the upper left is spiral NGC 7769 , which is almost as large. As these and other smaller galaxies make repeated close passages, they will all likely merge into one very large galaxy. Playing out over billions of years, the merger process is understood to be a normal part of the evolution of galaxies . Studying galaxy clashes like this helps humanity to better understand the possible merger between our own Milky Way and Andromeda galaxies. Tomorrow's picture: open space",
+    "copyright": "Roberto Marinoni"
+  },
+  "moon": {
+    "phase": 0.494,
+    "illumination": 1,
+    "name": "满月",
+    "emoji": "🌕"
+  },
+  "sun": {
+    "sunrise": "06:41",
+    "sunset": "17:01"
+  },
+  "planets": [
+    {
+      "name": "木星",
+      "azimuth": "东南",
+      "altitude": 69,
+      "time": "05:00"
+    },
+    {
+      "name": "火星",
+      "azimuth": "东南",
+      "altitude": 67,
+      "time": "05:00"
+    },
+    {
+      "name": "土星",
+      "azimuth": "南",
+      "altitude": 58,
+      "time": "20:00"
+    },
+    {
+      "name": "金星",
+      "azimuth": "东",
+      "altitude": 15,
+      "time": "05:00"
+    }
+  ],
+  "event": {
+    "name": "双子座流星雨",
+    "date": "2026-12-14",
+    "days": 20,
+    "zhr": 150
+  }
+}
