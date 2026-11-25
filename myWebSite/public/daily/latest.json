@@ -1,6 +1,6 @@
 {
-  "date": "2026-11-24",
-  "generated_at": "2026-11-24T05:44:55Z",
+  "date": "2026-11-25",
+  "generated_at": "2026-11-25T04:47:49Z",
   "apod": {
     "title": "Galaxies Battle in the NGC 7771 Group",
     "date": "2026-11-24",
@@ -12,13 +12,13 @@
     "copyright": "Roberto Marinoni"
   },
   "moon": {
-    "phase": 0.494,
-    "illumination": 1,
+    "phase": 0.528,
+    "illumination": 0.992,
     "name": "满月",
     "emoji": "🌕"
   },
   "sun": {
-    "sunrise": "06:41",
+    "sunrise": "06:42",
     "sunset": "17:01"
   },
   "planets": [
@@ -50,7 +50,7 @@
   "event": {
     "name": "双子座流星雨",
     "date": "2026-12-14",
-    "days": 20,
+    "days": 19,
     "zhr": 150
   }
 }
