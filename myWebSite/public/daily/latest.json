@@ -1,25 +1,25 @@
 {
-  "date": "2026-11-25",
-  "generated_at": "2026-11-25T04:47:49Z",
+  "date": "2026-11-26",
+  "generated_at": "2026-11-26T03:58:11Z",
   "apod": {
-    "title": "Galaxies Battle in the NGC 7771 Group",
-    "date": "2026-11-24",
-    "media_type": "image",
-    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/NGC7771group_Marinoni_1179.jpg?w=1179&h=1422&fit=clip",
-    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/NGC7771group_Marinoni_1179.jpg?w=1179&h=1422&fit=clip",
-    "thumbnail_url": "",
-    "explanation": "Explanation: After this galaxy battle, only one galaxy will remain. Already visible in the featured picture are rings and faint star swirls from previous gravitational encounters . Known collectively as the NGC 7771 Group , these galaxies lie almost 200 million light-years away toward the high-flying constellation Pegasus . The largest galaxy, barred spiral NGC 7771 on the lower right, is itself about 75,000 light-years across, and the galaxy on the upper left is spiral NGC 7769 , which is almost as large. As these and other smaller galaxies make repeated close passages, they will all likely merge into one very large galaxy. Playing out over billions of years, the merger process is understood to be a normal part of the evolution of galaxies . Studying galaxy clashes like this helps humanity to better understand the possible merger between our own Milky Way and Andromeda galaxies. Tomorrow's picture: open space",
-    "copyright": "Roberto Marinoni"
+    "title": "SPHEREx Seeing Through Dust",
+    "date": "2026-11-25",
+    "media_type": "video",
+    "url": "https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&h=2040&fit=clip",
+    "thumbnail_url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&h=2040&fit=clip",
+    "explanation": "Explanation: What is blocking the center of the Milky Way? During its 13 billion years , our Milky Way has collected a lot of dust. In contrast to the skin cells, dirt, pollen, and other debris that make up the dust behind your couch, cosmic dust is hundreds of times smaller and made of tiny compounds of oxygen, carbon, and other elements released into space when a star dies . Today’s video shows infrared light from the Milky Way’s center gathered by NASA’s SPHEREx satellite. Each false color in the video corresponds to the infrared color associated with the wavelength shown in the top left. In the near-infrared, like 1.2 microns , light gets absorbed and scatters off of dust particles. SPHEREx then sees the Galactic Center almost entirely blocked by clouds of dust . In the mid-infrared, though, light is able to pierce through the dust and reach SPHEREx. This is similar to, but not exactly, why sunsets are red ! Tomorrow's picture: a sandy view of the Milky Way",
+    "copyright": "Credit: NASA/JPL-Caltech SPHEREx; data from NASA/IPAC IRSA. Processing: The Bright Nobles (Muhammet Mücahit Soylu, Serdar Aydın, Furkan Küpeli), ChronosphereX (chronospherex.com)."
   },
   "moon": {
-    "phase": 0.528,
-    "illumination": 0.992,
-    "name": "满月",
-    "emoji": "🌕"
+    "phase": 0.562,
+    "illumination": 0.963,
+    "name": "亏凸月",
+    "emoji": "🌖"
   },
   "sun": {
     "sunrise": "06:42",
-    "sunset": "17:01"
+    "sunset": "17:00"
   },
   "planets": [
     {
@@ -31,7 +31,7 @@
     {
       "name": "火星",
       "azimuth": "东南",
-      "altitude": 67,
+      "altitude": 68,
       "time": "05:00"
     },
     {
@@ -43,14 +43,14 @@
     {
       "name": "金星",
       "azimuth": "东",
-      "altitude": 15,
+      "altitude": 16,
       "time": "05:00"
     }
   ],
   "event": {
     "name": "双子座流星雨",
     "date": "2026-12-14",
-    "days": 19,
+    "days": 18,
     "zhr": 150
   }
 }
