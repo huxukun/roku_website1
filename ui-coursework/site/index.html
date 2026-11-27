@@ -144,6 +144,37 @@
       font-size: 13px;
     }
 
+    .cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 22px;
+      border-radius: 12px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border-bottom: 0;
+      box-shadow: 0 12px 24px -14px rgba(31, 111, 235, .9);
+      transition: transform .15s ease, background .15s ease;
+    }
+
+    .cta:hover { background: #1457c4; border-bottom: 0; }
+    .cta:active { transform: scale(.98); }
+
+    .cta--ghost {
+      background: #fff;
+      color: var(--blue-deep);
+      border: 1.5px solid var(--blue);
+      box-shadow: none;
+    }
+
+    .cta--ghost:hover { background: #f5f9ff; }
+
     a {
       color: var(--blue-deep);
       text-decoration: none;
@@ -164,18 +195,27 @@
     <h1>南京邮电大学教务系统<br />用户体验重设计</h1>
 
     <p class="lead">
-      选题基于真实的教务系统体验走查，重新设计登录、课表、成绩、选课、考试与评教等核心任务。
-      本站为 UI 及交互设计课程作品集，站点正在建设中。
+      选题基于真实的教务系统体验走查，已产出移动端高保真交互原型：今日、课表、成绩、选课、考试、我的 6 个核心页面，
+      覆盖选课排队、时间冲突、会话过期恢复等异常状态。作品集完整版仍在建设中。
     </p>
 
     <div class="divider"></div>
 
     <div class="status" role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
-      作品集网站建设中，即将上线
+      作品集完整版建设中，交互原型已可体验
     </div>
 
-    <dl class="meta">
+    <div class="cta-row">
+      <a class="cta" href="./prototype/">进入交互原型</a>
+      <a class="cta cta--ghost" href="#about">项目说明</a>
+    </div>
+
+    <p style="margin-top:12px;color:var(--muted);font-size:13px;line-height:1.7">
+      原型以 375×812 手机画布设计，建议在手机或窄窗口中体验。
+    </p>
+
+    <dl class="meta" id="about">
       <div>
         <dt>项目类型</dt>
         <dd>UI 及交互设计实验课</dd>
@@ -187,6 +227,10 @@
       <div>
         <dt>部署分支</dt>
         <dd>feat/ui-coursework</dd>
+      </div>
+      <div>
+        <dt>原型入口</dt>
+        <dd>/prototype/</dd>
       </div>
     </dl>
 
