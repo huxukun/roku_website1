@@ -1,31 +1,31 @@
 {
-  "date": "2026-11-26",
-  "generated_at": "2026-11-26T03:58:11Z",
+  "date": "2026-11-27",
+  "generated_at": "2026-11-27T03:56:52Z",
   "apod": {
-    "title": "SPHEREx Seeing Through Dust",
-    "date": "2026-11-25",
-    "media_type": "video",
-    "url": "https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/",
-    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&h=2040&fit=clip",
-    "thumbnail_url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&h=2040&fit=clip",
-    "explanation": "Explanation: What is blocking the center of the Milky Way? During its 13 billion years , our Milky Way has collected a lot of dust. In contrast to the skin cells, dirt, pollen, and other debris that make up the dust behind your couch, cosmic dust is hundreds of times smaller and made of tiny compounds of oxygen, carbon, and other elements released into space when a star dies . Today’s video shows infrared light from the Milky Way’s center gathered by NASA’s SPHEREx satellite. Each false color in the video corresponds to the infrared color associated with the wavelength shown in the top left. In the near-infrared, like 1.2 microns , light gets absorbed and scatters off of dust particles. SPHEREx then sees the Galactic Center almost entirely blocked by clouds of dust . In the mid-infrared, though, light is able to pierce through the dust and reach SPHEREx. This is similar to, but not exactly, why sunsets are red ! Tomorrow's picture: a sandy view of the Milky Way",
-    "copyright": "Credit: NASA/JPL-Caltech SPHEREx; data from NASA/IPAC IRSA. Processing: The Bright Nobles (Muhammet Mücahit Soylu, Serdar Aydın, Furkan Küpeli), ChronosphereX (chronospherex.com)."
+    "title": "Eye in the Sky: The Milky Way over Lençóis",
+    "date": "2026-11-26",
+    "media_type": "image",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&h=2276&fit=clip",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&h=2276&fit=clip",
+    "thumbnail_url": "",
+    "explanation": "Explanation: Beauty is in the eye of the beholder. And there is much to behold in today's featured image . The Milky Way shines bright in the sky of Brazil , over the white sand dunes and dark lagoons of Lençóis Maranhenses National Park . We can see different parts of the Milky Way as it apparently rotates in the sky every night and throughout the year. This composite image was taken later in the night in July from a latitude of approximately 2º south. It shows some prominent Milky Way features, such as dark dust lanes and colorful nebulas . But does the Galaxy really appear arched like a rainbow in the sky? No, this is an artifact of a picture taken with a wide-angle lens. As the Galaxy was artfully framed by the photographer, it matches the contour of the dark lagoon creating the illusion of a cosmic eye , half in space and half on the ground. Is this eye in the sky looking back at you? Tomorrow's picture: what's next?",
+    "copyright": "Ignacio Fernández"
   },
   "moon": {
-    "phase": 0.562,
-    "illumination": 0.963,
+    "phase": 0.595,
+    "illumination": 0.913,
     "name": "亏凸月",
     "emoji": "🌖"
   },
   "sun": {
-    "sunrise": "06:42",
+    "sunrise": "06:43",
     "sunset": "17:00"
   },
   "planets": [
     {
       "name": "木星",
       "azimuth": "东南",
-      "altitude": 69,
+      "altitude": 70,
       "time": "05:00"
     },
     {
@@ -37,7 +37,7 @@
     {
       "name": "土星",
       "azimuth": "南",
-      "altitude": 58,
+      "altitude": 59,
       "time": "20:00"
     },
     {
@@ -50,7 +50,7 @@
   "event": {
     "name": "双子座流星雨",
     "date": "2026-12-14",
-    "days": 18,
+    "days": 17,
     "zhr": 150
   }
 }
