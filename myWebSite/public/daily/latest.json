@@ -1,30 +1,30 @@
 {
-  "date": "2026-11-27",
-  "generated_at": "2026-11-27T03:56:52Z",
+  "date": "2026-11-28",
+  "generated_at": "2026-11-28T03:44:12Z",
   "apod": {
-    "title": "Eye in the Sky: The Milky Way over Lençóis",
-    "date": "2026-11-26",
+    "title": "The Moon Watchers",
+    "date": "2026-11-27",
     "media_type": "image",
-    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&h=2276&fit=clip",
-    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&h=2276&fit=clip",
+    "url": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Plenilunio1_2048r.jpg?w=2023&h=2048&fit=clip",
+    "hdurl": "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Plenilunio1_2048r.jpg?w=2023&h=2048&fit=clip",
     "thumbnail_url": "",
-    "explanation": "Explanation: Beauty is in the eye of the beholder. And there is much to behold in today's featured image . The Milky Way shines bright in the sky of Brazil , over the white sand dunes and dark lagoons of Lençóis Maranhenses National Park . We can see different parts of the Milky Way as it apparently rotates in the sky every night and throughout the year. This composite image was taken later in the night in July from a latitude of approximately 2º south. It shows some prominent Milky Way features, such as dark dust lanes and colorful nebulas . But does the Galaxy really appear arched like a rainbow in the sky? No, this is an artifact of a picture taken with a wide-angle lens. As the Galaxy was artfully framed by the photographer, it matches the contour of the dark lagoon creating the illusion of a cosmic eye , half in space and half on the ground. Is this eye in the sky looking back at you? Tomorrow's picture: what's next?",
-    "copyright": "Ignacio Fernández"
+    "explanation": "Explanation: On November 24 , all denizens of our fair planet could watch the Moon rise opposite the setting Sun. Easy to spot in twilight skies above fields, fences, backyards, and even stone walls, the Moon was big and bright, and at its full phase . Known to some as a Beaver Moon, November's Full Moon was also near perigee, the closest point in its elliptical orbit around planet Earth. That made it one of the biggest and brightest Full Moons, also known as a supermoon . In fact, November's Full Moon was the first in a series of four consecutive Full Moons near perigee. So your next chance to watch a supermoon rise will be when the Cold Moon rises on December 23. Tomorrow's picture: remember where you parked",
+    "copyright": "Marcella Pace"
   },
   "moon": {
-    "phase": 0.595,
-    "illumination": 0.913,
+    "phase": 0.629,
+    "illumination": 0.844,
     "name": "亏凸月",
     "emoji": "🌖"
   },
   "sun": {
-    "sunrise": "06:43",
+    "sunrise": "06:44",
     "sunset": "17:00"
   },
   "planets": [
     {
       "name": "木星",
-      "azimuth": "东南",
+      "azimuth": "南",
       "altitude": 70,
       "time": "05:00"
     },
@@ -42,7 +42,7 @@
     },
     {
       "name": "金星",
-      "azimuth": "东",
+      "azimuth": "东南",
       "altitude": 16,
       "time": "05:00"
     }
@@ -50,7 +50,7 @@
   "event": {
     "name": "双子座流星雨",
     "date": "2026-12-14",
-    "days": 17,
+    "days": 16,
     "zhr": 150
   }
 }
